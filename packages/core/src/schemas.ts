@@ -1,0 +1,150 @@
+import { z } from 'zod'
+import {
+  approvalRisks,
+  approvalStatuses,
+  artifactTypes,
+  jobStatuses,
+  packKinds,
+  permissionProfileIds,
+  providerIds,
+  providerSessionStatuses,
+  runStatuses,
+  shikumiEventTypes,
+} from './domain.js'
+
+export const registerWorkspaceRequestSchema = z.object({
+  path: z.string().trim().min(1).max(4096),
+})
+
+export const repositorySchema = z.object({
+  id: z.string().min(1),
+  absolutePath: z.string().min(1),
+  displayName: z.string().min(1),
+  currentBranch: z.string().min(1).nullable(),
+  remoteName: z.string().min(1).nullable(),
+  remoteUrl: z.string().min(1).nullable(),
+  readable: z.boolean(),
+})
+
+export const workspaceSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  defaultProviderId: z.enum(providerIds).nullable(),
+  worldPackId: z.string().min(1),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+  repository: repositorySchema,
+})
+
+export const providerSchema = z.object({
+  id: z.enum(providerIds),
+  displayName: z.string().min(1),
+  executionConnected: z.literal(false),
+})
+
+export const employeeSchema = z.object({
+  id: z.string().min(1),
+  packId: z.string().min(1),
+  name: z.string().min(1),
+  role: z.string().min(1),
+  defaultProviderId: z.enum(providerIds).nullable(),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+})
+
+export const jobSchema = z.object({
+  id: z.string().min(1),
+  workspaceId: z.string().min(1),
+  employeeId: z.string().min(1),
+  request: z.string().min(1),
+  jobType: z.string().min(1),
+  selectedProvider: z.enum(providerIds),
+  selectedModel: z.string().min(1).nullable(),
+  permissionProfile: z.enum(permissionProfileIds),
+  status: z.enum(jobStatuses),
+  providerSessionId: z.string().min(1).nullable(),
+  createdAt: z.string().min(1),
+  startedAt: z.string().min(1).nullable(),
+  completedAt: z.string().min(1).nullable(),
+})
+
+export const runSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  providerId: z.enum(providerIds),
+  status: z.enum(runStatuses),
+  createdAt: z.string().min(1),
+  startedAt: z.string().min(1).nullable(),
+  completedAt: z.string().min(1).nullable(),
+})
+
+export const persistedEventSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1).nullable(),
+  runId: z.string().min(1).nullable(),
+  type: z.enum(shikumiEventTypes),
+  payload: z.record(z.string(), z.unknown()),
+  occurredAt: z.string().min(1),
+})
+
+export const approvalRequestSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  runId: z.string().min(1).nullable(),
+  risk: z.enum(approvalRisks),
+  summary: z.string().min(1),
+  status: z.enum(approvalStatuses),
+  createdAt: z.string().min(1),
+  resolvedAt: z.string().min(1).nullable(),
+})
+
+export const artifactSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  type: z.enum(artifactTypes),
+  title: z.string().min(1),
+  storagePath: z.string().min(1).nullable(),
+  createdAt: z.string().min(1),
+})
+
+export const growthRecordSchema = z.object({
+  id: z.string().min(1),
+  employeeId: z.string().min(1),
+  workspaceId: z.string().min(1).nullable(),
+  metric: z.string().min(1),
+  value: z.number().int(),
+  createdAt: z.string().min(1),
+})
+
+export const installedPackSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(packKinds),
+  packId: z.string().min(1),
+  version: z.string().min(1),
+  sourcePath: z.string().min(1).nullable(),
+  installedAt: z.string().min(1),
+})
+
+export const providerSessionSchema = z.object({
+  id: z.string().min(1),
+  providerId: z.enum(providerIds),
+  providerSessionId: z.string().min(1),
+  workspaceId: z.string().min(1),
+  employeeId: z.string().min(1),
+  jobId: z.string().min(1),
+  cwd: z.string().min(1),
+  status: z.enum(providerSessionStatuses),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+})
+
+export const apiErrorSchema = z.object({
+  error: z.object({
+    code: z.string().min(1),
+    message: z.string().min(1),
+  }),
+})
+
+export const sessionResponseSchema = z.object({
+  token: z.string().min(1),
+})

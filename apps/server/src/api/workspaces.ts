@@ -1,0 +1,44 @@
+import {
+  AppError,
+  registerWorkspaceRequestSchema,
+  workspaceSchema,
+} from '@sikumi-local/core'
+import type { FastifyInstance } from 'fastify'
+import type { AppStore } from '../storage/store.js'
+import { registerWorkspace } from '../workspaces/register-workspace.js'
+
+export function registerWorkspaceRoutes(
+  app: FastifyInstance,
+  store: AppStore,
+): void {
+  app.get('/api/workspaces', async () => ({
+    workspaces: store.listWorkspaces(),
+  }))
+
+  app.get<{ Params: { id: string } }>(
+    '/api/workspaces/:id',
+    async (request, reply) => {
+      const workspace = store.getWorkspace(request.params.id)
+      if (!workspace) {
+        throw new AppError('NOT_FOUND', 'Workspaceが見つかりません', 404)
+      }
+      return reply.send({ workspace })
+    },
+  )
+
+  app.post('/api/workspaces', async (request, reply) => {
+    const parsed = registerWorkspaceRequestSchema.safeParse(request.body)
+    if (!parsed.success) {
+      throw new AppError(
+        'VALIDATION_FAILED',
+        'Repository path is required',
+        400,
+      )
+    }
+
+    const workspace = workspaceSchema.parse(
+      registerWorkspace(store, parsed.data.path),
+    )
+    return reply.status(201).send({ workspace })
+  })
+}

@@ -1,5 +1,7 @@
+import { mkdirSync } from 'node:fs'
 import { z } from 'zod'
 import { buildApp } from './app.js'
+import { resolveDataDirectory } from './storage/data-directory.js'
 
 const environmentSchema = z.object({
   SIKUMI_LOCAL_HOST: z.literal('127.0.0.1').default('127.0.0.1'),
@@ -12,7 +14,9 @@ const environmentSchema = z.object({
 })
 
 const environment = environmentSchema.parse(process.env)
-const app = buildApp()
+const dataDirectory = resolveDataDirectory()
+mkdirSync(dataDirectory, { recursive: true, mode: 0o700 })
+const app = buildApp({ dataDirectory })
 
 try {
   await app.listen({
@@ -22,6 +26,7 @@ try {
   console.log(
     `Shikumi Local server: http://${environment.SIKUMI_LOCAL_HOST}:${environment.SIKUMI_LOCAL_PORT}`,
   )
+  console.log(`Data directory: ${dataDirectory}`)
 } catch (error) {
   app.log.error(error)
   process.exitCode = 1

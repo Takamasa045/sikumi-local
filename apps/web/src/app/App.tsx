@@ -1,11 +1,49 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { Workspace } from '@sikumi-local/core'
+import { listWorkspaces, registerWorkspace } from '../api/workspaces'
 import { WorldStage } from '../garden/WorldStage'
 import { getWorldPack, worldPacks, type WorldPackId } from '../garden/worlds'
+import { RepositoryPanel } from '../workspace/RepositoryPanel'
 import './app.css'
 
 export function App() {
   const [worldPackId, setWorldPackId] = useState<WorldPackId>('dog-office')
+  const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const world = getWorldPack(worldPackId)
+
+  useEffect(() => {
+    let cancelled = false
+
+    void listWorkspaces()
+      .then((workspaces) => {
+        if (!cancelled) {
+          setWorkspace(workspaces[0] ?? null)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setWorkspace(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function handleRegister(path: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      setWorkspace(await registerWorkspace(path))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '登録に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -29,19 +67,23 @@ export function App() {
         </nav>
         <div className="connection-badge">
           <span aria-hidden="true" />
-          基盤準備中
+          実行エンジン未接続
         </div>
       </header>
 
       <main id="garden">
-        <div className="workspace-line">
+        <div className="workspace-line" data-testid="workspace-line">
           <div>
             <span className="eyebrow">最初の工房</span>
-            <strong>Repository未登録</strong>
+            <strong>
+              {workspace
+                ? workspace.repository.displayName
+                : 'Repository未登録'}
+            </strong>
           </div>
           <div>
             <span className="eyebrow">標準の道具</span>
-            <strong>次のPhaseで選択</strong>
+            <strong>実行エンジン未接続</strong>
           </div>
         </div>
 
@@ -80,6 +122,15 @@ export function App() {
             </div>
           </div>
 
+          <RepositoryPanel
+            workspace={workspace}
+            busy={busy}
+            error={error}
+            onRegister={(path) => {
+              void handleRegister(path)
+            }}
+          />
+
           <form className="job-composer" aria-label="仕事を頼む">
             <div className="job-composer__intro">
               <p className="section-kicker">仕事の入口</p>
@@ -109,7 +160,7 @@ export function App() {
       <footer>
         <p>
           この画面はPhase
-          1の庭プレビューです。実行・承認・成果保存はまだ接続していません。
+          2です。Repository登録と履歴の保存はできます。実行・承認・成果保存はまだ接続していません。
         </p>
         <span>Shikumi Local · 127.0.0.1</span>
       </footer>

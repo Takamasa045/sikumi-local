@@ -12,9 +12,11 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@sikumi-local/core": "workspace:*",
     "@tanstack/react-query": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "zod": "latest",
     "zustand": "latest"
   },
   "devDependencies": {

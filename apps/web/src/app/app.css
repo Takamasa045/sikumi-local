@@ -403,6 +403,76 @@ main {
   font-size: 9px;
 }
 
+.repository-panel {
+  padding: 22px 26px;
+  border-bottom: 1px solid #c8c0aa;
+}
+.repository-panel h2 {
+  margin: 0 0 10px;
+  font-family: 'Yu Mincho', 'Hiragino Mincho ProN', serif;
+  font-size: clamp(18px, 2.3vw, 26px);
+  font-weight: 600;
+}
+.repository-panel form {
+  display: grid;
+  gap: 10px;
+  max-width: 640px;
+  margin-top: 16px;
+}
+.repository-panel label {
+  display: grid;
+  gap: 7px;
+}
+.repository-panel label > span {
+  color: #666457;
+  font-size: 11px;
+  font-weight: 700;
+}
+.repository-panel input {
+  width: 100%;
+  padding: 12px 14px;
+  color: #36372f;
+  background: #f7f2e1;
+  border: 1px solid #c6beaa;
+  border-radius: 3px;
+}
+.repository-panel button {
+  justify-self: start;
+  min-width: 168px;
+  padding: 11px 18px;
+  color: #f7f2e1;
+  background: var(--moss);
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.repository-panel button:disabled {
+  color: #aaa89c;
+  background: #626359;
+  cursor: wait;
+}
+.repository-panel__path {
+  margin: 0 0 10px;
+  color: #666457;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.repository-checks {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: #3f4a3d;
+  font-size: 13px;
+}
+.repository-panel__error {
+  margin: 0;
+  color: #8a3b2b;
+  font-size: 12px;
+}
+
 .job-composer {
   display: grid;
   grid-template-columns: minmax(210px, 0.7fr) minmax(320px, 1.3fr);
@@ -547,8 +617,13 @@ footer span {
     margin-top: -18px;
   }
   .world-selector,
+  .repository-panel,
   .job-composer {
     padding: 20px 16px;
+  }
+  .repository-panel button {
+    width: 100%;
+    justify-self: stretch;
   }
   .world-selector__tabs {
     grid-template-columns: 1fr;

@@ -12,10 +12,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@sikumi-local/core": "workspace:*",
+    "better-sqlite3": "latest",
+    "drizzle-orm": "latest",
     "fastify": "latest",
     "zod": "latest"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "latest",
     "tsx": "latest"
   }
 }

@@ -1,0 +1,192 @@
+{
+  "format": "sikumi.workspace-atelier",
+  "schemaVersion": 1,
+  "palette": "moss",
+  "design": {
+    "width": 793,
+    "height": 496,
+    "origin": "top-left",
+    "fit": "contain",
+    "unit": "design-px"
+  },
+  "buildings": [
+    {
+      "id": "craft-hut",
+      "rect": {
+        "x": 36,
+        "y": 36,
+        "w": 210,
+        "h": 150
+      }
+    },
+    {
+      "id": "review-deck",
+      "rect": {
+        "x": 540,
+        "y": 165,
+        "w": 210,
+        "h": 140
+      }
+    },
+    {
+      "id": "delivery-gate",
+      "rect": {
+        "x": 470,
+        "y": 10,
+        "w": 230,
+        "h": 120
+      }
+    },
+    {
+      "id": "rest-veranda",
+      "rect": {
+        "x": 8,
+        "y": 275,
+        "w": 230,
+        "h": 170
+      }
+    },
+    {
+      "id": "central-plaza",
+      "rect": {
+        "x": 240,
+        "y": 130,
+        "w": 300,
+        "h": 250
+      }
+    }
+  ],
+  "zones": [
+    {
+      "id": "zone-manuscript",
+      "tool": "manuscript",
+      "rect": {
+        "x": 56,
+        "y": 70,
+        "w": 90,
+        "h": 70
+      }
+    },
+    {
+      "id": "zone-research",
+      "tool": "research",
+      "rect": {
+        "x": 70,
+        "y": 300,
+        "w": 90,
+        "h": 70
+      }
+    },
+    {
+      "id": "zone-storyboard",
+      "tool": "storyboard",
+      "rect": {
+        "x": 340,
+        "y": 150,
+        "w": 100,
+        "h": 70
+      }
+    },
+    {
+      "id": "zone-review",
+      "tool": "review",
+      "rect": {
+        "x": 560,
+        "y": 185,
+        "w": 110,
+        "h": 70
+      }
+    },
+    {
+      "id": "zone-delivery",
+      "tool": "delivery",
+      "rect": {
+        "x": 500,
+        "y": 100,
+        "w": 90,
+        "h": 70
+      }
+    }
+  ],
+  "desks": [
+    {
+      "id": "desk-0",
+      "position": {
+        "x": 182.39,
+        "y": 347.2
+      }
+    },
+    {
+      "id": "desk-1",
+      "position": {
+        "x": 368.745,
+        "y": 255.44
+      }
+    },
+    {
+      "id": "desk-2",
+      "position": {
+        "x": 539.24,
+        "y": 218.24
+      }
+    },
+    {
+      "id": "desk-3",
+      "position": {
+        "x": 697.8399999999999,
+        "y": 267.84
+      }
+    },
+    {
+      "id": "desk-4",
+      "position": {
+        "x": 650.26,
+        "y": 396.8
+      }
+    }
+  ],
+  "signs": [
+    {
+      "id": "sign-craft-hut",
+      "position": {
+        "x": 140,
+        "y": 48
+      }
+    },
+    {
+      "id": "sign-review-deck",
+      "position": {
+        "x": 645,
+        "y": 180
+      }
+    },
+    {
+      "id": "sign-delivery-gate",
+      "position": {
+        "x": 585,
+        "y": 28
+      }
+    },
+    {
+      "id": "sign-rest-veranda",
+      "position": {
+        "x": 120,
+        "y": 295
+      }
+    },
+    {
+      "id": "sign-central-plaza",
+      "position": {
+        "x": 390,
+        "y": 200
+      }
+    },
+    {
+      "id": "sign-central-guide",
+      "position": {
+        "x": 396,
+        "y": 290
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "name": "sikumi-local",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.9.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c yellow,green \"pnpm --filter @sikumi-local/server dev\" \"pnpm --filter @sikumi-local/web dev\"",
+    "build": "pnpm -r build",
+    "start": "pnpm build && concurrently -k -n server,web -c yellow,green \"pnpm --filter @sikumi-local/server start\" \"pnpm --filter @sikumi-local/web preview\"",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:coverage": "pnpm -r test:coverage",
+    "test:e2e": "playwright test",
+    "setup": "node scripts/setup.mjs",
+    "doctor": "node scripts/doctor.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "latest",
+    "@playwright/test": "latest",
+    "@types/node": "latest",
+    "@vitest/coverage-v8": "latest",
+    "concurrently": "latest",
+    "eslint": "latest",
+    "globals": "latest",
+    "prettier": "latest",
+    "typescript": "6.0.3",
+    "typescript-eslint": "latest",
+    "vitest": "latest"
+  }
+}

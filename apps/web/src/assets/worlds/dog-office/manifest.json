@@ -1,0 +1,970 @@
+{
+  "format": "sikumi.world-pack",
+  "schemaVersion": 1,
+  "id": "dog-office",
+  "label": "犬たちの里山アトリエ",
+  "profile": "office-v1",
+  "scene": {
+    "design": {
+      "width": 793,
+      "height": 496,
+      "origin": "top-left",
+      "fit": "contain",
+      "unit": "design-px"
+    },
+    "background": {
+      "src": "background.webp",
+      "width": 1586,
+      "height": 992
+    },
+    "safeZone": {
+      "x": 16,
+      "y": 20,
+      "w": 760,
+      "h": 456
+    },
+    "walkLanes": [
+      {
+        "id": "main-hall",
+        "points": [
+          {
+            "x": 158.6,
+            "y": 446.4
+          },
+          {
+            "x": 412.36,
+            "y": 446.4
+          },
+          {
+            "x": 650.26,
+            "y": 446.4
+          }
+        ]
+      },
+      {
+        "id": "plaza-ring",
+        "points": [
+          {
+            "x": 237.89999999999998,
+            "y": 307.52
+          },
+          {
+            "x": 436.15,
+            "y": 272.8
+          },
+          {
+            "x": 634.4,
+            "y": 287.68
+          }
+        ]
+      },
+      {
+        "id": "center-connector",
+        "points": [
+          {
+            "x": 436.15,
+            "y": 272.8
+          },
+          {
+            "x": 436.15,
+            "y": 446.4
+          }
+        ]
+      }
+    ],
+    "workstations": [
+      {
+        "id": 0,
+        "label": "縁側前",
+        "worker": {
+          "x": 182.39,
+          "y": 347.2
+        },
+        "vacant": {
+          "x": 142.74,
+          "y": 198.4
+        },
+        "job": {
+          "x": 55.51,
+          "y": 262.88
+        },
+        "hitArea": {
+          "x": 126.88,
+          "y": 272.8,
+          "w": 111.02,
+          "h": 89.28
+        },
+        "depth": 347.2
+      },
+      {
+        "id": 1,
+        "label": "工房脇",
+        "worker": {
+          "x": 368.745,
+          "y": 255.44
+        },
+        "vacant": {
+          "x": 380.64,
+          "y": 109.12
+        },
+        "job": {
+          "x": 269.62,
+          "y": 198.4
+        },
+        "hitArea": {
+          "x": 309.27,
+          "y": 188.48,
+          "w": 111.02,
+          "h": 79.36
+        },
+        "depth": 255.44
+      },
+      {
+        "id": 2,
+        "label": "北の立位",
+        "worker": {
+          "x": 539.24,
+          "y": 218.24
+        },
+        "vacant": {
+          "x": 523.38,
+          "y": 69.44
+        },
+        "job": {
+          "x": 452.01,
+          "y": 151.28
+        },
+        "hitArea": {
+          "x": 483.72999999999996,
+          "y": 148.8,
+          "w": 111.02,
+          "h": 79.36
+        },
+        "depth": 218.24
+      },
+      {
+        "id": 3,
+        "label": "見台前",
+        "worker": {
+          "x": 697.8399999999999,
+          "y": 267.84
+        },
+        "vacant": {
+          "x": 681.98,
+          "y": 119.04
+        },
+        "job": {
+          "x": 745.42,
+          "y": 136.4
+        },
+        "hitArea": {
+          "x": 642.3299999999999,
+          "y": 198.4,
+          "w": 111.02,
+          "h": 79.36
+        },
+        "depth": 267.84
+      },
+      {
+        "id": 4,
+        "label": "南の立位",
+        "worker": {
+          "x": 650.26,
+          "y": 396.8
+        },
+        "vacant": {
+          "x": 618.54,
+          "y": 248
+        },
+        "job": {
+          "x": 745.42,
+          "y": 302.56
+        },
+        "hitArea": {
+          "x": 594.75,
+          "y": 322.4,
+          "w": 111.02,
+          "h": 89.28
+        },
+        "depth": 396.8
+      }
+    ],
+    "facilities": {
+      "bulletin": {
+        "id": "bulletin",
+        "rect": {
+          "x": 36,
+          "y": 36,
+          "w": 210,
+          "h": 150
+        },
+        "label": {
+          "x": 140,
+          "y": 50
+        },
+        "hitArea": {
+          "x": 36,
+          "y": 36,
+          "w": 210,
+          "h": 150
+        },
+        "depth": 186
+      },
+      "gate": {
+        "id": "gate",
+        "rect": {
+          "x": 470,
+          "y": 10,
+          "w": 230,
+          "h": 120
+        },
+        "label": {
+          "x": 585,
+          "y": 30
+        },
+        "hitArea": {
+          "x": 470,
+          "y": 10,
+          "w": 230,
+          "h": 120
+        },
+        "depth": 130,
+        "waitingFeet": [
+          {
+            "x": 520,
+            "y": 140
+          },
+          {
+            "x": 570,
+            "y": 145
+          },
+          {
+            "x": 620,
+            "y": 140
+          }
+        ]
+      },
+      "repair": {
+        "id": "repair",
+        "rect": {
+          "x": 540,
+          "y": 165,
+          "w": 210,
+          "h": 140
+        },
+        "label": {
+          "x": 645,
+          "y": 185
+        },
+        "hitArea": {
+          "x": 540,
+          "y": 165,
+          "w": 210,
+          "h": 140
+        },
+        "depth": 305
+      },
+      "delivery": {
+        "id": "delivery",
+        "rect": {
+          "x": 500,
+          "y": 100,
+          "w": 90,
+          "h": 70
+        },
+        "label": {
+          "x": 545,
+          "y": 120
+        },
+        "hitArea": {
+          "x": 500,
+          "y": 100,
+          "w": 90,
+          "h": 70
+        },
+        "depth": 170
+      },
+      "history": {
+        "id": "history",
+        "rect": {
+          "x": 700,
+          "y": 175,
+          "w": 70,
+          "h": 120
+        },
+        "label": {
+          "x": 735,
+          "y": 220
+        },
+        "hitArea": {
+          "x": 700,
+          "y": 175,
+          "w": 70,
+          "h": 120
+        },
+        "depth": 295
+      },
+      "meeting-break": {
+        "id": "meeting-break",
+        "rect": {
+          "x": 8,
+          "y": 275,
+          "w": 230,
+          "h": 170
+        },
+        "label": {
+          "x": 120,
+          "y": 300
+        },
+        "hitArea": {
+          "x": 8,
+          "y": 275,
+          "w": 230,
+          "h": 170
+        },
+        "depth": 445
+      }
+    },
+    "employeeAnchors": {
+      "desk": [
+        {
+          "x": 182.39,
+          "y": 347.2
+        },
+        {
+          "x": 368.745,
+          "y": 255.44
+        },
+        {
+          "x": 539.24,
+          "y": 218.24
+        },
+        {
+          "x": 697.8399999999999,
+          "y": 267.84
+        },
+        {
+          "x": 650.26,
+          "y": 396.8
+        }
+      ],
+      "bulletin": [
+        {
+          "x": 160,
+          "y": 195
+        }
+      ],
+      "gate": [
+        {
+          "x": 520,
+          "y": 140
+        },
+        {
+          "x": 570,
+          "y": 145
+        },
+        {
+          "x": 620,
+          "y": 140
+        }
+      ],
+      "repair": [
+        {
+          "x": 600,
+          "y": 310
+        },
+        {
+          "x": 650,
+          "y": 310
+        }
+      ],
+      "delivery": [
+        {
+          "x": 530,
+          "y": 165
+        },
+        {
+          "x": 570,
+          "y": 165
+        }
+      ],
+      "break": [
+        {
+          "x": 90,
+          "y": 400
+        },
+        {
+          "x": 150,
+          "y": 400
+        }
+      ],
+      "connecting": [
+        {
+          "x": 396,
+          "y": 290
+        },
+        {
+          "x": 320,
+          "y": 400
+        }
+      ],
+      "meeting": []
+    },
+    "jobAnchors": {
+      "desk": [
+        {
+          "x": 55.51,
+          "y": 262.88
+        },
+        {
+          "x": 269.62,
+          "y": 198.4
+        },
+        {
+          "x": 452.01,
+          "y": 151.28
+        },
+        {
+          "x": 745.42,
+          "y": 136.4
+        },
+        {
+          "x": 745.42,
+          "y": 302.56
+        }
+      ],
+      "bulletin": [
+        {
+          "x": 70,
+          "y": 80
+        },
+        {
+          "x": 140,
+          "y": 80
+        },
+        {
+          "x": 200,
+          "y": 80
+        },
+        {
+          "x": 70,
+          "y": 130
+        },
+        {
+          "x": 140,
+          "y": 130
+        },
+        {
+          "x": 200,
+          "y": 130
+        }
+      ],
+      "gate": [
+        {
+          "x": 520,
+          "y": 55
+        },
+        {
+          "x": 600,
+          "y": 55
+        }
+      ],
+      "repair": [
+        {
+          "x": 580,
+          "y": 210
+        },
+        {
+          "x": 650,
+          "y": 210
+        }
+      ],
+      "delivery": [
+        {
+          "x": 520,
+          "y": 125
+        },
+        {
+          "x": 560,
+          "y": 125
+        }
+      ],
+      "break": [
+        {
+          "x": 70,
+          "y": 330
+        },
+        {
+          "x": 140,
+          "y": 330
+        }
+      ],
+      "connecting": [
+        {
+          "x": 360,
+          "y": 360
+        },
+        {
+          "x": 430,
+          "y": 360
+        }
+      ],
+      "meeting": [
+        {
+          "x": 100,
+          "y": 360
+        }
+      ]
+    },
+    "occlusion": [
+      {
+        "id": "rest-veranda-front",
+        "depth": 450,
+        "rect": {
+          "x": 8,
+          "y": 320,
+          "w": 230,
+          "h": 130
+        }
+      },
+      {
+        "id": "review-deck-front",
+        "depth": 320,
+        "rect": {
+          "x": 540,
+          "y": 230,
+          "w": 210,
+          "h": 80
+        }
+      }
+    ]
+  },
+  "characters": {
+    "atlas": {
+      "src": "characters.webp",
+      "width": 1536,
+      "height": 2048,
+      "cellWidth": 512,
+      "cellHeight": 512,
+      "cols": 3,
+      "rows": 4
+    },
+    "identities": [
+      {
+        "id": "dog-0",
+        "spriteIndex": 0,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 0,
+                "row": 0
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 0,
+                "row": 0
+              },
+              {
+                "col": 0,
+                "row": 2
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "dog-1",
+        "spriteIndex": 1,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 1,
+                "row": 0
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 1,
+                "row": 0
+              },
+              {
+                "col": 1,
+                "row": 2
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "dog-2",
+        "spriteIndex": 2,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 2,
+                "row": 0
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 2,
+                "row": 0
+              },
+              {
+                "col": 2,
+                "row": 2
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "dog-3",
+        "spriteIndex": 3,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 0,
+                "row": 1
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 0,
+                "row": 1
+              },
+              {
+                "col": 0,
+                "row": 3
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "dog-4",
+        "spriteIndex": 4,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 1,
+                "row": 1
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 1,
+                "row": 1
+              },
+              {
+                "col": 1,
+                "row": 3
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "dog-5",
+        "spriteIndex": 5,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 2,
+                "row": 1
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 2,
+                "row": 1
+              },
+              {
+                "col": 2,
+                "row": 3
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      }
+    ],
+    "placements": {
+      "workstations": [
+        {
+          "workstationId": 0,
+          "identityId": "dog-4"
+        },
+        {
+          "workstationId": 1,
+          "identityId": "dog-0"
+        },
+        {
+          "workstationId": 2,
+          "identityId": "dog-2"
+        },
+        {
+          "workstationId": 3,
+          "identityId": "dog-1"
+        },
+        {
+          "workstationId": 4,
+          "identityId": "dog-3"
+        }
+      ],
+      "zones": {
+        "bulletin": {
+          "identityId": "dog-0"
+        },
+        "gate": {
+          "identityId": "dog-2"
+        },
+        "repair": {
+          "identityId": "dog-1"
+        },
+        "delivery": {
+          "identityId": "dog-5"
+        },
+        "break": {
+          "identityId": "dog-3"
+        },
+        "connecting": {
+          "identityId": "dog-4"
+        },
+        "meeting": {
+          "identityId": "dog-3"
+        }
+      },
+      "fallbackIdentityIds": [
+        "dog-0",
+        "dog-1",
+        "dog-2",
+        "dog-3",
+        "dog-4",
+        "dog-5"
+      ]
+    }
+  }
+}

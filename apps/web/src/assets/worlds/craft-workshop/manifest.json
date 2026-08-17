@@ -1,0 +1,942 @@
+{
+  "format": "sikumi.world-pack",
+  "schemaVersion": 1,
+  "id": "craft-workshop",
+  "label": "職人工房",
+  "profile": "office-v1",
+  "scene": {
+    "design": {
+      "width": 793,
+      "height": 496,
+      "origin": "top-left",
+      "fit": "contain",
+      "unit": "design-px"
+    },
+    "background": {
+      "src": "background.webp",
+      "width": 1586,
+      "height": 992
+    },
+    "safeZone": {
+      "x": 7.93,
+      "y": 9.92,
+      "w": 777.14,
+      "h": 476.15999999999997
+    },
+    "walkLanes": [
+      {
+        "id": "main-hall",
+        "points": [
+          {
+            "x": 158.6,
+            "y": 446.4
+          },
+          {
+            "x": 436.15,
+            "y": 446.4
+          },
+          {
+            "x": 650.26,
+            "y": 446.4
+          }
+        ]
+      },
+      {
+        "id": "mid-aisle",
+        "points": [
+          {
+            "x": 237.89999999999998,
+            "y": 297.6
+          },
+          {
+            "x": 436.15,
+            "y": 307.52
+          },
+          {
+            "x": 594.75,
+            "y": 297.6
+          }
+        ]
+      },
+      {
+        "id": "center-connector",
+        "points": [
+          {
+            "x": 436.15,
+            "y": 307.52
+          },
+          {
+            "x": 436.15,
+            "y": 446.4
+          }
+        ]
+      }
+    ],
+    "workstations": [
+      {
+        "id": 0,
+        "label": "木工",
+        "worker": {
+          "x": 83.265,
+          "y": 252.96
+        },
+        "vacant": {
+          "x": 118.94999999999999,
+          "y": 188.48
+        },
+        "job": {
+          "x": 202.215,
+          "y": 218.24
+        },
+        "hitArea": {
+          "x": 39.65,
+          "y": 188.48,
+          "w": 111.02,
+          "h": 79.36
+        },
+        "depth": 252.96
+      },
+      {
+        "id": 1,
+        "label": "金工",
+        "worker": {
+          "x": 388.57,
+          "y": 248
+        },
+        "vacant": {
+          "x": 372.71,
+          "y": 188.48
+        },
+        "job": {
+          "x": 293.40999999999997,
+          "y": 215.76
+        },
+        "hitArea": {
+          "x": 333.06,
+          "y": 183.52,
+          "w": 111.02,
+          "h": 79.36
+        },
+        "depth": 248
+      },
+      {
+        "id": 2,
+        "label": "和紙",
+        "worker": {
+          "x": 539.24,
+          "y": 252.96
+        },
+        "vacant": {
+          "x": 555.1,
+          "y": 188.48
+        },
+        "job": {
+          "x": 642.3299999999999,
+          "y": 215.76
+        },
+        "hitArea": {
+          "x": 483.72999999999996,
+          "y": 188.48,
+          "w": 111.02,
+          "h": 79.36
+        },
+        "depth": 252.96
+      },
+      {
+        "id": 3,
+        "label": "漆",
+        "worker": {
+          "x": 142.74,
+          "y": 441.44
+        },
+        "vacant": {
+          "x": 158.6,
+          "y": 347.2
+        },
+        "job": {
+          "x": 51.545,
+          "y": 396.8
+        },
+        "hitArea": {
+          "x": 87.22999999999999,
+          "y": 367.04,
+          "w": 111.02,
+          "h": 89.28
+        },
+        "depth": 441.44
+      },
+      {
+        "id": 4,
+        "label": "品質／手直し",
+        "worker": {
+          "x": 273.585,
+          "y": 446.4
+        },
+        "vacant": {
+          "x": 317.2,
+          "y": 347.2
+        },
+        "job": {
+          "x": 388.57,
+          "y": 401.76
+        },
+        "hitArea": {
+          "x": 214.10999999999999,
+          "y": 372,
+          "w": 111.02,
+          "h": 89.28
+        },
+        "depth": 446.4
+      }
+    ],
+    "facilities": {
+      "bulletin": {
+        "id": "bulletin",
+        "rect": {
+          "x": 7.93,
+          "y": 39.68,
+          "w": 71.37,
+          "h": 89.28
+        },
+        "label": {
+          "x": 47.58,
+          "y": 74.4
+        },
+        "hitArea": {
+          "x": 7.93,
+          "y": 39.68,
+          "w": 71.37,
+          "h": 89.28
+        },
+        "depth": 128.96
+      },
+      "gate": {
+        "id": "gate",
+        "rect": {
+          "x": 452.01,
+          "y": 257.92,
+          "w": 229.97,
+          "h": 213.28
+        },
+        "label": {
+          "x": 570.96,
+          "y": 282.71999999999997
+        },
+        "hitArea": {
+          "x": 452.01,
+          "y": 257.92,
+          "w": 229.97,
+          "h": 213.28
+        },
+        "depth": 471.2,
+        "waitingFeet": [
+          {
+            "x": 515.4499999999999,
+            "y": 456.32
+          },
+          {
+            "x": 618.54,
+            "y": 456.32
+          }
+        ]
+      },
+      "repair": {
+        "id": "repair",
+        "rect": {
+          "x": 277.55,
+          "y": 277.76,
+          "w": 134.81,
+          "h": 163.68
+        },
+        "label": {
+          "x": 372.71,
+          "y": 347.2
+        },
+        "hitArea": {
+          "x": 277.55,
+          "y": 277.76,
+          "w": 134.81,
+          "h": 163.68
+        },
+        "depth": 441.44
+      },
+      "delivery": {
+        "id": "delivery",
+        "rect": {
+          "x": 674.05,
+          "y": 218.24,
+          "w": 118.94999999999999,
+          "h": 183.52
+        },
+        "label": {
+          "x": 737.49,
+          "y": 307.52
+        },
+        "hitArea": {
+          "x": 674.05,
+          "y": 218.24,
+          "w": 118.94999999999999,
+          "h": 183.52
+        },
+        "depth": 401.76
+      },
+      "history": {
+        "id": "history",
+        "rect": {
+          "x": 721.63,
+          "y": 322.4,
+          "w": 63.44,
+          "h": 54.56
+        },
+        "label": {
+          "x": 753.35,
+          "y": 347.2
+        },
+        "hitArea": {
+          "x": 721.63,
+          "y": 322.4,
+          "w": 63.44,
+          "h": 54.56
+        },
+        "depth": 376.96
+      },
+      "meeting-break": {
+        "id": "meeting-break",
+        "rect": {
+          "x": 681.98,
+          "y": 89.28,
+          "w": 111.02,
+          "h": 128.96
+        },
+        "label": {
+          "x": 737.49,
+          "y": 153.76
+        },
+        "hitArea": {
+          "x": 681.98,
+          "y": 89.28,
+          "w": 111.02,
+          "h": 128.96
+        },
+        "depth": 218.24
+      }
+    },
+    "employeeAnchors": {
+      "desk": [
+        {
+          "x": 83.265,
+          "y": 252.96
+        },
+        {
+          "x": 388.57,
+          "y": 248
+        },
+        {
+          "x": 539.24,
+          "y": 252.96
+        },
+        {
+          "x": 142.74,
+          "y": 441.44
+        },
+        {
+          "x": 273.585,
+          "y": 446.4
+        }
+      ],
+      "bulletin": [
+        {
+          "x": 63.44,
+          "y": 138.88
+        }
+      ],
+      "gate": [
+        {
+          "x": 515.4499999999999,
+          "y": 456.32
+        },
+        {
+          "x": 618.54,
+          "y": 456.32
+        }
+      ],
+      "repair": [
+        {
+          "x": 301.34,
+          "y": 436.48
+        },
+        {
+          "x": 380.64,
+          "y": 436.48
+        }
+      ],
+      "delivery": [
+        {
+          "x": 713.6999999999999,
+          "y": 386.88
+        },
+        {
+          "x": 745.42,
+          "y": 386.88
+        }
+      ],
+      "break": [
+        {
+          "x": 713.6999999999999,
+          "y": 198.4
+        },
+        {
+          "x": 745.42,
+          "y": 198.4
+        }
+      ],
+      "connecting": [
+        {
+          "x": 436.15,
+          "y": 446.4
+        },
+        {
+          "x": 650.26,
+          "y": 446.4
+        }
+      ],
+      "meeting": []
+    },
+    "jobAnchors": {
+      "desk": [
+        {
+          "x": 202.215,
+          "y": 218.24
+        },
+        {
+          "x": 293.40999999999997,
+          "y": 215.76
+        },
+        {
+          "x": 642.3299999999999,
+          "y": 215.76
+        },
+        {
+          "x": 51.545,
+          "y": 396.8
+        },
+        {
+          "x": 388.57,
+          "y": 401.76
+        }
+      ],
+      "bulletin": [
+        {
+          "x": 47.58,
+          "y": 59.519999999999996
+        }
+      ],
+      "gate": [
+        {
+          "x": 539.24,
+          "y": 297.6
+        },
+        {
+          "x": 602.68,
+          "y": 297.6
+        }
+      ],
+      "repair": [
+        {
+          "x": 317.2,
+          "y": 317.44
+        },
+        {
+          "x": 380.64,
+          "y": 317.44
+        }
+      ],
+      "delivery": [
+        {
+          "x": 713.6999999999999,
+          "y": 257.92
+        },
+        {
+          "x": 745.42,
+          "y": 257.92
+        }
+      ],
+      "break": [
+        {
+          "x": 713.6999999999999,
+          "y": 128.96
+        },
+        {
+          "x": 745.42,
+          "y": 128.96
+        }
+      ],
+      "connecting": [
+        {
+          "x": 436.15,
+          "y": 406.71999999999997
+        },
+        {
+          "x": 650.26,
+          "y": 406.71999999999997
+        }
+      ],
+      "meeting": [
+        {
+          "x": 737.49,
+          "y": 119.03999999999999
+        }
+      ]
+    },
+    "occlusion": [
+      {
+        "id": "front-benches",
+        "depth": 456.32,
+        "rect": {
+          "x": 63.44,
+          "y": 357.12,
+          "w": 317.2,
+          "h": 119.03999999999999
+        }
+      },
+      {
+        "id": "gate-counter",
+        "depth": 471.2,
+        "rect": {
+          "x": 452.01,
+          "y": 257.92,
+          "w": 229.97,
+          "h": 213.28
+        }
+      }
+    ]
+  },
+  "characters": {
+    "atlas": {
+      "src": "characters.webp",
+      "width": 1536,
+      "height": 2048,
+      "cellWidth": 512,
+      "cellHeight": 512,
+      "cols": 3,
+      "rows": 4
+    },
+    "identities": [
+      {
+        "id": "craft-0",
+        "spriteIndex": 0,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 0,
+                "row": 0
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 0,
+                "row": 0
+              },
+              {
+                "col": 0,
+                "row": 2
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "craft-1",
+        "spriteIndex": 1,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 1,
+                "row": 0
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 1,
+                "row": 0
+              },
+              {
+                "col": 1,
+                "row": 2
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "craft-2",
+        "spriteIndex": 2,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 2,
+                "row": 0
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 2,
+                "row": 0
+              },
+              {
+                "col": 2,
+                "row": 2
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "craft-3",
+        "spriteIndex": 3,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 0,
+                "row": 1
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 0,
+                "row": 1
+              },
+              {
+                "col": 0,
+                "row": 3
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "craft-4",
+        "spriteIndex": 4,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 1,
+                "row": 1
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 1,
+                "row": 1
+              },
+              {
+                "col": 1,
+                "row": 3
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      },
+      {
+        "id": "craft-5",
+        "spriteIndex": 5,
+        "pivotFeet": {
+          "x": 0.5,
+          "y": 1
+        },
+        "hitArea": {
+          "x": 0.2,
+          "y": 0.15,
+          "w": 0.6,
+          "h": 0.85
+        },
+        "actions": {
+          "idle": {
+            "frames": [
+              {
+                "col": 2,
+                "row": 1
+              }
+            ],
+            "fps": 1,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "working": {
+            "frames": [
+              {
+                "col": 2,
+                "row": 1
+              },
+              {
+                "col": 2,
+                "row": 3
+              }
+            ],
+            "fps": 2,
+            "loop": true,
+            "reducedMotionFrame": 0
+          },
+          "walking": {
+            "fallback": "idle"
+          },
+          "waiting_approval": {
+            "fallback": "idle"
+          },
+          "reviewing": {
+            "fallback": "idle"
+          },
+          "delivering": {
+            "fallback": "idle"
+          },
+          "error": {
+            "fallback": "idle"
+          },
+          "completed": {
+            "fallback": "idle"
+          }
+        }
+      }
+    ],
+    "placements": {
+      "workstations": [
+        {
+          "workstationId": 0,
+          "identityId": "craft-0"
+        },
+        {
+          "workstationId": 1,
+          "identityId": "craft-1"
+        },
+        {
+          "workstationId": 2,
+          "identityId": "craft-2"
+        },
+        {
+          "workstationId": 3,
+          "identityId": "craft-3"
+        },
+        {
+          "workstationId": 4,
+          "identityId": "craft-4"
+        }
+      ],
+      "zones": {
+        "bulletin": {
+          "identityId": "craft-0"
+        },
+        "gate": {
+          "identityId": "craft-1"
+        },
+        "repair": {
+          "identityId": "craft-4"
+        },
+        "delivery": {
+          "identityId": "craft-5"
+        },
+        "break": {
+          "identityId": "craft-3"
+        },
+        "connecting": {
+          "identityId": "craft-2"
+        },
+        "meeting": {
+          "identityId": "craft-3"
+        }
+      },
+      "fallbackIdentityIds": [
+        "craft-0",
+        "craft-1",
+        "craft-2",
+        "craft-3",
+        "craft-4",
+        "craft-5"
+      ]
+    }
+  }
+}

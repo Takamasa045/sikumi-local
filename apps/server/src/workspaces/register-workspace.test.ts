@@ -13,20 +13,44 @@ describe('registerWorkspace', () => {
     const workspace = registerWorkspace(
       store,
       '/Users/example/project',
+      undefined,
       () => inspection,
     )
 
     expect(workspace.repository.absolutePath).toBe('/Users/example/project')
+    expect(workspace.employeeName).toBe('プロジェクト番')
     expect(store.listWorkspaces()).toHaveLength(1)
+  })
+
+  it('任意の担当名を登録できる', () => {
+    const store = createMemoryStore()
+    const workspace = registerWorkspace(
+      store,
+      '/Users/example/blog-agent-kit',
+      'イトパン',
+      () => sampleInspection('/Users/example/blog-agent-kit'),
+    )
+
+    expect(workspace.employeeName).toBe('イトパン')
   })
 
   it('rejects a duplicate real path', () => {
     const store = createMemoryStore()
     const inspection = sampleInspection('/Users/example/project')
-    registerWorkspace(store, '/Users/example/project', () => inspection)
+    registerWorkspace(
+      store,
+      '/Users/example/project',
+      undefined,
+      () => inspection,
+    )
 
     try {
-      registerWorkspace(store, '/Users/example/project', () => inspection)
+      registerWorkspace(
+        store,
+        '/Users/example/project',
+        undefined,
+        () => inspection,
+      )
       throw new Error('expected REPOSITORY_DUPLICATE')
     } catch (error) {
       expect(error).toBeInstanceOf(AppError)
@@ -38,7 +62,7 @@ describe('registerWorkspace', () => {
     const store = createMemoryStore()
 
     expect(() =>
-      registerWorkspace(store, '/Users/example/../secret', () => {
+      registerWorkspace(store, '/Users/example/../secret', undefined, () => {
         throw new Error('inspect should not run')
       }),
     ).toThrow(AppError)
@@ -75,10 +99,11 @@ function createMemoryStore(): AppStore {
     importDetachedWorkspace: (input) => {
       throw new Error(`unexpected importDetachedWorkspace ${input.id}`)
     },
-    createWorkspace: (inspection) => {
+    createWorkspace: (inspection, employeeName) => {
       const workspace: Workspace = {
         id: `ws_${workspaces.length + 1}`,
         name: inspection.displayName,
+        employeeName,
         defaultProviderId: null,
         worldPackId: 'dog-office',
         createdAt: 't',

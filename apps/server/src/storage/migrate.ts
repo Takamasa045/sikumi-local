@@ -248,9 +248,27 @@ export const worktreeGrowthPacksMigration: Migration = {
   `,
 }
 
+export const workspaceEmployeeNameMigration: Migration = {
+  version: 3,
+  name: 'workspace-employee-name',
+  sql: `
+    ALTER TABLE workspaces ADD COLUMN employee_name TEXT;
+    UPDATE workspaces
+    SET employee_name = CASE
+      WHEN lower(name) LIKE '%blog%' THEN 'ブログ番'
+      WHEN lower(name) LIKE '%content%' THEN 'コンテンツ番'
+      WHEN lower(name) LIKE '%web%' THEN 'ウェブ番'
+      WHEN lower(name) LIKE '%app%' THEN 'アプリ番'
+      WHEN name = 'project' THEN 'プロジェクト番'
+      ELSE name || '番'
+    END;
+  `,
+}
+
 export const defaultMigrations: readonly Migration[] = [
   initialSchemaMigration,
   worktreeGrowthPacksMigration,
+  workspaceEmployeeNameMigration,
 ]
 
 export function applyMigrations(

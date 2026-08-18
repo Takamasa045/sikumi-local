@@ -5,7 +5,8 @@ interface RepositoryPanelProps {
   readonly workspace: Workspace | null
   readonly busy: boolean
   readonly error: string | null
-  readonly onRegister: (path: string) => void
+  readonly onRegister: (path: string, employeeName: string) => void
+  readonly onEmployeeNameChange?: ((employeeName: string) => void) | undefined
 }
 
 export function RepositoryPanel({
@@ -13,12 +14,23 @@ export function RepositoryPanel({
   busy,
   error,
   onRegister,
+  onEmployeeNameChange,
 }: RepositoryPanelProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const form = new FormData(event.currentTarget)
     const path = String(form.get('path') ?? '')
-    onRegister(path)
+    const employeeName = String(form.get('employeeName') ?? '').trim()
+    onRegister(path, employeeName)
+  }
+
+  function handleEmployeeNameSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const employeeName = String(form.get('employeeName') ?? '').trim()
+    if (employeeName) {
+      onEmployeeNameChange?.(employeeName)
+    }
   }
 
   return (
@@ -44,6 +56,22 @@ export function RepositoryPanel({
               {workspace.repository.readable ? '読み取り可能' : '読み取り不可'}
             </li>
           </ul>
+          <form onSubmit={handleEmployeeNameSubmit}>
+            <label>
+              <span>担当の名前</span>
+              <input
+                key={workspace.employeeName}
+                name="employeeName"
+                aria-label="担当の名前"
+                defaultValue={workspace.employeeName ?? ''}
+                maxLength={40}
+                disabled={busy}
+              />
+            </label>
+            <button type="submit" disabled={busy || !onEmployeeNameChange}>
+              担当の名前を保存
+            </button>
+          </form>
         </>
       ) : (
         <>
@@ -53,6 +81,22 @@ export function RepositoryPanel({
       )}
 
       <form onSubmit={handleSubmit}>
+        {!workspace ? (
+          <label>
+            <span>担当の名前（任意）</span>
+            <p className="repository-panel__help">
+              空欄ならRepository名から自動で決めます。登録後も変更できます。
+            </p>
+            <input
+              name="employeeName"
+              aria-label="担当の名前（任意）"
+              placeholder="例：ブログ番"
+              autoComplete="off"
+              maxLength={40}
+              disabled={busy}
+            />
+          </label>
+        ) : null}
         <label>
           <span>Repositoryの場所</span>
           <p className="repository-panel__help">

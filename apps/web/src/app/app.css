@@ -615,6 +615,16 @@ main {
 .job-composer textarea::placeholder {
   color: #9a9587;
 }
+.job-composer__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 12px;
+  color: #8a3b2b;
+  background: #f5e7df;
+  border: 1px solid #c99784;
+  border-radius: 3px;
+  font-size: 12px;
+}
 .job-composer__footer {
   grid-column: 1 / -1;
   display: flex;

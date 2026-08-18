@@ -203,6 +203,7 @@ export interface Repository {
 export interface Workspace {
   readonly id: string
   readonly name: string
+  readonly employeeName?: string | undefined
   readonly defaultProviderId: ProviderId | null
   readonly worldPackId: string
   readonly createdAt: string

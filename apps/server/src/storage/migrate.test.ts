@@ -66,7 +66,11 @@ describe('applyMigrations', () => {
       .get() as { count: number }
 
     expect(workspace.name).toBe('keep-me')
-    expect(migrations.count).toBe(2)
+    expect(migrations.count).toBe(3)
+    const columns = second
+      .prepare('PRAGMA table_info(workspaces)')
+      .all() as Array<{ name: string }>
+    expect(columns.map((column) => column.name)).toContain('employee_name')
     second.close()
   })
 

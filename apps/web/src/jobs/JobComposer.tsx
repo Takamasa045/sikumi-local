@@ -7,6 +7,8 @@ interface JobComposerProps {
   readonly busy: boolean
   readonly request: string
   readonly notice: string
+  readonly error?: string | null
+  readonly employeeName?: string | undefined
   readonly employees: readonly EmployeeSummary[]
   readonly selectedEmployeeId: string
   readonly providers: readonly ProviderAvailability[]
@@ -34,6 +36,8 @@ export function JobComposer({
   busy,
   request,
   notice,
+  error,
+  employeeName,
   employees,
   selectedEmployeeId,
   providers,
@@ -68,7 +72,9 @@ export function JobComposer({
       <div className="job-composer__intro">
         <p className="section-kicker">仕事の入口</p>
         <h2>
-          {selected ? `${selected.name}に何を頼みますか` : '誰に頼みますか'}
+          {selected
+            ? `${employeeName ?? selected.name}に何を頼みますか`
+            : '誰に頼みますか'}
         </h2>
       </div>
       <label>
@@ -176,6 +182,11 @@ export function JobComposer({
           }}
         />
       </label>
+      {error ? (
+        <p className="job-composer__error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="job-composer__footer">
         <p>
           <span aria-hidden="true">◇</span> {notice}

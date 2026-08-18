@@ -3,6 +3,7 @@ import { integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 export const workspaces = sqliteTable('workspaces', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  employeeName: text('employee_name'),
   defaultProviderId: text('default_provider_id'),
   worldPackId: text('world_pack_id').notNull(),
   createdAt: text('created_at').notNull(),

@@ -422,6 +422,15 @@ describe('job manager cancel and start failure', () => {
       throw new Error('expected a failed job')
     }
     expect(manager.listApprovals({ jobId: failedJobId })).toEqual([])
+    expect(manager.listEvents(failedJobId)).toEqual([
+      expect.objectContaining({
+        type: 'run.failed',
+        payload: expect.objectContaining({
+          summary: '仕事を開始できませんでした',
+          reason: 'start-failed',
+        }),
+      }),
+    ])
   })
 
   it('leaves approval pending when the provider rejects the decision', async () => {

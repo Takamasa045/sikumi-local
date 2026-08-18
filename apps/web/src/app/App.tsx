@@ -47,6 +47,7 @@ import {
   listWorkspaces,
   registerWorkspace,
   updateWorkspace,
+  updateWorkspaceEmployeeName,
 } from '../api/workspaces'
 import { ApprovalPanel } from '../approvals/ApprovalPanel'
 import { ArtifactShelf } from '../artifacts/ArtifactShelf'
@@ -135,13 +136,22 @@ export function App() {
     patch: string
   } | null>(null)
   const world = getWorldPack(worldPackId)
+  const employeeList = useMemo(
+    () =>
+      employees.map((employee, index) =>
+        index === 0 && workspace?.employeeName
+          ? { ...employee, name: workspace.employeeName }
+          : employee,
+      ),
+    [employees, workspace?.employeeName],
+  )
   const selectedEmployee =
-    employees.find((employee) => employee.id === selectedEmployeeId) ??
-    employees[0] ??
+    employeeList.find((employee) => employee.id === selectedEmployeeId) ??
+    employeeList[0] ??
     null
   const displayEmployeeId = job?.employeeId ?? selectedEmployeeId
   const displayEmployee =
-    employees.find((employee) => employee.id === displayEmployeeId) ?? null
+    employeeList.find((employee) => employee.id === displayEmployeeId) ?? null
   const jobEnabled =
     workspace !== null &&
     (fakeHarness || providers.some((provider) => provider.executionConnected))
@@ -440,13 +450,32 @@ export function App() {
     }
   }
 
-  async function handleRegister(path: string) {
+  async function handleRegister(path: string, employeeName: string) {
     setBusy(true)
     setError(null)
     try {
-      setWorkspace(await registerWorkspace(path))
+      setWorkspace(await registerWorkspace(path, employeeName || undefined))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '登録に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleEmployeeNameChange(employeeName: string) {
+    if (!workspace) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      setWorkspace(
+        await updateWorkspaceEmployeeName(workspace.id, employeeName),
+      )
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : '名前の保存に失敗しました',
+      )
     } finally {
       setBusy(false)
     }
@@ -694,8 +723,6 @@ export function App() {
     }
   }
 
-  const employeeList = useMemo(() => employees, [employees])
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -833,9 +860,12 @@ export function App() {
                 <RepositoryPanel
                   workspace={workspace}
                   busy={busy}
-                  error={error}
-                  onRegister={(path) => {
-                    void handleRegister(path)
+                  error={workspace ? null : error}
+                  onRegister={(path, employeeName) => {
+                    void handleRegister(path, employeeName)
+                  }}
+                  onEmployeeNameChange={(employeeName) => {
+                    void handleEmployeeNameChange(employeeName)
                   }}
                 />
 
@@ -843,6 +873,8 @@ export function App() {
                   enabled={jobEnabled}
                   busy={busy}
                   request={request}
+                  error={workspace ? error : null}
+                  employeeName={selectedEmployee?.name}
                   employees={employeeList}
                   selectedEmployeeId={selectedEmployeeId}
                   providers={providers}
@@ -985,8 +1017,11 @@ export function App() {
                 providers={providers}
                 busy={busy}
                 error={error}
-                onRegister={(path) => {
-                  void handleRegister(path)
+                onRegister={(path, employeeName) => {
+                  void handleRegister(path, employeeName)
+                }}
+                onEmployeeNameChange={(employeeName) => {
+                  void handleEmployeeNameChange(employeeName)
                 }}
                 onWorkspaceProviderChange={(providerId) => {
                   if (!workspace) {

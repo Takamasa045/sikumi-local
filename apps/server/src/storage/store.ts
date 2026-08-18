@@ -77,7 +77,7 @@ export interface AppStore {
   listWorkspaces(): Workspace[]
   getWorkspace(id: string): Workspace | undefined
   findRepositoryByAbsolutePath(absolutePath: string): Repository | undefined
-  createWorkspace(inspection: GitInspection): Workspace
+  createWorkspace(inspection: GitInspection, employeeName?: string): Workspace
   importDetachedWorkspace(input: {
     readonly id: string
     readonly name: string
@@ -94,7 +94,7 @@ export interface AppStore {
   }): Workspace
   updateWorkspace(
     id: string,
-    patch: Partial<Pick<Workspace, 'defaultProviderId'>>,
+    patch: Partial<Pick<Workspace, 'defaultProviderId' | 'employeeName'>>,
   ): Workspace
   listProviders(): Provider[]
   insertEmployee(employee: Employee): Employee
@@ -214,7 +214,7 @@ export function createStore(db: AppDatabase): AppStore {
       return row ? mapRepository(row) : undefined
     },
 
-    createWorkspace(inspection) {
+    createWorkspace(inspection, employeeName) {
       const now = new Date().toISOString()
       const workspaceId = randomUUID()
       const repositoryId = randomUUID()
@@ -224,6 +224,7 @@ export function createStore(db: AppDatabase): AppStore {
           .values({
             id: workspaceId,
             name: inspection.displayName,
+            employeeName: employeeName ?? null,
             defaultProviderId: null,
             worldPackId: DEFAULT_WORLD_PACK_ID,
             createdAt: now,
@@ -312,7 +313,12 @@ export function createStore(db: AppDatabase): AppStore {
       })
       db.update(workspaces)
         .set({
-          defaultProviderId: next.defaultProviderId,
+          ...(patch.defaultProviderId === undefined
+            ? {}
+            : { defaultProviderId: next.defaultProviderId }),
+          ...(patch.employeeName === undefined
+            ? {}
+            : { employeeName: next.employeeName }),
           updatedAt: next.updatedAt,
         })
         .where(eq(workspaces.id, id))
@@ -1211,6 +1217,7 @@ function assembleWorkspace(
   return workspaceSchema.parse({
     id: row.id,
     name: row.name,
+    ...(row.employeeName ? { employeeName: row.employeeName } : {}),
     defaultProviderId: parseOptionalProviderId(row.defaultProviderId),
     worldPackId: row.worldPackId,
     createdAt: row.createdAt,

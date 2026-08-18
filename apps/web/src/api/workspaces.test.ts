@@ -5,6 +5,7 @@ import {
   listWorkspaces,
   registerWorkspace,
   updateWorkspace,
+  updateWorkspaceEmployeeName,
 } from './workspaces.js'
 
 afterEach(() => {
@@ -52,6 +53,32 @@ describe('workspace API client', () => {
     await expect(registerWorkspace('/Users/example/project')).resolves.toEqual(
       workspace,
     )
+  })
+
+  it('担当名を指定してRepositoryを登録する', async () => {
+    const workspace = {
+      ...sampleWorkspace('/Users/example/project'),
+      employeeName: 'イトパン',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/api/session')) {
+          return jsonResponse({ token: 'boot-session-token' })
+        }
+        expect(init?.body).toBe(
+          JSON.stringify({
+            path: '/Users/example/project',
+            employeeName: 'イトパン',
+          }),
+        )
+        return jsonResponse({ workspace }, 201)
+      }),
+    )
+
+    await expect(
+      registerWorkspace('/Users/example/project', 'イトパン'),
+    ).resolves.toEqual(workspace)
   })
 
   it('surfaces domain errors from the local server', async () => {
@@ -143,6 +170,27 @@ describe('workspace API client', () => {
       }),
     )
     await expect(updateWorkspace('ws_1', 'codex')).resolves.toEqual(workspace)
+  })
+
+  it('工房の担当名を更新する', async () => {
+    const workspace = {
+      ...sampleWorkspace('/Users/example/project'),
+      employeeName: 'イトパン',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/api/session')) {
+          return jsonResponse({ token: 'boot-session-token' })
+        }
+        expect(init?.method).toBe('PATCH')
+        expect(init?.body).toBe(JSON.stringify({ employeeName: 'イトパン' }))
+        return jsonResponse({ workspace })
+      }),
+    )
+    await expect(
+      updateWorkspaceEmployeeName('ws_1', 'イトパン'),
+    ).resolves.toEqual(workspace)
   })
 })
 

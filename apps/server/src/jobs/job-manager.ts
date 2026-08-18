@@ -357,6 +357,18 @@ export function createJobManager(
           ...(worktreeRelPath ? { worktreeRelPath } : {}),
         })
       } catch (error) {
+        persistEvent(store, hub, {
+          jobId: job.id,
+          runId: run.id,
+          type: 'run.failed',
+          payload: {
+            summary: redactSensitiveText(
+              isAppError(error) ? error.message : '仕事を開始できませんでした',
+            ),
+            reason: 'start-failed',
+          },
+          occurredAt: new Date().toISOString(),
+        })
         finishJob(
           store,
           employees,

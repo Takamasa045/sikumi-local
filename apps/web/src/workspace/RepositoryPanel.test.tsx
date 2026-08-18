@@ -12,6 +12,7 @@ describe('RepositoryPanel', () => {
         busy={false}
         error={null}
         onRegister={onRegister}
+        onEmployeeNameChange={vi.fn()}
       />,
     )
 
@@ -23,7 +24,8 @@ describe('RepositoryPanel', () => {
       screen.getByRole('button', { name: 'この工房に登録する' }),
     )
 
-    expect(onRegister).toHaveBeenCalledWith('/Users/example/project')
+    expect(onRegister).toHaveBeenCalledWith('/Users/example/project', '')
+    expect(screen.getByLabelText('担当の名前（任意）')).toBeVisible()
     expect(
       screen.getByText(
         'AI社員に作業してもらいたいGitプロジェクトのフォルダを指定してください。Shikumi Local自身のフォルダではありません。',
@@ -41,6 +43,7 @@ describe('RepositoryPanel', () => {
         workspace={{
           id: 'ws_1',
           name: 'project',
+          employeeName: 'プロジェクト番',
           defaultProviderId: null,
           worldPackId: 'dog-office',
           createdAt: 't',
@@ -58,6 +61,7 @@ describe('RepositoryPanel', () => {
         busy={false}
         error={null}
         onRegister={vi.fn()}
+        onEmployeeNameChange={vi.fn()}
       />,
     )
 
@@ -66,6 +70,7 @@ describe('RepositoryPanel', () => {
     expect(screen.getByText('✓ 現在のbranch: main')).toBeVisible()
     expect(screen.getByText('✓ remote: origin')).toBeVisible()
     expect(screen.getByText('✓ 読み取り可能')).toBeVisible()
+    expect(screen.getByDisplayValue('プロジェクト番')).toBeVisible()
   })
 
   it('shows fallbacks for a detached or unreadable repository', () => {
@@ -74,6 +79,7 @@ describe('RepositoryPanel', () => {
         workspace={{
           id: 'ws_1',
           name: 'project',
+          employeeName: 'プロジェクト番',
           defaultProviderId: null,
           worldPackId: 'dog-office',
           createdAt: 't',
@@ -91,6 +97,7 @@ describe('RepositoryPanel', () => {
         busy
         error="Git Repositoryではありません"
         onRegister={vi.fn()}
+        onEmployeeNameChange={vi.fn()}
       />,
     )
 
@@ -103,5 +110,43 @@ describe('RepositoryPanel', () => {
     expect(
       screen.getByRole('button', { name: 'この工房に登録する' }),
     ).toBeDisabled()
+  })
+
+  it('登録済み工房の担当名を変更できる', async () => {
+    const onEmployeeNameChange = vi.fn()
+    render(
+      <RepositoryPanel
+        workspace={{
+          id: 'ws_1',
+          name: 'blog-agent-kit',
+          employeeName: 'ブログ番',
+          defaultProviderId: null,
+          worldPackId: 'dog-office',
+          createdAt: 't',
+          updatedAt: 't',
+          repository: {
+            id: 'repo_1',
+            absolutePath: '/Users/example/blog-agent-kit',
+            displayName: 'blog-agent-kit',
+            currentBranch: 'main',
+            remoteName: 'origin',
+            remoteUrl: null,
+            readable: true,
+          },
+        }}
+        busy={false}
+        error={null}
+        onRegister={vi.fn()}
+        onEmployeeNameChange={onEmployeeNameChange}
+      />,
+    )
+
+    const input = screen.getByLabelText('担当の名前')
+    await userEvent.clear(input)
+    await userEvent.type(input, 'イトパン')
+    await userEvent.click(
+      screen.getByRole('button', { name: '担当の名前を保存' }),
+    )
+    expect(onEmployeeNameChange).toHaveBeenCalledWith('イトパン')
   })
 })

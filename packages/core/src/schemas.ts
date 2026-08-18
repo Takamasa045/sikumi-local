@@ -21,6 +21,7 @@ import {
 
 export const registerWorkspaceRequestSchema = z.object({
   path: z.string().trim().min(1).max(4096),
+  employeeName: z.string().trim().min(1).max(40).optional(),
 })
 
 export const repositorySchema = z.object({
@@ -36,6 +37,7 @@ export const repositorySchema = z.object({
 export const workspaceSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
+  employeeName: z.string().min(1).max(40).optional(),
   defaultProviderId: z.enum(providerIds).nullable(),
   worldPackId: z.string().min(1),
   createdAt: z.string().min(1),
@@ -349,9 +351,16 @@ export const installPackRequestSchema = z.object({
   confirm: z.literal(true),
 })
 
-export const updateWorkspaceRequestSchema = z.object({
-  defaultProviderId: z.enum(providerIds).nullable(),
-})
+export const updateWorkspaceRequestSchema = z
+  .object({
+    defaultProviderId: z.enum(providerIds).nullable().optional(),
+    employeeName: z.string().trim().min(1).max(40).optional(),
+  })
+  .refine(
+    (value) =>
+      value.defaultProviderId !== undefined || value.employeeName !== undefined,
+    { message: 'Workspace update is empty' },
+  )
 
 export const updateEmployeeRequestSchema = z.object({
   defaultProviderId: z.enum(providerIds).nullable(),

@@ -21,7 +21,8 @@ interface SettingsPanelProps {
   readonly providers: readonly ProviderAvailability[]
   readonly busy: boolean
   readonly error: string | null
-  readonly onRegister: (path: string) => void
+  readonly onRegister: (path: string, employeeName: string) => void
+  readonly onEmployeeNameChange?: ((employeeName: string) => void) | undefined
   readonly onWorkspaceProviderChange?: (providerId: ProviderId | null) => void
   readonly packs?: readonly InstalledPack[]
   readonly packPreview?: PackPreview | null
@@ -54,6 +55,7 @@ export function SettingsPanel({
   busy,
   error,
   onRegister,
+  onEmployeeNameChange,
   onWorkspaceProviderChange,
   packs = [],
   packPreview = null,
@@ -74,6 +76,7 @@ export function SettingsPanel({
         busy={busy}
         error={error}
         onRegister={onRegister}
+        onEmployeeNameChange={onEmployeeNameChange}
       />
       {workspace && onWorkspaceProviderChange ? (
         <label className="settings-panel__tool">

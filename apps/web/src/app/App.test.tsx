@@ -146,6 +146,7 @@ describe('Shikumi Local garden', () => {
               workspace: {
                 id: 'ws_1',
                 name: 'my-project',
+                employeeName: 'ブログ番',
                 defaultProviderId: null,
                 worldPackId: 'dog-office',
                 createdAt: '2026-08-18T00:00:00.000Z',
@@ -188,6 +189,9 @@ describe('Shikumi Local garden', () => {
     })
     expect(screen.getByText('✓ Git Repository')).toBeVisible()
     expect(screen.getByText('✓ 現在のbranch: main')).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: 'ブログ番に何を頼みますか' }),
+    ).toBeVisible()
     expect(
       screen.getByRole('heading', { name: '犬たちの里山アトリエ' }),
     ).toBeVisible()

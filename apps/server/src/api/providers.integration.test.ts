@@ -103,6 +103,14 @@ describe('provider registry API', () => {
     })
     expect(updated.json().workspace.defaultProviderId).toBe('codex')
 
+    const renamed = await injectAuthed(app, {
+      method: 'PATCH',
+      url: `/api/workspaces/${workspaceId}`,
+      payload: { employeeName: 'イトパン' },
+    })
+    expect(renamed.statusCode).toBe(200)
+    expect(renamed.json().workspace.employeeName).toBe('イトパン')
+
     const doctor = await injectPublic(app, {
       method: 'GET',
       url: '/api/doctor',

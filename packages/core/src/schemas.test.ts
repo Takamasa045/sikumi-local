@@ -19,6 +19,7 @@ import {
   providerSchema,
   registerWorkspaceRequestSchema,
   resolveApprovalRequestSchema,
+  updateWorkspaceRequestSchema,
   workspaceSchema,
 } from './schemas.js'
 
@@ -49,6 +50,15 @@ describe('registerWorkspaceRequestSchema', () => {
       registerWorkspaceRequestSchema.parse({ path: '   ' }),
     ).toThrow()
   })
+
+  it('任意の担当名を受け付けて空白を除く', () => {
+    expect(
+      registerWorkspaceRequestSchema.parse({
+        path: '/Users/example/blog-agent-kit',
+        employeeName: '  イトパン  ',
+      }).employeeName,
+    ).toBe('イトパン')
+  })
 })
 
 describe('workspaceSchema', () => {
@@ -72,6 +82,16 @@ describe('workspaceSchema', () => {
     })
 
     expect(workspace.repository.displayName).toBe('project')
+  })
+
+  it('担当名または標準の道具だけを更新できる', () => {
+    expect(
+      updateWorkspaceRequestSchema.parse({ employeeName: 'イトパン' }),
+    ).toEqual({ employeeName: 'イトパン' })
+    expect(
+      updateWorkspaceRequestSchema.parse({ defaultProviderId: null }),
+    ).toEqual({ defaultProviderId: null })
+    expect(() => updateWorkspaceRequestSchema.parse({})).toThrow()
   })
 })
 

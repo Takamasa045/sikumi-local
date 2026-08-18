@@ -38,7 +38,7 @@ export function registerWorkspaceRoutes(
     }
 
     const workspace = workspaceSchema.parse(
-      registerWorkspace(store, parsed.data.path),
+      registerWorkspace(store, parsed.data.path, parsed.data.employeeName),
     )
     return reply.status(201).send({ workspace })
   })
@@ -56,7 +56,14 @@ export function registerWorkspaceRoutes(
       }
       return {
         workspace: workspaceSchema.parse(
-          store.updateWorkspace(request.params.id, parsed.data),
+          store.updateWorkspace(request.params.id, {
+            ...(parsed.data.defaultProviderId === undefined
+              ? {}
+              : { defaultProviderId: parsed.data.defaultProviderId }),
+            ...(parsed.data.employeeName === undefined
+              ? {}
+              : { employeeName: parsed.data.employeeName }),
+          }),
         ),
       }
     },

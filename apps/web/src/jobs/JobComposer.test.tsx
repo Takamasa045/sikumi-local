@@ -24,6 +24,36 @@ const employee: EmployeeSummary = {
 }
 
 describe('JobComposer', () => {
+  it('依頼の開始失敗を操作箇所に表示する', () => {
+    render(
+      <JobComposer
+        enabled
+        busy={false}
+        request="調べて"
+        notice="notice"
+        error="Grok protocol handshake failed"
+        employeeName="ブログ番"
+        employees={[employee]}
+        selectedEmployeeId="saguru"
+        providers={[provider('grok-build', 'ready')]}
+        selectedProvider="grok-build"
+        onRequestChange={vi.fn()}
+        onEmployeeChange={vi.fn()}
+        onProviderChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onConfirmFallback={vi.fn()}
+        onCancelConfirmation={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.getByRole('heading', { name: 'ブログ番に何を頼みますか' }),
+    ).toBeVisible()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Grok protocol handshake failed',
+    )
+  })
+
   it('offers explicit dirty-repo worktree choices', async () => {
     const onDirty = vi.fn()
     render(

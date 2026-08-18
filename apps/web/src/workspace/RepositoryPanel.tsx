@@ -55,10 +55,14 @@ export function RepositoryPanel({
       <form onSubmit={handleSubmit}>
         <label>
           <span>Repositoryの場所</span>
+          <p className="repository-panel__help">
+            AI社員に作業してもらいたいGitプロジェクトのフォルダを指定してください。Shikumi
+            Local自身のフォルダではありません。
+          </p>
           <input
             name="path"
             aria-label="Repositoryの場所"
-            placeholder="/Users/example/projects/my-project"
+            placeholder="/Users/example/Projects/my-website"
             autoComplete="off"
             spellCheck={false}
             disabled={busy}

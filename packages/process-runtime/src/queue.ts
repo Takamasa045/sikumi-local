@@ -3,16 +3,26 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   private readonly waiters: Array<(result: IteratorResult<T>) => void> = []
   private closed = false
 
-  push(item: T): void {
+  constructor(private readonly maxItems?: number) {}
+
+  get size(): number {
+    return this.items.length
+  }
+
+  push(item: T): boolean {
     if (this.closed) {
-      return
+      return false
     }
     const waiter = this.waiters.shift()
     if (waiter) {
       waiter({ value: item, done: false })
-      return
+      return true
+    }
+    if (this.maxItems !== undefined && this.items.length >= this.maxItems) {
+      return false
     }
     this.items.push(item)
+    return true
   }
 
   close(): void {

@@ -84,12 +84,6 @@ if (outputFormat === 'json') {
 }
 
 if (protocolVariant === 'malformed') {
-  write({
-    type: 'system',
-    subtype: 'init',
-    session_id: resume ?? 'claude-sess-1',
-    protocolVersion: protocol.protocolVersion,
-  })
   writeMalformedFrame()
   process.exit(1)
 }

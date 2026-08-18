@@ -238,6 +238,10 @@ async function runAcp() {
 }
 
 async function runStreaming(args) {
+  if (protocolVariant === 'malformed') {
+    writeMalformedFrame()
+    process.exit(1)
+  }
   const promptIndex = args.indexOf('-p')
   const prompt = promptIndex >= 0 ? args[promptIndex + 1] : ''
   write({

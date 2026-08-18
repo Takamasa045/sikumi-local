@@ -21,6 +21,12 @@ export {
   parseJsonlLine,
 } from './jsonl.js'
 export {
+  createOutputOverflowDiagnostic,
+  OUTPUT_OVERFLOW_DIAGNOSTIC,
+  type OutputOverflowDiagnostic,
+} from './output-limit.js'
+export { sliceUtf8Bytes, toUtf8Buffer, utf8SafeEnd } from './utf8.js'
+export {
   createJsonRpcClient,
   type JsonRpcClient,
   type JsonRpcId,
@@ -37,8 +43,10 @@ export {
 } from './path-guard.js'
 export {
   adoptSpawnedProcess,
+  DEFAULT_MAX_JSONL_QUEUE_ITEMS,
   isProcessAlive,
   spawnManagedProcess,
+  type AdoptProcessOptions,
   type ManagedProcess,
   type ProcessExitResult,
   type SpawnProcessRequest,

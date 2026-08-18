@@ -18,17 +18,23 @@ export function registerEventRoutes(
   security: SecurityConfig,
 ): void {
   app.get('/api/events', async (request, reply) => {
-    const existing = eventsAfter(
-      jobs.listAllEvents().map((event) => persistedEventSchema.parse(event)),
-      readSseCursor(request.headers['last-event-id'], request.query),
+    const cursor = readSseCursor(
+      request.headers['last-event-id'],
+      request.query,
     )
+    const snapshot = () =>
+      eventsAfter(
+        jobs.listAllEvents().map((event) => persistedEventSchema.parse(event)),
+        cursor,
+      )
+    const existing = snapshot()
 
     if (wantsEventStream(request.headers.accept)) {
       assertSseAllowed(request, security)
       reply.hijack()
       startSseStream({
         raw: reply.raw,
-        replay: existing,
+        replay: snapshot,
         subscribe: (listener) => jobs.subscribeAll(listener),
       })
       return

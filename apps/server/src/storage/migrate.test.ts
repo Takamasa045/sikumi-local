@@ -97,7 +97,108 @@ describe('applyMigrations', () => {
     expect(columns.map((column) => column.name)).toEqual(['id', 'label'])
     expect(versions.map((row) => row.version)).toEqual([1, 2])
   })
+
+  it('rolls back table, index, data, and version when a migration fails mid-step', () => {
+    const sqlite = openTempDatabase()
+    // Match production: foreign_keys is a connection-level pragma and must
+    // stay outside the per-migration BEGIN IMMEDIATE transaction.
+    sqlite.pragma('foreign_keys = ON')
+
+    const initial: Migration = {
+      version: 1,
+      name: 'one',
+      sql: 'CREATE TABLE items (id TEXT PRIMARY KEY NOT NULL);',
+    }
+    const broken: Migration = {
+      version: 2,
+      name: 'broken',
+      sql: `
+        CREATE TABLE extra (
+          id TEXT PRIMARY KEY NOT NULL,
+          item_id TEXT NOT NULL REFERENCES items(id)
+        );
+        CREATE INDEX extra_item_id_idx ON extra(item_id);
+        CREATE INDEX items_partial_idx ON items(id);
+        INSERT INTO extra (id, item_id) VALUES ('row', 'keep');
+        INSERT INTO items (id) VALUES ('partial');
+        INSERT INTO extra (id, item_id) VALUES (NULL, 'keep');
+      `,
+    }
+    const fixed: Migration = {
+      version: 2,
+      name: 'fixed',
+      sql: `
+        CREATE TABLE extra (
+          id TEXT PRIMARY KEY NOT NULL,
+          item_id TEXT NOT NULL REFERENCES items(id)
+        );
+        CREATE INDEX extra_item_id_idx ON extra(item_id);
+        INSERT INTO extra (id, item_id) VALUES ('ok', 'keep');
+      `,
+    }
+
+    applyMigrations(sqlite, [initial])
+    sqlite.prepare(`INSERT INTO items (id) VALUES ('keep')`).run()
+
+    expect(() => applyMigrations(sqlite, [initial, broken])).toThrow()
+
+    expect(listUserTables(sqlite)).toEqual(['items', 'schema_migrations'])
+    expect(listUserIndexes(sqlite)).toEqual([])
+    expect(sqlite.prepare('SELECT id FROM items ORDER BY id').all()).toEqual([
+      { id: 'keep' },
+    ])
+    expect(
+      sqlite
+        .prepare('SELECT version, name FROM schema_migrations ORDER BY version')
+        .all(),
+    ).toEqual([{ version: 1, name: 'one' }])
+
+    applyMigrations(sqlite, [initial, fixed])
+
+    expect(listUserTables(sqlite)).toEqual([
+      'extra',
+      'items',
+      'schema_migrations',
+    ])
+    expect(listUserIndexes(sqlite)).toEqual(['extra_item_id_idx'])
+    expect(
+      sqlite.prepare('SELECT id, item_id FROM extra ORDER BY id').all(),
+    ).toEqual([{ id: 'ok', item_id: 'keep' }])
+    expect(sqlite.prepare('SELECT id FROM items ORDER BY id').all()).toEqual([
+      { id: 'keep' },
+    ])
+    expect(
+      sqlite
+        .prepare('SELECT version, name FROM schema_migrations ORDER BY version')
+        .all(),
+    ).toEqual([
+      { version: 1, name: 'one' },
+      { version: 2, name: 'fixed' },
+    ])
+  })
 })
+
+function listUserTables(sqlite: Database.Database): string[] {
+  return (
+    sqlite
+      .prepare(
+        `SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`,
+      )
+      .all() as Array<{ name: string }>
+  ).map((row) => row.name)
+}
+
+function listUserIndexes(sqlite: Database.Database): string[] {
+  return (
+    sqlite
+      .prepare(
+        `SELECT name FROM sqlite_master
+         WHERE type = 'index' AND name NOT LIKE 'sqlite_%'
+         ORDER BY name`,
+      )
+      .all() as Array<{ name: string }>
+  ).map((row) => row.name)
+}
 
 function createTempDirectory(): string {
   const directory = mkdtempSync(join(tmpdir(), 'sikumi-migrate-'))

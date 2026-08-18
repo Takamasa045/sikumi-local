@@ -9,8 +9,10 @@ import type {
   ProviderRunSpecification,
 } from '@sikumi-local/provider-sdk'
 import {
+  AsyncQueue,
   isProcessAlive,
   spawnManagedProcess,
+  type ManagedProcess,
 } from '@sikumi-local/process-runtime'
 import {
   createClaudeProvider,
@@ -230,13 +232,83 @@ describe('Claude adapter', () => {
     expect(events.some((event) => event.type === 'run.completed')).toBe(true)
   })
 
-  it('fails closed on a malformed protocol fixture', async () => {
+  it('fails after wait() when output overflows even if the process exit looks successful', async () => {
+    const adapter = track(
+      createClaudeProvider({
+        executable: process.execPath,
+        argsPrefix: [resolveFakeClaudePath()],
+        brokerPath: resolvePermissionBrokerPath(),
+        probeCwd: trackDir(),
+        parentEnv: { PATH: process.env.PATH, HOME: process.env.HOME },
+        spawn: () => createOverflowedProcess(),
+      }),
+    )
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun(specification(trackDir(), '調べて')),
+    )
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.at(-1)).toMatchObject({
+      type: 'run.failed',
+      summary: '出力が上限を超えたため仕事を停止しました',
+    })
+  })
+
+  it('fails only after wait() when JSONL completed arrives before output overflow', async () => {
+    const adapter = track(
+      createClaudeProvider({
+        executable: process.execPath,
+        argsPrefix: [resolveFakeClaudePath()],
+        brokerPath: resolvePermissionBrokerPath(),
+        probeCwd: trackDir(),
+        parentEnv: { PATH: process.env.PATH, HOME: process.env.HOME },
+        spawn: () =>
+          createOverflowedProcess([
+            { type: 'system', subtype: 'init', protocolVersion: 1 },
+            { type: 'assistant' },
+            { type: 'result', subtype: 'success' },
+          ]),
+      }),
+    )
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun(specification(trackDir(), '調べて')),
+    )
+    expect(terminalTypes(events)).toEqual(['run.failed'])
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.at(-1)).toMatchObject({
+      type: 'run.failed',
+      summary: '出力が上限を超えたため仕事を停止しました',
+    })
+  })
+
+  it('fails closed on an unknown protocol version', async () => {
     expect(
       loadClaudeProtocolFixture('stream-json-v1.json').protocolVersion,
     ).toBe(1)
     expect(() =>
       assertSupportedClaudeProtocol(loadClaudeProtocolFixture('unknown')),
     ).toThrow(AppError)
+
+    const adapter = track(
+      createClaudeProvider({
+        executable: process.execPath,
+        argsPrefix: [resolveFakeClaudePath(), '--protocol-variant', 'unknown'],
+        brokerPath: resolvePermissionBrokerPath(),
+        probeCwd: trackDir(),
+        parentEnv: { PATH: process.env.PATH, HOME: process.env.HOME },
+      }),
+    )
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun(specification(trackDir(), '調べて')),
+    )
+    expect(events.some((event) => event.type === 'run.failed')).toBe(true)
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(JSON.stringify(events)).toMatch(/not supported|unsupported/i)
+  })
+
+  it('fails closed on a malformed protocol fixture', async () => {
     expect(() =>
       assertSupportedClaudeProtocol(loadClaudeProtocolFixture('malformed')),
     ).toThrow(AppError)
@@ -266,8 +338,9 @@ describe('Claude adapter', () => {
     )
     expect(events.some((event) => event.type === 'run.failed')).toBe(true)
     expect(events.some((event) => event.type === 'run.completed')).toBe(false)
-    expect(JSON.stringify(events)).toMatch(
-      /not supported|unsupported|malformed/i,
+    expect(JSON.stringify(events)).not.toContain('FUTURE_SECRET_TOKEN')
+    expect(events.find((event) => event.type === 'run.failed')?.summary).toBe(
+      '調査を完了できませんでした',
     )
     await adapter.dispose()
     await expectProcessesExited(pids)
@@ -321,8 +394,9 @@ describe('Claude adapter', () => {
       await incompatible.startRun(specification(trackDir(), '調べて')),
     )
     expect(events.some((event) => event.type === 'run.failed')).toBe(true)
-    expect(JSON.stringify(events)).toMatch(
-      /not supported|unsupported|malformed/i,
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.find((event) => event.type === 'run.failed')?.summary).toBe(
+      '調査を完了できませんでした',
     )
   })
 
@@ -455,6 +529,17 @@ async function collect(handle: {
   return events
 }
 
+function terminalTypes(events: readonly CanonicalEvent[]): string[] {
+  return events
+    .filter(
+      (event) =>
+        event.type === 'run.completed' ||
+        event.type === 'run.failed' ||
+        event.type === 'run.cancelled',
+    )
+    .map((event) => event.type)
+}
+
 function track(adapter: ReturnType<typeof createClaudeProvider>) {
   adapters.push(adapter)
   return adapter
@@ -464,4 +549,29 @@ function trackDir(): string {
   const directory = mkdtempSync(join(tmpdir(), 'sikumi-claude-'))
   directories.push(directory)
   return directory
+}
+
+function createOverflowedProcess(
+  records: readonly Record<string, unknown>[] = [],
+): ManagedProcess {
+  const jsonl = new AsyncQueue<Record<string, unknown>>()
+  for (const record of records) {
+    jsonl.push(record)
+  }
+  jsonl.close()
+  return {
+    pid: 1,
+    jsonl,
+    writeStdin() {},
+    async cancel() {},
+    wait() {
+      return Promise.resolve({
+        code: 0,
+        signal: null,
+        timedOut: false,
+        cancelled: false,
+        outputOverflowed: true,
+      })
+    },
+  }
 }

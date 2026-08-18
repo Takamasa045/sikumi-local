@@ -148,6 +148,233 @@ describe('provider selection and restart orphaning', () => {
     expect(again.store.getJob(job.id)?.status).toBe('failed')
     expect(again.store.getRun('stale-run')?.status).toBe('orphaned')
     expect(again.store.listProviderSessions(job.id)[0]?.status).toBe('orphaned')
+    const crashEvents = again.store
+      .listEvents(job.id)
+      .filter((event) => event.type === 'run.failed')
+    expect(crashEvents).toHaveLength(1)
+    expect(crashEvents[0]?.payload).toMatchObject({
+      reason: 'crash-recovery',
+    })
+
+    const third = openManagerWithStore(store)
+    expect(third.store.getJob(job.id)?.status).toBe('failed')
+    expect(third.store.getRun('stale-run')?.status).toBe('orphaned')
+    expect(
+      third.store
+        .listEvents(job.id)
+        .filter((event) => event.type === 'run.failed'),
+    ).toHaveLength(1)
+  })
+
+  it('leaves completed and cancelled jobs, runs, and sessions unchanged', async () => {
+    const { store, workspaceId } = openManager()
+    const employeeId = store.ensureDefaultEmployee().id
+    store.insertJob({
+      id: 'done-job',
+      workspaceId,
+      employeeId,
+      request: '終わった仕事',
+      jobType: 'research',
+      selectedProvider: 'fake',
+      selectedModel: null,
+      permissionProfile: 'research',
+      status: 'completed',
+      providerSessionId: 'thread-done',
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: 'done',
+    })
+    store.insertRun({
+      id: 'done-run',
+      jobId: 'done-job',
+      providerId: 'fake',
+      status: 'completed',
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: 'done',
+    })
+    store.insertProviderSession({
+      id: 'done-session',
+      providerId: 'fake',
+      providerSessionId: 'thread-done',
+      workspaceId,
+      employeeId,
+      jobId: 'done-job',
+      cwd: '/tmp',
+      status: 'closed',
+      createdAt: 't',
+      updatedAt: 't',
+    })
+    store.insertJob({
+      id: 'cancelled-job',
+      workspaceId,
+      employeeId,
+      request: '止めた仕事',
+      jobType: 'research',
+      selectedProvider: 'fake',
+      selectedModel: null,
+      permissionProfile: 'research',
+      status: 'cancelled',
+      providerSessionId: null,
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: 'cancelled',
+    })
+    store.insertRun({
+      id: 'cancelled-run',
+      jobId: 'cancelled-job',
+      providerId: 'fake',
+      status: 'cancelled',
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: 'cancelled',
+    })
+    store.insertEvent({
+      id: 'evt-done',
+      jobId: 'done-job',
+      runId: 'done-run',
+      type: 'run.completed',
+      payload: { summary: '完了' },
+      occurredAt: 't',
+    })
+
+    const again = openManagerWithStore(store)
+    expect(again.store.getJob('done-job')).toMatchObject({
+      status: 'completed',
+      completedAt: 'done',
+    })
+    expect(again.store.getRun('done-run')).toMatchObject({
+      status: 'completed',
+      completedAt: 'done',
+    })
+    expect(again.store.listProviderSessions('done-job')[0]?.status).toBe(
+      'closed',
+    )
+    expect(again.store.getJob('cancelled-job')).toMatchObject({
+      status: 'cancelled',
+      completedAt: 'cancelled',
+    })
+    expect(again.store.getRun('cancelled-run')?.status).toBe('cancelled')
+    expect(
+      again.store.listEvents('done-job').map((event) => event.type),
+    ).toEqual(['run.completed'])
+    expect(again.store.listEvents('cancelled-job')).toEqual([])
+  })
+
+  it('orphans queued, preparing, waiting, and idle leftovers once', async () => {
+    const { store, workspaceId } = openManager()
+    const employeeId = store.ensureDefaultEmployee().id
+    store.insertJob({
+      id: 'queued-job',
+      workspaceId,
+      employeeId,
+      request: '待ち',
+      jobType: 'research',
+      selectedProvider: 'fake',
+      selectedModel: null,
+      permissionProfile: 'research',
+      status: 'queued',
+      providerSessionId: null,
+      createdAt: 't',
+      startedAt: null,
+      completedAt: null,
+    })
+    store.insertRun({
+      id: 'queued-run',
+      jobId: 'queued-job',
+      providerId: 'fake',
+      status: 'queued',
+      createdAt: 't',
+      startedAt: null,
+      completedAt: null,
+    })
+    store.insertJob({
+      id: 'preparing-job',
+      workspaceId,
+      employeeId,
+      request: '準備中',
+      jobType: 'research',
+      selectedProvider: 'fake',
+      selectedModel: null,
+      permissionProfile: 'research',
+      status: 'preparing',
+      providerSessionId: null,
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: null,
+    })
+    store.insertRun({
+      id: 'preparing-run',
+      jobId: 'preparing-job',
+      providerId: 'fake',
+      status: 'running',
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: null,
+    })
+    store.insertJob({
+      id: 'waiting-job',
+      workspaceId,
+      employeeId,
+      request: '確認待ち',
+      jobType: 'research',
+      selectedProvider: 'fake',
+      selectedModel: null,
+      permissionProfile: 'research',
+      status: 'waiting_for_user',
+      providerSessionId: 'thread-wait',
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: null,
+    })
+    store.insertRun({
+      id: 'waiting-run',
+      jobId: 'waiting-job',
+      providerId: 'fake',
+      status: 'running',
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: null,
+    })
+    store.insertProviderSession({
+      id: 'idle-session',
+      providerId: 'fake',
+      providerSessionId: 'thread-wait',
+      workspaceId,
+      employeeId,
+      jobId: 'waiting-job',
+      cwd: '/tmp',
+      status: 'idle',
+      createdAt: 't',
+      updatedAt: 't',
+    })
+
+    openManagerWithStore(store)
+    const second = openManagerWithStore(store)
+    expect(second.store.getJob('queued-job')?.status).toBe('failed')
+    expect(second.store.getRun('queued-run')?.status).toBe('orphaned')
+    expect(second.store.getJob('preparing-job')?.status).toBe('failed')
+    expect(second.store.getRun('preparing-run')?.status).toBe('orphaned')
+    expect(second.store.getJob('waiting-job')?.status).toBe('failed')
+    expect(second.store.getRun('waiting-run')?.status).toBe('orphaned')
+    expect(second.store.listProviderSessions('waiting-job')[0]?.status).toBe(
+      'orphaned',
+    )
+    expect(
+      second.store
+        .listEvents('queued-job')
+        .filter((event) => event.type === 'run.failed'),
+    ).toHaveLength(1)
+    expect(
+      second.store
+        .listEvents('preparing-job')
+        .filter((event) => event.type === 'run.failed'),
+    ).toHaveLength(1)
+    expect(
+      second.store
+        .listEvents('waiting-job')
+        .filter((event) => event.type === 'run.failed'),
+    ).toHaveLength(1)
   })
 })
 

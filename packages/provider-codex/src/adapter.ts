@@ -448,6 +448,7 @@ export function createCodexProvider(
 
   async function consumeExec(active: ActiveRun): Promise<void> {
     try {
+      let bufferedTerminal: CanonicalEvent | undefined
       for await (const raw of active.process.jsonl) {
         if (typeof raw.thread_id === 'string') {
           active.threadId = raw.thread_id
@@ -465,17 +466,21 @@ export function createCodexProvider(
           mapped.type === 'run.failed' ||
           mapped.type === 'run.cancelled'
         ) {
-          finishRun(
-            active,
-            mapped.type === 'run.completed'
-              ? withSchemaResult(active, mapped)
-              : mapped,
-          )
-          return
+          bufferedTerminal = mapped
+          continue
         }
         active.events.push(mapped)
       }
       const exit = await active.process.wait()
+      if (exit.outputOverflowed) {
+        finishRun(active, {
+          type: 'run.failed',
+          runId: active.specification.runId,
+          occurredAt: now(),
+          summary: '出力が上限を超えたため仕事を停止しました',
+        })
+        return
+      }
       if (active.finished) {
         return
       }
@@ -486,6 +491,15 @@ export function createCodexProvider(
           occurredAt: now(),
           summary: '仕事を中止しました',
         })
+        return
+      }
+      if (bufferedTerminal) {
+        finishRun(
+          active,
+          bufferedTerminal.type === 'run.completed'
+            ? withSchemaResult(active, bufferedTerminal)
+            : bufferedTerminal,
+        )
         return
       }
       finishRun(active, {
@@ -506,6 +520,15 @@ export function createCodexProvider(
 
   async function waitForExit(active: ActiveRun): Promise<void> {
     const exit = await active.process.wait()
+    if (exit.outputOverflowed) {
+      finishRun(active, {
+        type: 'run.failed',
+        runId: active.specification.runId,
+        occurredAt: now(),
+        summary: '出力が上限を超えたため仕事を停止しました',
+      })
+      return
+    }
     if (active.finished) {
       return
     }

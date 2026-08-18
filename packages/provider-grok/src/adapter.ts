@@ -527,6 +527,15 @@ export function createGrokProvider(
         }
       }
       const exit = await active.process.wait()
+      if (exit.outputOverflowed) {
+        finishRun(active, {
+          type: 'run.failed',
+          runId: active.specification.runId,
+          occurredAt: now(),
+          summary: '出力が上限を超えたため仕事を停止しました',
+        })
+        return
+      }
       if (active.finished) {
         return
       }
@@ -536,6 +545,24 @@ export function createGrokProvider(
           runId: active.specification.runId,
           occurredAt: now(),
           summary: '仕事を中止しました',
+        })
+        return
+      }
+      if (exit.timedOut) {
+        finishRun(active, {
+          type: 'run.failed',
+          runId: active.specification.runId,
+          occurredAt: now(),
+          summary: '制限時間を超えたため仕事を止めました',
+        })
+        return
+      }
+      if (exit.code !== 0 || exit.signal !== null) {
+        finishRun(active, {
+          type: 'run.failed',
+          runId: active.specification.runId,
+          occurredAt: now(),
+          summary: '調査を完了できませんでした',
         })
         return
       }
@@ -601,6 +628,15 @@ export function createGrokProvider(
 
   async function waitForExit(active: ActiveRun): Promise<void> {
     const exit = await active.process.wait()
+    if (exit.outputOverflowed) {
+      finishRun(active, {
+        type: 'run.failed',
+        runId: active.specification.runId,
+        occurredAt: now(),
+        summary: '出力が上限を超えたため仕事を停止しました',
+      })
+      return
+    }
     if (active.finished) {
       return
     }

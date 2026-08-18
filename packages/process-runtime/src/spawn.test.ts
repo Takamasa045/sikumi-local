@@ -37,10 +37,11 @@ describe('spawnManagedProcess', () => {
       allowedCwdRoots: [cwd],
     })
 
-    const events = await collect(child.jsonl)
-    const exit = await child.wait()
+    const eventsPromise = collect(child.jsonl)
+    const [events, exit] = await Promise.all([eventsPromise, child.wait()])
 
     expect(exit.code).toBe(1)
+    expect(exit.outputOverflowed).toBe(false)
     expect(events[0]).toMatchObject({ type: 'run.started' })
     expect(events.at(-1)).toMatchObject({ type: 'run.failed' })
     expect(JSON.stringify(events)).not.toContain(
@@ -277,6 +278,121 @@ describe('spawnManagedProcess', () => {
     expect(exit.code).toBe(0)
     expect(seen.map((event) => event.type)).toContain('artifact.created')
     expect(seen.at(-1)).toMatchObject({ type: 'run.completed' })
+  })
+
+  it('stops the process group on the first oversized JSONL line', async () => {
+    const cwd = createTempCwd()
+    const pidFile = join(cwd, 'line-overflow.pid')
+    const script = join(cwd, 'huge-line.mjs')
+    writeFileSync(
+      script,
+      [
+        `import { spawn } from 'node:child_process'`,
+        `import { existsSync, writeSync } from 'node:fs'`,
+        `spawn(process.execPath, ${JSON.stringify([resolveLingerChildPath(), pidFile])}, { stdio: 'ignore', shell: false })`,
+        `while (!existsSync(${JSON.stringify(pidFile)})) {`,
+        `  await new Promise((resolve) => setTimeout(resolve, 10))`,
+        `}`,
+        `writeSync(1, JSON.stringify({ type: 'too', pad: 'x'.repeat(200) }) + '\\n')`,
+        `writeSync(1, JSON.stringify({ type: 'run.started', summary: 'ok', reasoning: 'hidden', token: 'sk-live-secret1234' }) + '\\n')`,
+        `setInterval(() => {}, 1000)`,
+      ].join('\n'),
+    )
+    const child = spawnManagedProcess({
+      executable: process.execPath,
+      args: [script],
+      cwd,
+      allowedCwdRoots: [cwd],
+      maxJsonlLineBytes: 64,
+    })
+    const descendantPid = await waitForPidFile(pidFile)
+    const eventsPromise = collect(child.jsonl)
+    const [events, exit] = await Promise.all([eventsPromise, child.wait()])
+
+    expect(exit.outputOverflowed).toBe(true)
+    expect(exit.cancelled).toBe(false)
+    expect(exit.timedOut).toBe(false)
+    expect(isProcessAlive(child.pid)).toBe(false)
+    await waitUntilDead(descendantPid)
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'runtime.output_overflow' &&
+          event.diagnostic === 'output_overflow',
+      ),
+    ).toBe(true)
+    expect(events.some((event) => event.type === 'run.started')).toBe(false)
+    expect(JSON.stringify(events)).not.toContain('hidden')
+    expect(JSON.stringify(events)).not.toContain('sk-live-secret1234')
+  })
+
+  it('stops the process group when the JSONL queue rejects a push', async () => {
+    const cwd = createTempCwd()
+    const pidFile = join(cwd, 'queue-overflow.pid')
+    const script = join(cwd, 'flood.mjs')
+    writeFileSync(
+      script,
+      [
+        `import { spawn } from 'node:child_process'`,
+        `import { existsSync, writeSync } from 'node:fs'`,
+        `spawn(process.execPath, ${JSON.stringify([resolveLingerChildPath(), pidFile])}, { stdio: 'ignore', shell: false })`,
+        `while (!existsSync(${JSON.stringify(pidFile)})) {`,
+        `  await new Promise((resolve) => setTimeout(resolve, 10))`,
+        `}`,
+        `writeSync(1, Array.from({ length: 20 }, (_, i) => JSON.stringify({ type: 'tick', i })).join('\\n') + '\\n')`,
+        `setInterval(() => {}, 1000)`,
+      ].join('\n'),
+    )
+    const child = spawnManagedProcess({
+      executable: process.execPath,
+      args: [script],
+      cwd,
+      allowedCwdRoots: [cwd],
+      maxJsonlQueueItems: 3,
+    })
+    const descendantPid = await waitForPidFile(pidFile)
+    const exit = await child.wait()
+    const events = await collect(child.jsonl)
+
+    expect(exit.outputOverflowed).toBe(true)
+    expect(exit.cancelled).toBe(false)
+    expect(exit.timedOut).toBe(false)
+    expect(isProcessAlive(child.pid)).toBe(false)
+    await waitUntilDead(descendantPid)
+    expect(events).toEqual([
+      { type: 'tick', i: 0 },
+      { type: 'tick', i: 1 },
+      { type: 'tick', i: 2 },
+    ])
+  })
+
+  it('rejects a non-positive maxJsonlQueueItems before spawn', () => {
+    const cwd = createTempCwd()
+    for (const maxJsonlQueueItems of [0, -1, 1.5, Number.NaN]) {
+      expect(() =>
+        spawnManagedProcess({
+          executable: process.execPath,
+          args: ['-e', 'process.exit(0)'],
+          cwd,
+          allowedCwdRoots: [cwd],
+          maxJsonlQueueItems,
+        }),
+      ).toThrow(AppError)
+    }
+  })
+
+  it('rejects a non-positive maxJsonlQueueItems on adopt', () => {
+    const child = new EventEmitter() as EventEmitter & {
+      pid: number | undefined
+    }
+    child.pid = 1
+    expect(() =>
+      adoptSpawnedProcess(
+        child as unknown as ChildProcessWithoutNullStreams,
+        undefined,
+        { maxJsonlQueueItems: 0 },
+      ),
+    ).toThrow(AppError)
   })
 })
 

@@ -9,8 +9,10 @@ import type {
   ProviderRunSpecification,
 } from '@sikumi-local/provider-sdk'
 import {
+  AsyncQueue,
   isProcessAlive,
   spawnManagedProcess,
+  type ManagedProcess,
 } from '@sikumi-local/process-runtime'
 import { createCodexProvider, resolveFakeCodexPath } from './adapter.js'
 import {
@@ -256,6 +258,91 @@ describe('Codex adapter', () => {
     expect(handle.providerSessionId).toBe('thread-exec')
   })
 
+  it('fails after wait() when output overflows even if the process exit looks successful', async () => {
+    const adapter = track(
+      createCodexProvider({
+        executable: process.execPath,
+        argsPrefix: [resolveFakeCodexPath()],
+        probeCwd: trackDir(),
+        parentEnv: { PATH: process.env.PATH, HOME: process.env.HOME },
+        capture: async (request) => {
+          if (request.args.includes('app-server')) {
+            return {
+              code: 2,
+              signal: null,
+              stdout: '',
+              stderr: 'unknown',
+              timedOut: false,
+            }
+          }
+          return {
+            code: 0,
+            signal: null,
+            stdout: request.args.includes('exec')
+              ? '--json --output-schema'
+              : 'codex-cli 0.144.6-fixture',
+            stderr: '',
+            timedOut: false,
+          }
+        },
+        spawn: () => createOverflowedProcess(),
+      }),
+    )
+    await adapter.probe()
+    const handle = await adapter.startRun(specification(trackDir(), '調べて'))
+    const events = await collect(handle)
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.at(-1)).toMatchObject({
+      type: 'run.failed',
+      summary: '出力が上限を超えたため仕事を停止しました',
+    })
+  })
+
+  it('fails only after wait() when JSONL completed arrives before output overflow', async () => {
+    const adapter = track(
+      createCodexProvider({
+        executable: process.execPath,
+        argsPrefix: [resolveFakeCodexPath()],
+        probeCwd: trackDir(),
+        parentEnv: { PATH: process.env.PATH, HOME: process.env.HOME },
+        capture: async (request) => {
+          if (request.args.includes('app-server')) {
+            return {
+              code: 2,
+              signal: null,
+              stdout: '',
+              stderr: 'unknown',
+              timedOut: false,
+            }
+          }
+          return {
+            code: 0,
+            signal: null,
+            stdout: request.args.includes('exec')
+              ? '--json --output-schema'
+              : 'codex-cli 0.144.6-fixture',
+            stderr: '',
+            timedOut: false,
+          }
+        },
+        spawn: () =>
+          createOverflowedProcess([
+            { type: 'thread.started', thread_id: 'thread-overflow' },
+            { type: 'turn.completed' },
+          ]),
+      }),
+    )
+    await adapter.probe()
+    const handle = await adapter.startRun(specification(trackDir(), '調べて'))
+    const events = await collect(handle)
+    expect(terminalTypes(events)).toEqual(['run.failed'])
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.at(-1)).toMatchObject({
+      type: 'run.failed',
+      summary: '出力が上限を超えたため仕事を停止しました',
+    })
+  })
+
   it('fails closed on a malformed protocol fixture', async () => {
     expect(loadCodexProtocolFixture('app-server-v1.json').protocolVersion).toBe(
       1,
@@ -494,6 +581,17 @@ async function collect(handle: {
   return events
 }
 
+function terminalTypes(events: readonly CanonicalEvent[]): string[] {
+  return events
+    .filter(
+      (event) =>
+        event.type === 'run.completed' ||
+        event.type === 'run.failed' ||
+        event.type === 'run.cancelled',
+    )
+    .map((event) => event.type)
+}
+
 function track(adapter: ReturnType<typeof createCodexProvider>) {
   adapters.push(adapter)
   return adapter
@@ -503,4 +601,29 @@ function trackDir(): string {
   const directory = mkdtempSync(join(tmpdir(), 'sikumi-codex-'))
   directories.push(directory)
   return directory
+}
+
+function createOverflowedProcess(
+  records: readonly Record<string, unknown>[] = [],
+): ManagedProcess {
+  const jsonl = new AsyncQueue<Record<string, unknown>>()
+  for (const record of records) {
+    jsonl.push(record)
+  }
+  jsonl.close()
+  return {
+    pid: 1,
+    jsonl,
+    writeStdin() {},
+    async cancel() {},
+    wait() {
+      return Promise.resolve({
+        code: 0,
+        signal: null,
+        timedOut: false,
+        cancelled: false,
+        outputOverflowed: true,
+      })
+    },
+  }
 }

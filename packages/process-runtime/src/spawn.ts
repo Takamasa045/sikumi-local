@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { AppError, isAppError } from '@sikumi-local/core'
 import { filterProcessEnvironment } from './environment.js'
 import { createLineBuffer, parseJsonlLine } from './jsonl.js'
+import { toJsonlRecord } from './output-limit.js'
 import {
   assertSafeArgs,
   assertSafeCwd,
@@ -10,6 +11,7 @@ import {
 import { AsyncQueue } from './queue.js'
 
 const DEFAULT_KILL_GRACE_MS = 1_000
+export const DEFAULT_MAX_JSONL_QUEUE_ITEMS = 256
 
 export interface SpawnProcessRequest {
   readonly executable: string
@@ -17,8 +19,15 @@ export interface SpawnProcessRequest {
   readonly cwd: string
   readonly env?: Record<string, string>
   readonly timeoutMs?: number
+  readonly maxJsonlLineBytes?: number
+  readonly maxJsonlQueueItems?: number
   readonly allowedCwdRoots?: readonly string[]
   readonly parentEnv?: NodeJS.ProcessEnv
+}
+
+export interface AdoptProcessOptions {
+  readonly maxJsonlLineBytes?: number
+  readonly maxJsonlQueueItems?: number
 }
 
 export interface ProcessExitResult {
@@ -26,6 +35,7 @@ export interface ProcessExitResult {
   readonly signal: NodeJS.Signals | null
   readonly timedOut: boolean
   readonly cancelled: boolean
+  readonly outputOverflowed: boolean
 }
 
 export interface ManagedProcess {
@@ -46,6 +56,9 @@ export function spawnManagedProcess(
     request.parentEnv ?? process.env,
     request.env ?? {},
   )
+  const maxJsonlQueueItems = resolveMaxJsonlQueueItems(
+    request.maxJsonlQueueItems,
+  )
 
   let child: ChildProcessWithoutNullStreams
   try {
@@ -61,20 +74,34 @@ export function spawnManagedProcess(
     throw wrapSpawnError(error)
   }
 
-  return adoptSpawnedProcess(child, request.timeoutMs)
+  return adoptSpawnedProcess(child, request.timeoutMs, {
+    ...(request.maxJsonlLineBytes === undefined
+      ? {}
+      : { maxJsonlLineBytes: request.maxJsonlLineBytes }),
+    maxJsonlQueueItems,
+  })
 }
 
 export function adoptSpawnedProcess(
   child: ChildProcessWithoutNullStreams,
   timeoutMs?: number,
+  options: AdoptProcessOptions = {},
 ): ManagedProcess {
+  const maxJsonlQueueItems = resolveMaxJsonlQueueItems(
+    options.maxJsonlQueueItems,
+  )
   drainSpawnErrors(child)
 
   if (child.pid === undefined) {
     throw wrapSpawnError(new Error('Process failed to start'))
   }
 
-  return new RuntimeProcess(child, child.pid, timeoutMs)
+  return new RuntimeProcess(child, child.pid, timeoutMs, {
+    ...(options.maxJsonlLineBytes === undefined
+      ? {}
+      : { maxJsonlLineBytes: options.maxJsonlLineBytes }),
+    maxJsonlQueueItems,
+  })
 }
 
 function drainSpawnErrors(child: ChildProcessWithoutNullStreams): void {
@@ -90,6 +117,20 @@ function wrapSpawnError(error: unknown): AppError {
   return new AppError('PROCESS_SPAWN_REJECTED', 'Process failed to start', 500)
 }
 
+function resolveMaxJsonlQueueItems(value: number | undefined): number {
+  if (value === undefined) {
+    return DEFAULT_MAX_JSONL_QUEUE_ITEMS
+  }
+  if (!Number.isInteger(value) || value < 1) {
+    throw new AppError(
+      'PROCESS_SPAWN_REJECTED',
+      'maxJsonlQueueItems must be a positive integer',
+      400,
+    )
+  }
+  return value
+}
+
 export function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0)
@@ -101,11 +142,12 @@ export function isProcessAlive(pid: number): boolean {
 
 class RuntimeProcess implements ManagedProcess {
   readonly jsonl: AsyncIterable<Record<string, unknown>>
-  private readonly events = new AsyncQueue<Record<string, unknown>>()
+  private readonly events: AsyncQueue<Record<string, unknown>>
   private readonly exitPromise: Promise<ProcessExitResult>
   private timedOut = false
   private cancelled = false
   private finished = false
+  private outputOverflowed = false
   private timeoutHandle: NodeJS.Timeout | undefined
   private killInFlight: Promise<void> | undefined
 
@@ -113,15 +155,42 @@ class RuntimeProcess implements ManagedProcess {
     private readonly child: ChildProcessWithoutNullStreams,
     readonly pid: number,
     timeoutMs: number | undefined,
+    options: {
+      readonly maxJsonlLineBytes?: number
+      readonly maxJsonlQueueItems: number
+    },
   ) {
+    this.events = new AsyncQueue<Record<string, unknown>>(
+      options.maxJsonlQueueItems,
+    )
     this.jsonl = this.events
 
-    const stdout = createLineBuffer((line) => {
-      const parsed = parseJsonlLine(line)
-      if (parsed) {
-        this.events.push(parsed.value)
-      }
-    })
+    const stdout = createLineBuffer(
+      (line) => {
+        if (this.outputOverflowed) {
+          return
+        }
+        const parsed = parseJsonlLine(line)
+        if (!parsed) {
+          return
+        }
+        if (!this.events.push(parsed.value)) {
+          this.markOutputOverflowed()
+        }
+      },
+      {
+        ...(options.maxJsonlLineBytes === undefined
+          ? {}
+          : { maxLineBytes: options.maxJsonlLineBytes }),
+        onOverflow: (diagnostic) => {
+          if (this.outputOverflowed) {
+            return
+          }
+          this.events.push(toJsonlRecord(diagnostic))
+          this.markOutputOverflowed()
+        },
+      },
+    )
     const stderr = createLineBuffer(() => {
       // stderr is observed only to drain the pipe. It is never persisted.
     })
@@ -136,23 +205,13 @@ class RuntimeProcess implements ManagedProcess {
     this.exitPromise = new Promise((resolve) => {
       this.child.once('error', () => {
         this.finish()
-        resolve({
-          code: null,
-          signal: null,
-          timedOut: this.timedOut,
-          cancelled: this.cancelled,
-        })
+        resolve(this.exitResult(null, null))
       })
       this.child.once('exit', (code, signal) => {
         stdout.flush()
         stderr.flush()
         this.finish()
-        resolve({
-          code,
-          signal,
-          timedOut: this.timedOut,
-          cancelled: this.cancelled,
-        })
+        resolve(this.exitResult(code, signal))
       })
     })
 
@@ -183,6 +242,27 @@ class RuntimeProcess implements ManagedProcess {
 
   wait(): Promise<ProcessExitResult> {
     return this.exitPromise
+  }
+
+  private exitResult(
+    code: number | null,
+    signal: NodeJS.Signals | null,
+  ): ProcessExitResult {
+    return {
+      code,
+      signal,
+      timedOut: this.timedOut,
+      cancelled: this.cancelled,
+      outputOverflowed: this.outputOverflowed,
+    }
+  }
+
+  private markOutputOverflowed(): void {
+    if (this.outputOverflowed) {
+      return
+    }
+    this.outputOverflowed = true
+    void this.killProcessGroup()
   }
 
   private finish(): void {

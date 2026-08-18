@@ -45,6 +45,40 @@ describe('runCapturedProcess', () => {
     })
     expect(result.timedOut).toBe(true)
   })
+
+  it('fails closed on oversized output without leaking secrets or reasoning', async () => {
+    const cwd = track(mkdtempSync(join(tmpdir(), 'sikumi-capture-huge-')))
+    await expect(
+      runCapturedProcess({
+        executable: process.execPath,
+        args: [
+          '-e',
+          'process.stdout.write("あ".repeat(80) + "sk-live-secret1234\\nreasoning: hidden\\n")',
+        ],
+        cwd,
+        allowedCwdRoots: [cwd],
+        maxOutputBytes: 24,
+        timeoutMs: 4_000,
+      }),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'OUTPUT_TOO_LARGE',
+    })
+  })
+
+  it('keeps a complete UTF-8 character at the exact byte limit', async () => {
+    const cwd = track(mkdtempSync(join(tmpdir(), 'sikumi-capture-utf8-')))
+    const result = await runCapturedProcess({
+      executable: process.execPath,
+      args: ['-e', 'process.stdout.write("あ")'],
+      cwd,
+      allowedCwdRoots: [cwd],
+      maxOutputBytes: 3,
+      timeoutMs: 4_000,
+    })
+    expect(result.stdout).toBe('あ')
+    expect(result.stdout).not.toContain('\uFFFD')
+  })
 })
 
 function track(directory: string): string {

@@ -12,7 +12,19 @@ import {
   backupsDirectory,
   databaseFilePath,
 } from '../storage/data-directory.js'
+import {
+  assertSqliteIntegrity,
+  backupSqliteDatabase,
+  isSqliteDatabaseFile,
+  restoreSqliteDatabase,
+} from '../storage/database.js'
 import { assertSafeDataDirectoryInput, isInsideDirectory } from './paths.js'
+
+const SQLITE_SIDECAR_NAMES = new Set([
+  'database.sqlite-wal',
+  'database.sqlite-shm',
+  'database.sqlite-journal',
+])
 
 export const DATA_DIRECTORY_OWNED_NAMES = new Set([
   '.shikumi-local.json',
@@ -65,11 +77,16 @@ export function backupDataDirectory(
   mkdirSync(backupDirectory, { recursive: true, mode: 0o700 })
   const copied: string[] = []
   for (const entry of listOwnedEntries(resolved)) {
-    if (entry === 'backups') {
+    if (entry === 'backups' || SQLITE_SIDECAR_NAMES.has(entry)) {
       continue
     }
     const source = join(resolved, entry)
     const destination = join(backupDirectory, entry)
+    if (entry === 'database.sqlite' && isSqliteDatabaseFile(source)) {
+      backupSqliteDatabase(source, destination)
+      copied.push(entry)
+      continue
+    }
     copyOwnedEntry(source, destination, resolved)
     copied.push(entry)
   }
@@ -94,9 +111,24 @@ export function restoreDataDirectoryFromBackup(
       400,
     )
   }
-  clearOwnedEntries(resolved, { keepBackups: true })
+  assertRestorableSqliteBackup(backupDirectory, resolved)
+  const backupDb = databaseFilePath(backupDirectory)
+  const restoredSqlite = isSqliteDatabaseFile(backupDb)
+  if (restoredSqlite) {
+    restoreSqliteDatabase(backupDb, databaseFilePath(resolved))
+  }
+  clearOwnedEntries(resolved, {
+    keepBackups: true,
+    keepDatabase: restoredSqlite,
+  })
   for (const entry of readdirSync(backupDirectory)) {
-    if (entry === 'backups' || entry === '.' || entry === '..') {
+    if (
+      entry === 'backups' ||
+      entry === '.' ||
+      entry === '..' ||
+      SQLITE_SIDECAR_NAMES.has(entry) ||
+      (restoredSqlite && entry === 'database.sqlite')
+    ) {
       continue
     }
     copyOwnedEntry(
@@ -109,7 +141,10 @@ export function restoreDataDirectoryFromBackup(
 
 export function clearOwnedEntries(
   dataDirectory: string,
-  options: { readonly keepBackups?: boolean } = {},
+  options: {
+    readonly keepBackups?: boolean
+    readonly keepDatabase?: boolean
+  } = {},
 ): void {
   const resolved = assertSafeDataDirectoryInput(dataDirectory)
   if (existsSync(resolved) && lstatSync(resolved).isSymbolicLink()) {
@@ -123,6 +158,9 @@ export function clearOwnedEntries(
     if (options.keepBackups && entry === 'backups') {
       continue
     }
+    if (options.keepDatabase && entry === 'database.sqlite') {
+      continue
+    }
     removeOwnedEntry(join(resolved, entry), resolved)
   }
 }
@@ -134,6 +172,54 @@ export function listOwnedEntries(dataDirectory: string): string[] {
   return readdirSync(dataDirectory).filter((entry) =>
     DATA_DIRECTORY_OWNED_NAMES.has(entry),
   )
+}
+
+function assertRestorableSqliteBackup(
+  backupDirectory: string,
+  dataDirectory: string,
+): void {
+  const dbPath = databaseFilePath(backupDirectory)
+  const hasSidecar = [...SQLITE_SIDECAR_NAMES].some((name) =>
+    existsSync(join(backupDirectory, name)),
+  )
+  if (hasSidecar && !existsSync(dbPath)) {
+    throw new AppError(
+      'BACKUP_FAILED',
+      'SQLite backup is partial and cannot be restored',
+      400,
+    )
+  }
+  if (!existsSync(dbPath)) {
+    const liveDb = databaseFilePath(dataDirectory)
+    if (existsSync(liveDb) && lstatSync(liveDb).isFile()) {
+      throw new AppError(
+        'BACKUP_FAILED',
+        'SQLite backup is partial and cannot be restored',
+        400,
+      )
+    }
+    return
+  }
+  const stat = lstatSync(dbPath)
+  if (!stat.isFile() || stat.size === 0) {
+    throw new AppError(
+      'BACKUP_FAILED',
+      'SQLite backup is missing or partial',
+      400,
+    )
+  }
+  if (!isSqliteDatabaseFile(dbPath)) {
+    const liveDb = databaseFilePath(dataDirectory)
+    if (isSqliteDatabaseFile(liveDb)) {
+      throw new AppError(
+        'BACKUP_FAILED',
+        'SQLite backup is corrupt or unreadable',
+        400,
+      )
+    }
+    return
+  }
+  assertSqliteIntegrity(dbPath)
 }
 
 function copyOwnedEntry(

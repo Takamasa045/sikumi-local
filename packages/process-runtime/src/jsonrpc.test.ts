@@ -90,6 +90,7 @@ function createFakeProcess() {
         signal: null,
         timedOut: false,
         cancelled: false,
+        outputOverflowed: false,
       })
     },
     push(value: Record<string, unknown>) {

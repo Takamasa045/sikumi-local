@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it } from 'vitest'
+import { AppError } from '@sikumi-local/core'
 import {
   activeSseConnectionCount,
   bindSseCleanup,
@@ -8,6 +9,8 @@ import {
   formatSseHeartbeat,
   readSseCursor,
   SSE_CONNECTED_COMMENT,
+  SSE_MAX_BUFFERED_EVENTS,
+  SSE_REPLAY_LIMIT,
   startSseStream,
   wantsEventStream,
 } from './sse.js'
@@ -19,12 +22,17 @@ describe('sse helpers', () => {
       'b',
       'c',
     ])
-    expect(eventsAfter(events, 'missing').map((event) => event.id)).toEqual([
-      'a',
-      'b',
-      'c',
-    ])
+    expect(() => eventsAfter(events, 'missing')).toThrow(AppError)
+    expect(() => eventsAfter(events, 'other-job')).toThrow(AppError)
     expect(eventsAfter(events, undefined)).toHaveLength(3)
+    expect(eventsAfter(events, 'b').map((event) => event.id)).toEqual(['c'])
+    const many = Array.from({ length: SSE_REPLAY_LIMIT + 5 }, (_, index) =>
+      sample(`evt_${index}`),
+    )
+    const replayed = eventsAfter(many, 'evt_0')
+    expect(replayed).toHaveLength(SSE_REPLAY_LIMIT)
+    expect(replayed[0]?.id).not.toBe('evt_0')
+    expect(replayed.at(-1)?.id).toBe(`evt_${SSE_REPLAY_LIMIT + 4}`)
   })
 
   it('formats events, heartbeats, and reads Last-Event-ID or cursor', () => {
@@ -109,6 +117,207 @@ describe('sse helpers', () => {
     expect(unsubscribed).toBe(true)
     expect(activeSseConnectionCount()).toBe(before)
   })
+
+  it('subscribes before replay so the boundary event is neither duplicated nor missed', () => {
+    const written: string[] = []
+    const response = Object.assign(new EventEmitter(), {
+      writeHead: () => undefined,
+      write: (chunk: string) => {
+        written.push(chunk)
+        return true
+      },
+    })
+    let publish: ((event: ReturnType<typeof sample>) => void) | undefined
+    startSseStream({
+      raw: response,
+      replay: () => {
+        publish?.(sample('boundary-live'))
+        return [sample('cursor'), sample('after-cursor')]
+      },
+      subscribe: (listener) => {
+        publish = listener
+        listener(sample('cursor'))
+        return () => undefined
+      },
+    })
+    const ids = written
+      .join('')
+      .match(/^id: (.+)$/gm)
+      ?.map((line) => line.slice(4))
+    expect(ids).toEqual(['cursor', 'after-cursor', 'boundary-live'])
+  })
+
+  it('bounds backpressure and cleans the listener when the response closes', () => {
+    const response = Object.assign(new EventEmitter(), {
+      writeHead: () => undefined,
+      write: () => false,
+    })
+    let publish: ((event: ReturnType<typeof sample>) => void) | undefined
+    let unsubscribed = false
+    const before = activeSseConnectionCount()
+    startSseStream({
+      raw: response,
+      replay: [],
+      subscribe: (listener) => {
+        publish = listener
+        return () => {
+          unsubscribed = true
+        }
+      },
+    })
+    for (let index = 0; index < 20; index += 1) {
+      publish?.(sample(`live_${index}`))
+    }
+    expect(activeSseConnectionCount()).toBe(before + 1)
+    response.emit('close')
+    expect(unsubscribed).toBe(true)
+    expect(activeSseConnectionCount()).toBe(before)
+    publish?.(sample('after-close'))
+  })
+
+  it('does not write while blocked and flushes pending in order on drain', () => {
+    const written: string[] = []
+    const response = Object.assign(new EventEmitter(), {
+      writeHead: () => undefined,
+      write: (chunk: string) => {
+        written.push(chunk)
+        return false
+      },
+    })
+    let publish: ((event: ReturnType<typeof sample>) => void) | undefined
+    startSseStream({
+      raw: response,
+      replay: [sample('r1'), sample('r2')],
+      subscribe: (listener) => {
+        publish = listener
+        return () => undefined
+      },
+    })
+    expect(eventIds(written)).toEqual(['r1'])
+    const writesWhileBlocked = written.length
+    publish?.(sample('live1'))
+    publish?.(sample('live2'))
+    expect(written).toHaveLength(writesWhileBlocked)
+    Object.assign(response, {
+      write: (chunk: string) => {
+        written.push(chunk)
+        return true
+      },
+    })
+    response.emit('drain')
+    expect(eventIds(written)).toEqual(['r1', 'r2', 'live1', 'live2'])
+  })
+
+  it('fail-closes once on the 65th pending event and stays safe if close fires again', () => {
+    let destroyed = 0
+    let unsubscribed = 0
+    const response = Object.assign(new EventEmitter(), {
+      writeHead: () => undefined,
+      write: () => false,
+      destroy: () => {
+        destroyed += 1
+      },
+    })
+    let publish: ((event: ReturnType<typeof sample>) => void) | undefined
+    const before = activeSseConnectionCount()
+    startSseStream({
+      raw: response,
+      replay: [],
+      subscribe: (listener) => {
+        publish = listener
+        return () => {
+          unsubscribed += 1
+        }
+      },
+    })
+    for (let index = 0; index < SSE_MAX_BUFFERED_EVENTS; index += 1) {
+      publish?.(sample(`live_${index}`))
+    }
+    expect(destroyed).toBe(0)
+    expect(unsubscribed).toBe(0)
+    expect(activeSseConnectionCount()).toBe(before + 1)
+    publish?.(sample('live_overflow'))
+    expect(destroyed).toBe(1)
+    expect(unsubscribed).toBe(1)
+    expect(activeSseConnectionCount()).toBe(before)
+    publish?.(sample('after-overflow'))
+    response.emit('close')
+    response.emit('close')
+    expect(destroyed).toBe(1)
+    expect(unsubscribed).toBe(1)
+    expect(activeSseConnectionCount()).toBe(before)
+    expect(activeSseConnectionCount()).toBeGreaterThanOrEqual(0)
+  })
+
+  it('unsubscribes a sync 65-event burst without writeHead or a leaked listener', () => {
+    let destroyed = 0
+    let unsubscribed = 0
+    let writeHeads = 0
+    const response = Object.assign(new EventEmitter(), {
+      writeHead: () => {
+        writeHeads += 1
+      },
+      write: () => false,
+      destroy: () => {
+        destroyed += 1
+      },
+    })
+    const before = activeSseConnectionCount()
+    startSseStream({
+      raw: response,
+      replay: [],
+      subscribe: (listener) => {
+        for (let index = 0; index < SSE_MAX_BUFFERED_EVENTS + 1; index += 1) {
+          listener(sample(`burst_${index}`))
+        }
+        return () => {
+          unsubscribed += 1
+        }
+      },
+    })
+    expect(destroyed).toBe(1)
+    expect(unsubscribed).toBe(1)
+    expect(writeHeads).toBe(0)
+    expect(activeSseConnectionCount()).toBe(before)
+  })
+
+  it('fail-closes on write exception without marking the event sent', () => {
+    const written: string[] = []
+    let destroyed = 0
+    let unsubscribed = 0
+    const response = Object.assign(new EventEmitter(), {
+      writeHead: () => undefined,
+      write: (chunk: string) => {
+        if (chunk.includes('id: boom')) {
+          throw new Error('write failed')
+        }
+        written.push(chunk)
+        return true
+      },
+      destroy: () => {
+        destroyed += 1
+      },
+    })
+    let publish: ((event: ReturnType<typeof sample>) => void) | undefined
+    startSseStream({
+      raw: response,
+      replay: [sample('ok')],
+      subscribe: (listener) => {
+        publish = listener
+        return () => {
+          unsubscribed += 1
+        }
+      },
+    })
+    publish?.(sample('boom'))
+    expect(eventIds(written)).toEqual(['ok'])
+    expect(destroyed).toBe(1)
+    expect(unsubscribed).toBe(1)
+    publish?.(sample('after-error'))
+    expect(destroyed).toBe(1)
+    expect(unsubscribed).toBe(1)
+    expect(eventIds(written)).toEqual(['ok'])
+  })
 })
 
 function sample(id: string) {
@@ -120,4 +329,13 @@ function sample(id: string) {
     payload: { summary: '仕事を始めます' },
     occurredAt: 't',
   }
+}
+
+function eventIds(written: readonly string[]): string[] {
+  return (
+    written
+      .join('')
+      .match(/^id: (.+)$/gm)
+      ?.map((line) => line.slice(4)) ?? []
+  )
 }

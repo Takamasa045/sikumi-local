@@ -255,7 +255,7 @@ export function createFakeProvider(
     runId: string,
     child: ManagedProcess,
   ): AsyncIterable<CanonicalEvent> {
-    let sawTerminal = false
+    let bufferedTerminal: CanonicalEvent | undefined
     try {
       for await (const raw of child.jsonl) {
         const event = mapFakeProcessEvent(runId, raw, now())
@@ -263,13 +263,24 @@ export function createFakeProvider(
           continue
         }
         if (isTerminalEventType(event.type)) {
-          sawTerminal = true
+          bufferedTerminal = event
+          continue
         }
         yield event
       }
 
       const exit = await child.wait()
-      if (sawTerminal) {
+      if (exit.outputOverflowed) {
+        yield {
+          type: 'run.failed',
+          runId,
+          occurredAt: now(),
+          summary: '出力が上限を超えたため仕事を停止しました',
+        }
+        return
+      }
+      if (bufferedTerminal) {
+        yield bufferedTerminal
         return
       }
       if (exit.cancelled) {

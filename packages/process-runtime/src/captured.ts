@@ -1,11 +1,17 @@
 import { spawn } from 'node:child_process'
-import { AppError, isAppError } from '@sikumi-local/core'
+import {
+  AppError,
+  isAppError,
+  redactSensitiveText,
+  sanitizeEventPayload,
+} from '@sikumi-local/core'
 import { filterProcessEnvironment } from './environment.js'
 import {
   assertSafeArgs,
   assertSafeCwd,
   assertSafeExecutable,
 } from './path-guard.js'
+import { sliceUtf8Bytes, toUtf8Buffer } from './utf8.js'
 
 const DEFAULT_CAPTURE_TIMEOUT_MS = 8_000
 const DEFAULT_MAX_OUTPUT_BYTES = 256_000
@@ -60,50 +66,14 @@ export function runCapturedProcess(
     throw new AppError('PROCESS_SPAWN_REJECTED', 'Process failed to start', 500)
   }
 
-  return new Promise((resolve) => {
-    let stdout = ''
-    let stderr = ''
+  return new Promise((resolve, reject) => {
+    const stdout = createBoundedStream(maxOutputBytes)
+    const stderr = createBoundedStream(maxOutputBytes)
     let timedOut = false
     let finished = false
     const pid = child.pid
 
-    const finish = (
-      code: number | null,
-      signal: NodeJS.Signals | null,
-    ): void => {
-      if (finished) {
-        return
-      }
-      finished = true
-      clearTimeout(timer)
-      resolve({
-        code,
-        signal,
-        stdout: stdout.slice(0, maxOutputBytes),
-        stderr: stderr.slice(0, maxOutputBytes),
-        timedOut,
-      })
-    }
-
-    child.stdout?.on('data', (chunk: Buffer) => {
-      if (stdout.length < maxOutputBytes) {
-        stdout += chunk.toString('utf8')
-      }
-    })
-    child.stderr?.on('data', (chunk: Buffer) => {
-      if (stderr.length < maxOutputBytes) {
-        stderr += chunk.toString('utf8')
-      }
-    })
-    child.once('error', () => {
-      finish(null, null)
-    })
-    child.once('exit', (code, signal) => {
-      finish(code, signal)
-    })
-
-    const timer = setTimeout(() => {
-      timedOut = true
+    const killChild = (): void => {
       if (pid !== undefined) {
         try {
           process.kill(-pid, 'SIGTERM')
@@ -128,7 +98,116 @@ export function runCapturedProcess(
           }
         }
       }, KILL_GRACE_MS).unref()
+    }
+
+    const finish = (
+      code: number | null,
+      signal: NodeJS.Signals | null,
+    ): void => {
+      if (finished) {
+        return
+      }
+      finished = true
+      clearTimeout(timer)
+      if (stdout.overflowed || stderr.overflowed) {
+        reject(
+          new AppError(
+            'OUTPUT_TOO_LARGE',
+            'Process output exceeded the capture limit',
+            413,
+          ),
+        )
+        return
+      }
+      resolve({
+        code,
+        signal,
+        stdout: sanitizeCapturedText(stdout.decode()),
+        stderr: sanitizeCapturedText(stderr.decode()),
+        timedOut,
+      })
+    }
+
+    child.stdout?.on('data', (chunk: Buffer) => {
+      stdout.push(chunk)
+      if (stdout.overflowed) {
+        killChild()
+      }
+    })
+    child.stderr?.on('data', (chunk: Buffer) => {
+      stderr.push(chunk)
+      if (stderr.overflowed) {
+        killChild()
+      }
+    })
+    child.once('error', () => {
+      finish(null, null)
+    })
+    child.once('exit', (code, signal) => {
+      finish(code, signal)
+    })
+
+    const timer = setTimeout(() => {
+      timedOut = true
+      killChild()
     }, timeoutMs)
     timer.unref()
   })
+}
+
+function createBoundedStream(maxOutputBytes: number) {
+  let buffer: Buffer = Buffer.alloc(0)
+  let overflowed = false
+
+  return {
+    get overflowed() {
+      return overflowed
+    },
+    push(chunk: Buffer | string) {
+      if (overflowed) {
+        return
+      }
+      const incoming = toUtf8Buffer(chunk)
+      const room = maxOutputBytes - buffer.length
+      if (room <= 0 || incoming.length > room) {
+        buffer = Buffer.from(
+          sliceUtf8Bytes(
+            Buffer.concat([buffer, incoming.subarray(0, Math.max(room, 0))]),
+            maxOutputBytes,
+          ),
+        )
+        overflowed = true
+        return
+      }
+      buffer = Buffer.from(Buffer.concat([buffer, incoming]))
+    },
+    decode() {
+      return sliceUtf8Bytes(buffer, maxOutputBytes).toString('utf8')
+    },
+  }
+}
+
+function sanitizeCapturedText(value: string): string {
+  const redacted = redactSensitiveText(value)
+  try {
+    const parsed = JSON.parse(redacted) as unknown
+    if (isPlainObject(parsed)) {
+      return JSON.stringify(sanitizeEventPayload(parsed))
+    }
+  } catch {
+    // Raw process output is not always JSON.
+  }
+  return redacted
+    .split('\n')
+    .filter(
+      (line) =>
+        !/\breasoning\b/i.test(line) &&
+        !/\bthinking\b/i.test(line) &&
+        !/\bchain_of_thought\b/i.test(line),
+    )
+    .join('\n')
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

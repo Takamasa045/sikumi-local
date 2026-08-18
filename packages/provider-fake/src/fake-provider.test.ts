@@ -9,7 +9,11 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AppError, FAKE_PROVIDER_ID } from '@sikumi-local/core'
-import { spawnManagedProcess } from '@sikumi-local/process-runtime'
+import {
+  AsyncQueue,
+  spawnManagedProcess,
+  type ManagedProcess,
+} from '@sikumi-local/process-runtime'
 import type { CanonicalEvent } from '@sikumi-local/provider-sdk'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
@@ -125,6 +129,47 @@ describe('Fake Provider', () => {
     expect(events.at(0)).toBe('run.started')
     expect(events.at(-1)).toBe('run.failed')
     expect(JSON.stringify(events)).not.toContain('INTERNAL_REASONING')
+  })
+
+  it('fails after wait() when output overflows even if the process exit looks successful', async () => {
+    const provider = createFakeProvider({
+      spawn: () => createOverflowedProcess(),
+    })
+    const handle = await provider.startRun(baseSpecification(createTempCwd()))
+    const events: CanonicalEvent[] = []
+    for await (const event of handle.events()) {
+      events.push(event)
+    }
+    await provider.dispose()
+
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.at(-1)).toMatchObject({
+      type: 'run.failed',
+      summary: '出力が上限を超えたため仕事を停止しました',
+    })
+  })
+
+  it('fails only after wait() when JSONL completed arrives before output overflow', async () => {
+    const provider = createFakeProvider({
+      spawn: () =>
+        createOverflowedProcess([
+          { type: 'run.started' },
+          { type: 'run.completed' },
+        ]),
+    })
+    const handle = await provider.startRun(baseSpecification(createTempCwd()))
+    const events: CanonicalEvent[] = []
+    for await (const event of handle.events()) {
+      events.push(event)
+    }
+    await provider.dispose()
+
+    expect(terminalTypes(events)).toEqual(['run.failed'])
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.at(-1)).toMatchObject({
+      type: 'run.failed',
+      summary: '出力が上限を超えたため仕事を停止しました',
+    })
   })
 
   it('cancels a hanging run', async () => {
@@ -399,6 +444,31 @@ function createTempCwd(): string {
   return directory
 }
 
+function createOverflowedProcess(
+  records: readonly Record<string, unknown>[] = [],
+): ManagedProcess {
+  const jsonl = new AsyncQueue<Record<string, unknown>>()
+  for (const record of records) {
+    jsonl.push(record)
+  }
+  jsonl.close()
+  return {
+    pid: 1,
+    jsonl,
+    writeStdin() {},
+    async cancel() {},
+    wait() {
+      return Promise.resolve({
+        code: 0,
+        signal: null,
+        timedOut: false,
+        cancelled: false,
+        outputOverflowed: true,
+      })
+    },
+  }
+}
+
 async function collectTypes(
   events: AsyncIterable<{ type: string }>,
 ): Promise<string[]> {
@@ -407,4 +477,15 @@ async function collectTypes(
     collected.push(event.type)
   }
   return collected
+}
+
+function terminalTypes(events: readonly CanonicalEvent[]): string[] {
+  return events
+    .filter(
+      (event) =>
+        event.type === 'run.completed' ||
+        event.type === 'run.failed' ||
+        event.type === 'run.cancelled',
+    )
+    .map((event) => event.type)
 }

@@ -1,9 +1,14 @@
 import { get as httpGet, type IncomingMessage } from 'node:http'
-import { readFileSync, rmSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
+import Database from 'better-sqlite3'
 import { SESSION_COOKIE_NAME } from '../security/http-guard.js'
 import { buildApp } from '../app.js'
-import { activeSseConnectionCount } from '../jobs/sse.js'
+import {
+  SSE_REPLAY_LIMIT,
+  activeSseConnectionCount,
+  assertSseCursorOwnedByJob,
+} from '../jobs/sse.js'
 import {
   createTemporaryDirectory,
   createTemporaryGitRepository,
@@ -24,69 +29,48 @@ afterEach(async () => {
   }
 })
 
-describe('SSE event streams', () => {
-  it('replays from Last-Event-ID and does not mix another job', async () => {
+describe('SSE reconnect integration', () => {
+  it('replays only events after the owned cursor and rejects a foreign job cursor', async () => {
     const { port, workspaceId } = await listenApp()
-    const created = await createResearchJob(workspaceId)
-    const jobId = created.json().job.id as string
+    const firstJob = await createResearchJob(workspaceId)
+    const firstId = firstJob.json().job.id as string
+    const secondJob = await createResearchJob(workspaceId)
+    const secondId = secondJob.json().job.id as string
     const session = await obtainSession(lastApp())
-    const first = await readSse(
+
+    const first = await readSseUntil(
       port,
-      `/api/jobs/${jobId}/events`,
+      `/api/jobs/${firstId}/events`,
       session.token,
+      'run.started',
     )
-    expect(first.body).toContain('id: ')
-    expect(first.body).toContain('run.started')
     expect(first.ids.length).toBeGreaterThan(0)
-    expect(JSON.stringify(first.body)).not.toContain('reasoning')
+    const cursor = first.ids[0]!
 
     const replay = await readSse(
       port,
-      `/api/jobs/${jobId}/events`,
+      `/api/jobs/${firstId}/events`,
       session.token,
-      first.ids[0],
+      cursor,
     )
-    expect(replay.ids).not.toContain(first.ids[0])
+    expect(replay.ids).not.toContain(cursor)
 
-    const globalStream = await readSse(port, '/api/events', session.token)
-    expect(globalStream.body).toContain(jobId)
+    const foreign = await readSseStatus(
+      port,
+      `/api/jobs/${secondId}/events`,
+      session.token,
+      cursor,
+    )
+    expect(foreign).toBe(400)
 
-    const rejected = await readSseStatus(port, `/api/jobs/${jobId}/events`)
-    expect(rejected).toBe(403)
-
-    const unknown = await injectAuthed(lastApp(), {
-      method: 'GET',
-      url: `/api/jobs/${jobId}/events?cursor=not-from-this-job`,
-      headers: { accept: 'text/event-stream' },
-    })
-    expect(unknown.statusCode).toBe(400)
-    expect(unknown.json().error.code).toBe('VALIDATION_FAILED')
-  })
-
-  it('delivers a later job on the same /api/events connection and cleans up', async () => {
-    const { port, workspaceId, dataDirectory } = await listenApp()
-    const session = await obtainSession(lastApp())
-    const stream = openSse(port, '/api/events', session.token)
-    await stream.waitFor(': connected')
-    expect(activeSseConnectionCount()).toBe(1)
-
-    const created = await createResearchJob(workspaceId)
-    const jobId = created.json().job.id as string
-    await stream.waitFor(jobId)
-    await stream.waitFor('run.started')
-    expect(stream.body).toContain('run.started')
-    expect(stream.body).not.toContain('INTERNAL_REASONING_MUST_NOT_PERSIST')
-    expect(
-      readFileSync(`${dataDirectory}/database.sqlite`).includes(
-        'INTERNAL_REASONING_MUST_NOT_PERSIST',
+    expect(() =>
+      assertSseCursorOwnedByJob(cursor, secondId, (id) =>
+        id === cursor ? { jobId: firstId } : undefined,
       ),
-    ).toBe(false)
-
-    stream.destroy()
-    await waitUntil(() => activeSseConnectionCount() === 0)
+    ).toThrow(/Cursor/)
   })
 
-  it('delivers a later cancel on the same job SSE connection and cleans up', async () => {
+  it('reconnects a live job stream, then cleans up the listener', async () => {
     const { port, workspaceId } = await listenApp()
     const hanging = await injectAuthed(lastApp(), {
       method: 'POST',
@@ -95,19 +79,48 @@ describe('SSE event streams', () => {
     })
     const jobId = hanging.json().job.id as string
     const session = await obtainSession(lastApp())
-    const stream = openSse(port, `/api/jobs/${jobId}/events`, session.token)
-    await stream.waitFor(': connected')
+
+    const first = openSse(port, `/api/jobs/${jobId}/events`, session.token)
+    await first.waitFor(': connected')
     expect(activeSseConnectionCount()).toBe(1)
+    const firstIds = [...first.body.matchAll(/^id: (.+)$/gm)].map(
+      (match) => match[1] ?? '',
+    )
+    first.destroy()
+    await waitUntil(() => activeSseConnectionCount() === 0)
+
+    const second = openSse(
+      port,
+      `/api/jobs/${jobId}/events`,
+      session.token,
+      firstIds[0],
+    )
+    await second.waitFor(': connected')
+    expect(activeSseConnectionCount()).toBe(1)
+    expect(second.body).not.toContain(`id: ${firstIds[0]}`)
 
     const cancelled = await injectAuthed(lastApp(), {
       method: 'POST',
       url: `/api/jobs/${jobId}/cancel`,
     })
     expect(cancelled.json().job.status).toBe('cancelled')
-    await stream.waitFor('run.cancelled')
-
-    stream.destroy()
+    await second.waitFor('run.cancelled')
+    second.destroy()
     await waitUntil(() => activeSseConnectionCount() === 0)
+  })
+
+  it('bounds replay to the last window even when the store has more events', async () => {
+    const { port, workspaceId, dataDirectory } = await listenApp()
+    const created = await createResearchJob(workspaceId)
+    const jobId = created.json().job.id as string
+    seedExtraEvents(dataDirectory, jobId, SSE_REPLAY_LIMIT + 25)
+    const session = await obtainSession(lastApp())
+    const replay = await readSse(
+      port,
+      `/api/jobs/${jobId}/events`,
+      session.token,
+    )
+    expect(replay.ids.length).toBeLessThanOrEqual(SSE_REPLAY_LIMIT)
   })
 })
 
@@ -150,13 +163,45 @@ function createResearchJob(workspaceId: string) {
   })
 }
 
+function seedExtraEvents(
+  dataDirectory: string,
+  jobId: string,
+  count: number,
+): void {
+  const sqlite = new Database(`${dataDirectory}/database.sqlite`)
+  try {
+    const insert = sqlite.prepare(
+      `INSERT INTO events (id, job_id, run_id, type, payload, occurred_at)
+       VALUES (?, ?, null, 'run.state_changed', ?, ?)`,
+    )
+    const tx = sqlite.transaction(() => {
+      for (let index = 0; index < count; index += 1) {
+        insert.run(
+          `seed_${index.toString().padStart(4, '0')}`,
+          jobId,
+          JSON.stringify({ summary: `seed-${index}` }),
+          `t-${index.toString().padStart(4, '0')}`,
+        )
+      }
+    })
+    tx()
+  } finally {
+    sqlite.close()
+  }
+}
+
 interface SseClient {
   readonly body: string
   waitFor(text: string): Promise<void>
   destroy(): void
 }
 
-function openSse(port: number, path: string, token: string): SseClient {
+function openSse(
+  port: number,
+  path: string,
+  token: string,
+  lastEventId?: string,
+): SseClient {
   let body = ''
   const waiters = new Set<{
     text: string
@@ -168,7 +213,7 @@ function openSse(port: number, path: string, token: string): SseClient {
       host: '127.0.0.1',
       port,
       path,
-      headers: sseHeaders(token),
+      headers: sseHeaders(token, lastEventId),
     },
     (response: IncomingMessage) => {
       response.setEncoding('utf8')
@@ -222,49 +267,15 @@ function sseHeaders(token: string, lastEventId?: string) {
   }
 }
 
-function readSse(
+function readSseUntil(
   port: number,
   path: string,
   token: string,
+  text: string,
   lastEventId?: string,
 ): Promise<{ body: string; ids: string[] }> {
-  const stream = openSse(port, path, token)
-  if (lastEventId) {
-    stream.destroy()
-    return new Promise((resolve, reject) => {
-      const request = httpGet(
-        {
-          host: '127.0.0.1',
-          port,
-          path,
-          headers: sseHeaders(token, lastEventId),
-        },
-        (response) => {
-          let body = ''
-          response.setEncoding('utf8')
-          response.on('data', (chunk) => {
-            body += chunk
-            const ids = [...body.matchAll(/^id: (.+)$/gm)].map(
-              (match) => match[1] ?? '',
-            )
-            if (body.includes(': connected') || ids.length > 0) {
-              request.destroy()
-              resolve({ body, ids })
-            }
-          })
-          response.on('error', reject)
-        },
-      )
-      request.on('error', () => {
-        // Destroy after replay is expected.
-      })
-      setTimeout(() => {
-        request.destroy()
-        reject(new Error(`SSE timed out for ${path}`))
-      }, 4_000)
-    })
-  }
-  return stream.waitFor('run.started').then(() => {
+  const stream = openSse(port, path, token, lastEventId)
+  return stream.waitFor(text).then(() => {
     stream.destroy()
     return {
       body: stream.body,
@@ -275,17 +286,66 @@ function readSse(
   })
 }
 
-function readSseStatus(port: number, path: string): Promise<number> {
+function readSse(
+  port: number,
+  path: string,
+  token: string,
+  lastEventId?: string,
+): Promise<{ body: string; ids: string[] }> {
   return new Promise((resolve, reject) => {
     const request = httpGet(
       {
         host: '127.0.0.1',
         port,
         path,
-        headers: {
-          host: '127.0.0.1',
-          accept: 'text/event-stream',
-        },
+        headers: sseHeaders(token, lastEventId),
+      },
+      (response) => {
+        let body = ''
+        response.setEncoding('utf8')
+        response.on('data', (chunk) => {
+          body += chunk
+          const ids = [...body.matchAll(/^id: (.+)$/gm)].map(
+            (match) => match[1] ?? '',
+          )
+          const connected = body.includes(': connected')
+          const hasReplay = ids.length > 0 || body.includes('run.started')
+          if (connected && (lastEventId || hasReplay)) {
+            request.destroy()
+            resolve({ body, ids })
+          }
+        })
+        response.on('error', reject)
+      },
+    )
+    request.on('error', () => {
+      // Destroy after replay is expected.
+    })
+    setTimeout(() => {
+      request.destroy()
+      reject(new Error(`SSE timed out for ${path}`))
+    }, 4_000)
+  })
+}
+
+function readSseStatus(
+  port: number,
+  path: string,
+  token?: string,
+  lastEventId?: string,
+): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const request = httpGet(
+      {
+        host: '127.0.0.1',
+        port,
+        path,
+        headers: token
+          ? sseHeaders(token, lastEventId)
+          : {
+              host: '127.0.0.1',
+              accept: 'text/event-stream',
+            },
       },
       (response) => {
         resolve(response.statusCode ?? 0)

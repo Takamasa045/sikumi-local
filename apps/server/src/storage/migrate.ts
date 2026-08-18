@@ -274,16 +274,18 @@ export function applyMigrations(
   const insertMigration = sqlite.prepare(
     'INSERT INTO schema_migrations (version, name, applied_at) VALUES (?, ?, ?)',
   )
+  // BEGIN IMMEDIATE so exec() and the version insert commit or roll back
+  // together. Connection-level pragmas such as foreign_keys / journal_mode
+  // must stay outside this transaction; SQLite ignores or rejects them inside.
+  const applyMigration = sqlite.transaction((migration: Migration) => {
+    sqlite.exec(migration.sql)
+    insertMigration.run(migration.version, migration.name, now())
+  })
 
   for (const migration of migrations) {
     if (applied.has(migration.version)) {
       continue
     }
-
-    const apply = sqlite.transaction(() => {
-      sqlite.exec(migration.sql)
-      insertMigration.run(migration.version, migration.name, now())
-    })
-    apply()
+    applyMigration.immediate(migration)
   }
 }

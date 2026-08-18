@@ -997,18 +997,55 @@ function closeProviderSessions(store: AppStore, jobId: string): void {
   }
 }
 
+export const CRASH_RECOVERY_REASON = 'crash-recovery'
+
 export function orphanStaleExecutions(store: AppStore): void {
   const now = new Date().toISOString()
+  const recorded = new Set(
+    store
+      .listAllEvents()
+      .filter(
+        (event) =>
+          event.type === 'run.failed' &&
+          event.payload.reason === CRASH_RECOVERY_REASON,
+      )
+      .map((event) => event.jobId),
+  )
+
   for (const job of store.listJobs()) {
-    if (
-      job.status === 'running' ||
-      job.status === 'preparing' ||
-      job.status === 'waiting_for_user' ||
-      job.status === 'queued'
-    ) {
-      store.updateJob(job.id, { status: 'failed', completedAt: now })
+    if (!isLiveJob(job.status)) {
+      continue
+    }
+    store.updateJob(job.id, { status: 'failed', completedAt: now })
+    const run = store.listRuns(job.id)[0]
+    if (run && !isTerminalRun(run.status)) {
+      store.updateRun(run.id, { status: 'orphaned', completedAt: now })
+    }
+    if (!recorded.has(job.id)) {
+      store.insertEvent({
+        id: randomUUID(),
+        jobId: job.id,
+        runId: run?.id ?? null,
+        type: 'run.failed',
+        payload: {
+          summary: '再起動のため実行を停止しました',
+          reason: CRASH_RECOVERY_REASON,
+        },
+        occurredAt: now,
+      })
+      recorded.add(job.id)
+    }
+    for (const approval of store.listApprovals({
+      jobId: job.id,
+      status: 'pending',
+    })) {
+      store.updateApproval(approval.id, {
+        status: 'denied',
+        resolvedAt: now,
+      })
     }
   }
+
   for (const run of store.listAllRuns()) {
     if (run.status === 'running' || run.status === 'queued') {
       store.updateRun(run.id, { status: 'orphaned', completedAt: now })
@@ -1022,6 +1059,15 @@ export function orphanStaleExecutions(store: AppStore): void {
       })
     }
   }
+}
+
+function isLiveJob(status: Job['status']): boolean {
+  return (
+    status === 'queued' ||
+    status === 'preparing' ||
+    status === 'running' ||
+    status === 'waiting_for_user'
+  )
 }
 
 function isTerminalJob(status: Job['status']): boolean {

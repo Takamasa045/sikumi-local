@@ -8,6 +8,7 @@ import {
 import type { FastifyInstance } from 'fastify'
 import type { JobManager } from '../jobs/job-manager.js'
 import {
+  assertSseCursorOwnedByJob,
   eventsAfter,
   readSseCursor,
   startSseStream,
@@ -130,16 +131,36 @@ export function registerJobRoutes(
     async (request, reply) => {
       if (wantsEventStream(request.headers.accept)) {
         assertSseAllowed(request, security)
-        const existing = eventsAfter(
-          jobs
-            .listEvents(request.params.id)
-            .map((event) => persistedEventSchema.parse(event)),
-          readSseCursor(request.headers['last-event-id'], request.query),
+        const cursor = readSseCursor(
+          request.headers['last-event-id'],
+          request.query,
         )
+        if (cursor) {
+          assertSseCursorOwnedByJob(cursor, request.params.id, (id) => {
+            const owned = jobs
+              .listEvents(request.params.id)
+              .find((event) => event.id === id)
+            if (owned) {
+              return { jobId: owned.jobId }
+            }
+            const foreign = jobs
+              .listAllEvents()
+              .find((event) => event.id === id)
+            return foreign ? { jobId: foreign.jobId } : undefined
+          })
+        }
+        const snapshot = () =>
+          eventsAfter(
+            jobs
+              .listEvents(request.params.id)
+              .map((event) => persistedEventSchema.parse(event)),
+            cursor,
+          )
+        snapshot()
         reply.hijack()
         startSseStream({
           raw: reply.raw,
-          replay: existing,
+          replay: snapshot,
           subscribe: (listener) => jobs.subscribe(request.params.id, listener),
         })
         return

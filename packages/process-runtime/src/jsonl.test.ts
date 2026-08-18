@@ -62,4 +62,30 @@ describe('createLineBuffer', () => {
     buffer.push('{"ok":2}\n')
     expect(lines).toEqual(['{"ok":1}', '{"ok":2}'])
   })
+
+  it('reassembles a UTF-8 character split across chunks', () => {
+    const lines: string[] = []
+    const buffer = createLineBuffer((line) => {
+      lines.push(line)
+    })
+    const yen = Buffer.from('{"c":"円"}')
+    buffer.push(yen.subarray(0, yen.length - 2))
+    buffer.push(
+      Buffer.concat([yen.subarray(yen.length - 2), Buffer.from('\n')]),
+    )
+    expect(lines).toEqual(['{"c":"円"}'])
+  })
+
+  it('does not keep a huge chunk without a newline', () => {
+    const lines: string[] = []
+    const buffer = createLineBuffer(
+      (line) => {
+        lines.push(line)
+      },
+      { maxLineBytes: 8 },
+    )
+    buffer.push(Buffer.alloc(1024 * 64, 0x61))
+    buffer.push(Buffer.from('\n{"ok":1}\n'))
+    expect(lines).toEqual(['{"ok":1}'])
+  })
 })

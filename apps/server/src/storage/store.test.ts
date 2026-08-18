@@ -180,6 +180,28 @@ describe('AppStore persistence boundary', () => {
       }),
     ).toThrow()
     expect(store.listEmployees()[0]?.name).toBe('サグル')
+    expect(store.listJobs(workspace.id)).toHaveLength(1)
+    expect(store.updateJob(job.id, { status: 'running' }).status).toBe(
+      'running',
+    )
+    expect(store.listApprovals({ status: 'pending' })).toHaveLength(1)
+    expect(store.listArtifacts(job.id)[0]?.title).toBe('調査メモ')
+    expect(store.ensureDefaultEmployee().id).toBe('saguru')
+    expect(store.ensureDefaultEmployee().id).toBe('saguru')
+    expect(store.getApproval('apr_1')?.status).toBe('pending')
+    expect(store.updateApproval('apr_1', { status: 'denied' }).status).toBe(
+      'denied',
+    )
+    expect(store.getArtifact('art_1')?.title).toBe('調査メモ')
+    expect(store.getRun('run_1')?.status).toBe('queued')
+    expect(store.updateRun('run_1', { status: 'running' }).status).toBe(
+      'running',
+    )
+    expect(() => store.updateJob('missing', { status: 'failed' })).toThrow()
+    expect(() => store.updateRun('missing', { status: 'failed' })).toThrow()
+    expect(() =>
+      store.updateApproval('missing', { status: 'denied' }),
+    ).toThrow()
     expect(store.listPacks()[0]?.packId).toBe('saguru')
     expect(store.findRepositoryByAbsolutePath('/tmp/example-repo')?.id).toBe(
       workspace.repository.id,

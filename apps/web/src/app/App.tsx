@@ -1,30 +1,62 @@
 import { useEffect, useState } from 'react'
-import type { Workspace } from '@sikumi-local/core'
+import type {
+  ApprovalRequest,
+  Artifact,
+  Job,
+  PersistedEvent,
+  Workspace,
+} from '@sikumi-local/core'
+import { listApprovals, resolveApproval } from '../api/approvals'
+import { getHealth } from '../api/health'
+import {
+  cancelJob,
+  createJob,
+  getJob,
+  listArtifacts,
+  listJobEvents,
+  listJobs,
+} from '../api/jobs'
 import { listWorkspaces, registerWorkspace } from '../api/workspaces'
+import { ApprovalPanel } from '../approvals/ApprovalPanel'
+import { ArtifactShelf } from '../artifacts/ArtifactShelf'
 import { WorldStage } from '../garden/WorldStage'
 import { getWorldPack, worldPacks, type WorldPackId } from '../garden/worlds'
+import { JobComposer } from '../jobs/JobComposer'
 import { RepositoryPanel } from '../workspace/RepositoryPanel'
 import './app.css'
 
 export function App() {
   const [worldPackId, setWorldPackId] = useState<WorldPackId>('dog-office')
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const [fakeHarness, setFakeHarness] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [request, setRequest] = useState('')
+  const [job, setJob] = useState<Job | null>(null)
+  const [events, setEvents] = useState<PersistedEvent[]>([])
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
+  const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const world = getWorldPack(worldPackId)
+  const jobEnabled = fakeHarness && workspace !== null
+  const activitySummary =
+    latestSummary(events) ??
+    (job ? statusLabel(job.status) : 'まだ仕事は始まっていません')
 
   useEffect(() => {
     let cancelled = false
 
-    void listWorkspaces()
-      .then((workspaces) => {
-        if (!cancelled) {
-          setWorkspace(workspaces[0] ?? null)
+    void Promise.all([listWorkspaces(), getHealth()])
+      .then(([workspaces, health]) => {
+        if (cancelled) {
+          return
         }
+        setWorkspace(workspaces[0] ?? null)
+        setFakeHarness(health.fakeHarness)
       })
       .catch(() => {
         if (!cancelled) {
           setWorkspace(null)
+          setFakeHarness(false)
         }
       })
 
@@ -33,6 +65,65 @@ export function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!workspace || !fakeHarness) {
+      return
+    }
+    let cancelled = false
+    void listJobs(workspace.id)
+      .then((jobs) => {
+        if (!cancelled && jobs[0]) {
+          setJob(jobs[0])
+        }
+      })
+      .catch(() => {
+        // The garden remains usable if job history cannot be loaded.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspace, fakeHarness])
+
+  useEffect(() => {
+    if (!job) {
+      return
+    }
+    let cancelled = false
+
+    async function refresh() {
+      if (!job) {
+        return
+      }
+      try {
+        const [nextJob, nextEvents, nextApprovals, nextArtifacts] =
+          await Promise.all([
+            getJob(job.id),
+            listJobEvents(job.id),
+            listApprovals({ jobId: job.id, status: 'pending' }),
+            listArtifacts(job.id),
+          ])
+        if (cancelled) {
+          return
+        }
+        setJob(nextJob)
+        setEvents(nextEvents)
+        setApprovals(nextApprovals)
+        setArtifacts(nextArtifacts)
+      } catch {
+        // Keep the last known snapshot while a poll fails.
+      }
+    }
+
+    void refresh()
+    const timer = window.setInterval(() => {
+      void refresh()
+    }, 400)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [job?.id])
+
   async function handleRegister(path: string) {
     setBusy(true)
     setError(null)
@@ -40,6 +131,55 @@ export function App() {
       setWorkspace(await registerWorkspace(path))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '登録に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSubmitJob(value: string) {
+    if (!workspace) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const created = await createJob({
+        workspaceId: workspace.id,
+        request: value,
+      })
+      setJob(created)
+      setEvents([])
+      setApprovals([])
+      setArtifacts([])
+      setRequest('')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '依頼に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleResolve(id: string, decision: 'approved' | 'denied') {
+    setBusy(true)
+    setError(null)
+    try {
+      await resolveApproval(id, decision)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '確認に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleCancel() {
+    if (!job) {
+      return
+    }
+    setBusy(true)
+    try {
+      setJob(await cancelJob(job.id))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '中止に失敗しました')
     } finally {
       setBusy(false)
     }
@@ -67,7 +207,7 @@ export function App() {
         </nav>
         <div className="connection-badge">
           <span aria-hidden="true" />
-          実行エンジン未接続
+          {fakeHarness ? '開発用ハーネス' : '実行エンジン未接続'}
         </div>
       </header>
 
@@ -83,11 +223,15 @@ export function App() {
           </div>
           <div>
             <span className="eyebrow">標準の道具</span>
-            <strong>実行エンジン未接続</strong>
+            <strong>
+              {fakeHarness
+                ? 'テスト実行（実エンジン未接続）'
+                : '実行エンジン未接続'}
+            </strong>
           </div>
         </div>
 
-        <WorldStage world={world} />
+        <WorldStage world={world} activitySummary={activitySummary} />
 
         <section className="garden-controls" aria-label="庭の操作">
           <div className="world-selector">
@@ -131,39 +275,76 @@ export function App() {
             }}
           />
 
-          <form className="job-composer" aria-label="仕事を頼む">
-            <div className="job-composer__intro">
-              <p className="section-kicker">仕事の入口</p>
-              <h2>サグルに何を調べてもらいますか</h2>
-            </div>
-            <label>
-              <span>依頼内容</span>
-              <textarea
-                disabled
-                placeholder="例：このRepositoryの構成と改善点を調べて"
-                rows={3}
-              />
-            </label>
-            <div className="job-composer__footer">
-              <p>
-                <span aria-hidden="true">◇</span>{' '}
-                実行機能は次のPhaseで接続します
-              </p>
-              <button type="submit" disabled>
-                仕事を頼む
+          <JobComposer
+            enabled={jobEnabled}
+            busy={busy}
+            request={request}
+            notice={
+              fakeHarness
+                ? '開発用ハーネスです。Codex / Grok Build / Claude Code としては表示しません'
+                : '実行エンジン（Codex / Grok Build / Claude Code）は未接続です'
+            }
+            onRequestChange={setRequest}
+            onSubmit={(value) => {
+              void handleSubmitJob(value)
+            }}
+          />
+
+          <ApprovalPanel
+            approvals={approvals}
+            busy={busy}
+            onResolve={(id, decision) => {
+              void handleResolve(id, decision)
+            }}
+          />
+
+          {job && job.status === 'running' ? (
+            <div className="job-live">
+              <button type="button" onClick={() => void handleCancel()}>
+                仕事を中止
               </button>
             </div>
-          </form>
+          ) : null}
+
+          <ArtifactShelf artifacts={artifacts} />
         </section>
       </main>
 
       <footer>
         <p>
-          この画面はPhase
-          2です。Repository登録と履歴の保存はできます。実行・承認・成果保存はまだ接続していません。
+          この画面はPhase 4です。Codex / Grok Build / Claude Code
+          は未接続です。開発用ハーネスを有効にすると、実エンジンなしで仕事・承認・成果の流れを確認できます。
         </p>
         <span>Shikumi Local · 127.0.0.1</span>
       </footer>
     </div>
   )
+}
+
+function latestSummary(events: readonly PersistedEvent[]): string | null {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const summary = events[index]?.payload.summary
+    if (typeof summary === 'string' && summary.length > 0) {
+      return summary
+    }
+  }
+  return null
+}
+
+function statusLabel(status: Job['status']): string {
+  switch (status) {
+    case 'waiting_for_user':
+      return 'あなたの確認を待っています'
+    case 'running':
+    case 'preparing':
+      return '仕事を進めています'
+    case 'completed':
+      return '調査が完了しました'
+    case 'failed':
+      return '調査を完了できませんでした'
+    case 'cancelled':
+      return '仕事を中止しました'
+    default:
+      return 'まだ仕事は始まっていません'
+  }
 }

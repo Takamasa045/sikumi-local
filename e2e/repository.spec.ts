@@ -46,7 +46,9 @@ test('a user can register a local git repository without leaving the garden', as
   await expect(
     page.getByRole('heading', { name: '犬たちの里山アトリエ' }),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: '仕事を頼む' })).toBeDisabled()
+  await expect(
+    page.getByPlaceholder('例：このRepositoryの構成と改善点を調べて'),
+  ).toBeEnabled()
 })
 
 function createTemporaryGitRepository(): string {

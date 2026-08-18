@@ -1,6 +1,11 @@
 export const providerIds = ['codex', 'grok-build', 'claude-code'] as const
 export type ProviderId = (typeof providerIds)[number]
 
+export const runtimeProviderIds = [...providerIds, 'fake'] as const
+export type RuntimeProviderId = (typeof runtimeProviderIds)[number]
+
+export const FAKE_PROVIDER_ID = 'fake' as const
+
 export const permissionProfileIds = [
   'observe',
   'research',
@@ -159,7 +164,7 @@ export interface Job {
   readonly employeeId: string
   readonly request: string
   readonly jobType: string
-  readonly selectedProvider: ProviderId
+  readonly selectedProvider: RuntimeProviderId
   readonly selectedModel: string | null
   readonly permissionProfile: PermissionProfileId
   readonly status: JobStatus
@@ -172,7 +177,7 @@ export interface Job {
 export interface Run {
   readonly id: string
   readonly jobId: string
-  readonly providerId: ProviderId
+  readonly providerId: RuntimeProviderId
   readonly status: RunStatus
   readonly createdAt: string
   readonly startedAt: string | null
@@ -181,7 +186,7 @@ export interface Run {
 
 export interface ProviderSession {
   readonly id: string
-  readonly providerId: ProviderId
+  readonly providerId: RuntimeProviderId
   readonly providerSessionId: string
   readonly workspaceId: string
   readonly employeeId: string
@@ -273,6 +278,10 @@ export const defaultProviders: readonly Provider[] = [
 
 export function isProviderId(value: string): value is ProviderId {
   return (providerIds as readonly string[]).includes(value)
+}
+
+export function isRuntimeProviderId(value: string): value is RuntimeProviderId {
+  return (runtimeProviderIds as readonly string[]).includes(value)
 }
 
 export function isShikumiEventType(value: string): value is ShikumiEventType {

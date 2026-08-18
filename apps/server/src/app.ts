@@ -1,9 +1,14 @@
 import { AppError, isAppError } from '@sikumi-local/core'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { ZodError } from 'zod'
+import { registerApprovalRoutes } from './api/approvals.js'
+import { registerArtifactRoutes } from './api/artifacts.js'
+import { registerJobRoutes } from './api/jobs.js'
 import { registerProviderRoutes } from './api/providers.js'
 import { registerSessionRoutes } from './api/session.js'
 import { registerWorkspaceRoutes } from './api/workspaces.js'
+import { createJobManager } from './jobs/job-manager.js'
+import { resolveFakeHarnessEnabled } from './providers/runtime.js'
 import {
   createRequestGuard,
   DEFAULT_BODY_LIMIT_BYTES,
@@ -16,6 +21,7 @@ import { createStore } from './storage/store.js'
 export interface AppOptions {
   readonly dataDirectory: string
   readonly security?: SecurityOptions
+  readonly enableFakeProvider?: boolean
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
@@ -23,12 +29,17 @@ export function buildApp(options: AppOptions): FastifyInstance {
   const store = createStore(db)
   const security = resolveSecurityConfig(options.security)
   const assertRequestAllowed = createRequestGuard(security)
+  const fakeHarnessEnabled = resolveFakeHarnessEnabled(
+    options.enableFakeProvider,
+  )
+  const jobs = createJobManager(store, { fakeHarnessEnabled })
   const app = Fastify({
     logger: false,
     bodyLimit: options.security?.bodyLimitBytes ?? DEFAULT_BODY_LIMIT_BYTES,
   })
 
   app.addHook('onClose', async () => {
+    await jobs.dispose()
     sqlite.close()
   })
 
@@ -73,15 +84,19 @@ export function buildApp(options: AppOptions): FastifyInstance {
   app.get('/api/health', async () => ({
     ok: true,
     product: 'Shikumi Local',
-    phase: 'domain-and-sqlite',
+    phase: 'provider-sdk-and-fake',
     bind: '127.0.0.1',
     persistence: 'sqlite',
     providerExecution: 'disconnected',
+    fakeHarness: fakeHarnessEnabled,
   }))
 
   registerSessionRoutes(app, security.sessionToken)
   registerWorkspaceRoutes(app, store)
   registerProviderRoutes(app, store)
+  registerJobRoutes(app, jobs)
+  registerApprovalRoutes(app, jobs)
+  registerArtifactRoutes(app, jobs)
 
   return app
 }

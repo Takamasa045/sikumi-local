@@ -497,6 +497,10 @@ main {
   border: 1px solid #c6beaa;
   border-radius: 3px;
 }
+.job-composer textarea:enabled {
+  color: #36372f;
+  background: #f7f2e1;
+}
 .job-composer textarea::placeholder {
   color: #9a9587;
 }
@@ -523,6 +527,65 @@ main {
   border: 0;
   border-radius: 3px;
   cursor: not-allowed;
+}
+.job-composer__footer button:enabled {
+  color: #f7f2e1;
+  background: var(--moss);
+  cursor: pointer;
+}
+
+.approval-panel,
+.artifact-shelf,
+.job-live {
+  padding: 0 26px 22px;
+}
+.approval-panel h2,
+.artifact-shelf h2 {
+  margin: 0 0 10px;
+  font-family: 'Yu Mincho', 'Hiragino Mincho ProN', serif;
+  font-size: clamp(18px, 2.3vw, 26px);
+  font-weight: 600;
+}
+.approval-card,
+.artifact-shelf li {
+  padding: 12px 14px;
+  background: #f7f2e1;
+  border: 1px solid #c6beaa;
+  border-radius: 3px;
+}
+.approval-card p {
+  margin: 0 0 10px;
+}
+.approval-card__actions,
+.job-live {
+  display: flex;
+  gap: 8px;
+}
+.approval-card button,
+.job-live button {
+  min-width: 88px;
+  padding: 8px 14px;
+  color: #f7f2e1;
+  background: var(--moss);
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.approval-card button.is-quiet {
+  color: #5f5e51;
+  background: #e6e0cf;
+}
+.artifact-shelf ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.artifact-shelf small {
+  display: block;
+  margin-top: 3px;
+  color: #7e7a6a;
 }
 
 footer {

@@ -7,6 +7,7 @@ import {
   growthRecordSchema,
   installedPackSchema,
   isProviderId,
+  isRuntimeProviderId,
   isShikumiEventType,
   jobSchema,
   persistedEventSchema,
@@ -16,6 +17,7 @@ import {
   sanitizeEventPayload,
   workspaceSchema,
   type ApprovalRequest,
+  type ApprovalStatus,
   type Artifact,
   type AuditEntry,
   type Employee,
@@ -70,14 +72,38 @@ export interface AppStore {
   insertProviderSetting(setting: ProviderSetting): ProviderSetting
   insertJob(job: Job): Job
   getJob(id: string): Job | undefined
+  listJobs(workspaceId?: string): Job[]
+  updateJob(
+    id: string,
+    patch: Partial<
+      Pick<Job, 'status' | 'providerSessionId' | 'startedAt' | 'completedAt'>
+    >,
+  ): Job
   insertRun(run: Run): Run
+  getRun(id: string): Run | undefined
   listRuns(jobId: string): Run[]
+  updateRun(
+    id: string,
+    patch: Partial<Pick<Run, 'status' | 'startedAt' | 'completedAt'>>,
+  ): Run
   insertProviderSession(session: ProviderSession): ProviderSession
   insertEvent(event: PersistedEvent): PersistedEvent
   listEvents(jobId: string): PersistedEvent[]
   insertApproval(approval: ApprovalRequest): ApprovalRequest
+  getApproval(id: string): ApprovalRequest | undefined
+  listApprovals(filter?: {
+    jobId?: string
+    status?: ApprovalStatus
+  }): ApprovalRequest[]
+  updateApproval(
+    id: string,
+    patch: Partial<Pick<ApprovalRequest, 'status' | 'resolvedAt'>>,
+  ): ApprovalRequest
   insertQuestion(question: UserQuestion): UserQuestion
   insertArtifact(artifact: Artifact): Artifact
+  getArtifact(id: string): Artifact | undefined
+  listArtifacts(jobId?: string): Artifact[]
+  ensureDefaultEmployee(): Employee
   insertGrowthRecord(record: GrowthRecord): GrowthRecord
   insertWorldUnlock(unlock: WorldUnlock): WorldUnlock
   insertAuditEntry(entry: AuditEntry): AuditEntry
@@ -171,7 +197,7 @@ export function createStore(db: AppDatabase): AppStore {
         .all()
         .map((row) =>
           providerSchema.parse({
-            id: parseProviderId(row.id),
+            id: parseCatalogProviderId(row.id),
             displayName: row.displayName,
             executionConnected: false,
           }),
@@ -266,6 +292,33 @@ export function createStore(db: AppDatabase): AppStore {
       return row ? mapJob(row) : undefined
     },
 
+    listJobs(workspaceId) {
+      const rows = workspaceId
+        ? db.select().from(jobs).where(eq(jobs.workspaceId, workspaceId)).all()
+        : db.select().from(jobs).all()
+      return rows
+        .map(mapJob)
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    },
+
+    updateJob(id, patch) {
+      const current = this.getJob(id)
+      if (!current) {
+        throw new AppError('NOT_FOUND', 'Jobが見つかりません', 404)
+      }
+      const next = jobSchema.parse({ ...current, ...patch })
+      db.update(jobs)
+        .set({
+          status: next.status,
+          providerSessionId: next.providerSessionId,
+          startedAt: next.startedAt,
+          completedAt: next.completedAt,
+        })
+        .where(eq(jobs.id, id))
+        .run()
+      return next
+    },
+
     insertRun(run) {
       const parsed = runSchema.parse(run)
       db.insert(runs)
@@ -282,6 +335,11 @@ export function createStore(db: AppDatabase): AppStore {
       return parsed
     },
 
+    getRun(id) {
+      const row = db.select().from(runs).where(eq(runs.id, id)).get()
+      return row ? mapRun(row) : undefined
+    },
+
     listRuns(jobId) {
       return db
         .select()
@@ -289,6 +347,23 @@ export function createStore(db: AppDatabase): AppStore {
         .where(eq(runs.jobId, jobId))
         .all()
         .map(mapRun)
+    },
+
+    updateRun(id, patch) {
+      const current = this.getRun(id)
+      if (!current) {
+        throw new AppError('NOT_FOUND', 'Runが見つかりません', 404)
+      }
+      const next = runSchema.parse({ ...current, ...patch })
+      db.update(runs)
+        .set({
+          status: next.status,
+          startedAt: next.startedAt,
+          completedAt: next.completedAt,
+        })
+        .where(eq(runs.id, id))
+        .run()
+      return next
     },
 
     insertProviderSession(session) {
@@ -350,6 +425,49 @@ export function createStore(db: AppDatabase): AppStore {
         )
     },
 
+    getApproval(id) {
+      const row = db
+        .select()
+        .from(approvalRequests)
+        .where(eq(approvalRequests.id, id))
+        .get()
+      return row ? mapApproval(row) : undefined
+    },
+
+    listApprovals(filter) {
+      return db
+        .select()
+        .from(approvalRequests)
+        .all()
+        .map(mapApproval)
+        .filter((approval) => {
+          if (filter?.jobId && approval.jobId !== filter.jobId) {
+            return false
+          }
+          if (filter?.status && approval.status !== filter.status) {
+            return false
+          }
+          return true
+        })
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    },
+
+    updateApproval(id, patch) {
+      const current = this.getApproval(id)
+      if (!current) {
+        throw new AppError('NOT_FOUND', '確認待ちが見つかりません', 404)
+      }
+      const next = approvalRequestSchema.parse({ ...current, ...patch })
+      db.update(approvalRequests)
+        .set({
+          status: next.status,
+          resolvedAt: next.resolvedAt,
+        })
+        .where(eq(approvalRequests.id, id))
+        .run()
+      return next
+    },
+
     insertApproval(approval) {
       const parsed = approvalRequestSchema.parse(approval)
       db.insert(approvalRequests)
@@ -380,6 +498,39 @@ export function createStore(db: AppDatabase): AppStore {
         })
         .run()
       return question
+    },
+
+    getArtifact(id) {
+      const row = db.select().from(artifacts).where(eq(artifacts.id, id)).get()
+      return row ? mapArtifact(row) : undefined
+    },
+
+    listArtifacts(jobId) {
+      const rows = jobId
+        ? db.select().from(artifacts).where(eq(artifacts.jobId, jobId)).all()
+        : db.select().from(artifacts).all()
+      return rows
+        .map(mapArtifact)
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+    },
+
+    ensureDefaultEmployee() {
+      const existing = this.listEmployees().find(
+        (employee) => employee.id === 'saguru',
+      )
+      if (existing) {
+        return existing
+      }
+      const now = new Date().toISOString()
+      return this.insertEmployee({
+        id: 'saguru',
+        packId: 'saguru',
+        name: 'サグル',
+        role: '調査担当',
+        defaultProviderId: null,
+        createdAt: now,
+        updatedAt: now,
+      })
     },
 
     insertArtifact(artifact) {
@@ -516,7 +667,7 @@ function mapJob(row: typeof jobs.$inferSelect): Job {
     employeeId: row.employeeId,
     request: row.request,
     jobType: row.jobType,
-    selectedProvider: parseProviderId(row.selectedProvider),
+    selectedProvider: parseRuntimeProviderId(row.selectedProvider),
     selectedModel: row.selectedModel,
     permissionProfile: row.permissionProfile,
     status: row.status,
@@ -531,7 +682,7 @@ function mapRun(row: typeof runs.$inferSelect): Run {
   return runSchema.parse({
     id: row.id,
     jobId: row.jobId,
-    providerId: parseProviderId(row.providerId),
+    providerId: parseRuntimeProviderId(row.providerId),
     status: row.status,
     createdAt: row.createdAt,
     startedAt: row.startedAt,
@@ -539,13 +690,46 @@ function mapRun(row: typeof runs.$inferSelect): Run {
   })
 }
 
-function parseProviderId(value: string) {
+function mapApproval(
+  row: typeof approvalRequests.$inferSelect,
+): ApprovalRequest {
+  return approvalRequestSchema.parse({
+    id: row.id,
+    jobId: row.jobId,
+    runId: row.runId,
+    risk: row.risk,
+    summary: row.summary,
+    status: row.status,
+    createdAt: row.createdAt,
+    resolvedAt: row.resolvedAt,
+  })
+}
+
+function mapArtifact(row: typeof artifacts.$inferSelect): Artifact {
+  return artifactSchema.parse({
+    id: row.id,
+    jobId: row.jobId,
+    type: row.type,
+    title: row.title,
+    storagePath: row.storagePath,
+    createdAt: row.createdAt,
+  })
+}
+
+function parseCatalogProviderId(value: string) {
   if (!isProviderId(value)) {
     throw new Error(`Unknown provider id: ${value}`)
   }
   return value
 }
 
+function parseRuntimeProviderId(value: string) {
+  if (!isRuntimeProviderId(value)) {
+    throw new Error(`Unknown runtime provider id: ${value}`)
+  }
+  return value
+}
+
 function parseOptionalProviderId(value: string | null) {
-  return value === null ? null : parseProviderId(value)
+  return value === null ? null : parseCatalogProviderId(value)
 }

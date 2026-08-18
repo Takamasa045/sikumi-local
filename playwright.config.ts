@@ -34,6 +34,7 @@ export default defineConfig({
         SIKUMI_LOCAL_DATA_DIR: e2eDataDirectory,
         SIKUMI_LOCAL_HOST: '127.0.0.1',
         SIKUMI_LOCAL_PORT: '4321',
+        SIKUMI_LOCAL_ENABLE_FAKE_PROVIDER: '1',
       },
     },
     {

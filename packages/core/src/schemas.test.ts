@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { defaultProviders, isProviderId, isShikumiEventType } from './domain.js'
 import {
+  defaultProviders,
+  isProviderId,
+  isRuntimeProviderId,
+  isShikumiEventType,
+} from './domain.js'
+import {
+  createJobRequestSchema,
+  healthResponseSchema,
+  jobSchema,
   providerSchema,
   registerWorkspaceRequestSchema,
+  resolveApprovalRequestSchema,
   workspaceSchema,
 } from './schemas.js'
 
@@ -58,7 +67,70 @@ describe('domain guards', () => {
   it('accepts catalog provider ids and known event types only', () => {
     expect(isProviderId('codex')).toBe(true)
     expect(isProviderId('secret-provider')).toBe(false)
+    expect(isProviderId('fake')).toBe(false)
+    expect(isRuntimeProviderId('fake')).toBe(true)
+    expect(isRuntimeProviderId('codex')).toBe(true)
+    expect(isRuntimeProviderId('secret-provider')).toBe(false)
     expect(isShikumiEventType('run.state_changed')).toBe(true)
     expect(isShikumiEventType('internal.reasoning')).toBe(false)
+  })
+})
+
+describe('job and health contracts', () => {
+  it('allows a fake harness job without treating fake as a catalog provider', () => {
+    const job = jobSchema.parse({
+      id: 'job_1',
+      workspaceId: 'ws_1',
+      employeeId: 'saguru',
+      request: '調べて',
+      jobType: 'research',
+      selectedProvider: 'fake',
+      selectedModel: null,
+      permissionProfile: 'research',
+      status: 'queued',
+      providerSessionId: null,
+      createdAt: 't',
+      startedAt: null,
+      completedAt: null,
+    })
+
+    expect(job.selectedProvider).toBe('fake')
+    expect(() =>
+      providerSchema.parse({
+        id: 'fake',
+        displayName: 'Fake',
+        executionConnected: false,
+      }),
+    ).toThrow()
+  })
+
+  it('validates job creation, approval decisions, and health', () => {
+    expect(
+      createJobRequestSchema.parse({
+        workspaceId: 'ws_1',
+        request: ' 調べて ',
+      }),
+    ).toEqual({
+      workspaceId: 'ws_1',
+      request: '調べて',
+      jobType: 'research',
+    })
+    expect(
+      resolveApprovalRequestSchema.parse({ decision: 'approved' }),
+    ).toEqual({ decision: 'approved' })
+    expect(() =>
+      resolveApprovalRequestSchema.parse({ decision: 'allow-always' }),
+    ).toThrow()
+    expect(
+      healthResponseSchema.parse({
+        ok: true,
+        product: 'Shikumi Local',
+        phase: 'provider-sdk-and-fake',
+        bind: '127.0.0.1',
+        persistence: 'sqlite',
+        providerExecution: 'disconnected',
+        fakeHarness: true,
+      }).fakeHarness,
+    ).toBe(true)
   })
 })

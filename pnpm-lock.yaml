@@ -47,6 +47,15 @@ importers:
       '@sikumi-local/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@sikumi-local/process-runtime':
+        specifier: workspace:*
+        version: link:../../packages/process-runtime
+      '@sikumi-local/provider-fake':
+        specifier: workspace:*
+        version: link:../../packages/provider-fake
+      '@sikumi-local/provider-sdk':
+        specifier: workspace:*
+        version: link:../../packages/provider-sdk
       better-sqlite3:
         specifier: latest
         version: 13.0.3
@@ -118,6 +127,30 @@ importers:
       zod:
         specifier: latest
         version: 4.4.3
+
+  packages/process-runtime:
+    dependencies:
+      '@sikumi-local/core':
+        specifier: workspace:*
+        version: link:../core
+
+  packages/provider-fake:
+    dependencies:
+      '@sikumi-local/core':
+        specifier: workspace:*
+        version: link:../core
+      '@sikumi-local/process-runtime':
+        specifier: workspace:*
+        version: link:../process-runtime
+      '@sikumi-local/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
+
+  packages/provider-sdk:
+    dependencies:
+      '@sikumi-local/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

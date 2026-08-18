@@ -96,14 +96,34 @@ function createMemoryStore(): AppStore {
     insertProviderSetting: (setting) => setting,
     insertJob: (job) => job,
     getJob: () => undefined,
+    listJobs: () => [],
+    updateJob: (id, patch) => {
+      throw new Error(`unexpected updateJob ${id} ${JSON.stringify(patch)}`)
+    },
     insertRun: (run) => run,
+    getRun: () => undefined,
     listRuns: () => [],
+    updateRun: (id, patch) => {
+      throw new Error(`unexpected updateRun ${id} ${JSON.stringify(patch)}`)
+    },
     insertProviderSession: (session) => session,
     insertEvent: (event) => event,
     listEvents: () => [],
     insertApproval: (approval) => approval,
+    getApproval: () => undefined,
+    listApprovals: () => [],
+    updateApproval: (id, patch) => {
+      throw new Error(
+        `unexpected updateApproval ${id} ${JSON.stringify(patch)}`,
+      )
+    },
     insertQuestion: (question) => question,
     insertArtifact: (artifact) => artifact,
+    getArtifact: () => undefined,
+    listArtifacts: () => [],
+    ensureDefaultEmployee: () => {
+      throw new Error('unexpected ensureDefaultEmployee')
+    },
     insertGrowthRecord: (record) => record,
     insertWorldUnlock: (unlock) => unlock,
     insertAuditEntry: (entry) => entry,

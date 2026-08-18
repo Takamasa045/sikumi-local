@@ -30,10 +30,11 @@ describe('local server', () => {
     expect(response.json()).toEqual({
       ok: true,
       product: 'Shikumi Local',
-      phase: 'domain-and-sqlite',
+      phase: 'provider-sdk-and-fake',
       bind: '127.0.0.1',
       persistence: 'sqlite',
       providerExecution: 'disconnected',
+      fakeHarness: false,
     })
   })
 

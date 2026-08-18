@@ -9,6 +9,7 @@ import {
   providerIds,
   providerSessionStatuses,
   runStatuses,
+  runtimeProviderIds,
   shikumiEventTypes,
 } from './domain.js'
 
@@ -58,7 +59,7 @@ export const jobSchema = z.object({
   employeeId: z.string().min(1),
   request: z.string().min(1),
   jobType: z.string().min(1),
-  selectedProvider: z.enum(providerIds),
+  selectedProvider: z.enum(runtimeProviderIds),
   selectedModel: z.string().min(1).nullable(),
   permissionProfile: z.enum(permissionProfileIds),
   status: z.enum(jobStatuses),
@@ -71,7 +72,7 @@ export const jobSchema = z.object({
 export const runSchema = z.object({
   id: z.string().min(1),
   jobId: z.string().min(1),
-  providerId: z.enum(providerIds),
+  providerId: z.enum(runtimeProviderIds),
   status: z.enum(runStatuses),
   createdAt: z.string().min(1),
   startedAt: z.string().min(1).nullable(),
@@ -127,7 +128,7 @@ export const installedPackSchema = z.object({
 
 export const providerSessionSchema = z.object({
   id: z.string().min(1),
-  providerId: z.enum(providerIds),
+  providerId: z.enum(runtimeProviderIds),
   providerSessionId: z.string().min(1),
   workspaceId: z.string().min(1),
   employeeId: z.string().min(1),
@@ -147,4 +148,24 @@ export const apiErrorSchema = z.object({
 
 export const sessionResponseSchema = z.object({
   token: z.string().min(1),
+})
+
+export const createJobRequestSchema = z.object({
+  workspaceId: z.string().trim().min(1).max(128),
+  request: z.string().trim().min(1).max(8000),
+  jobType: z.string().trim().min(1).max(64).default('research'),
+})
+
+export const resolveApprovalRequestSchema = z.object({
+  decision: z.enum(['approved', 'denied']),
+})
+
+export const healthResponseSchema = z.object({
+  ok: z.literal(true),
+  product: z.literal('Shikumi Local'),
+  phase: z.string().min(1),
+  bind: z.literal('127.0.0.1'),
+  persistence: z.literal('sqlite'),
+  providerExecution: z.literal('disconnected'),
+  fakeHarness: z.boolean(),
 })

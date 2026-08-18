@@ -3,6 +3,7 @@ import type { WorldPack } from './worlds'
 
 interface WorldStageProps {
   readonly world: WorldPack
+  readonly activitySummary?: string
 }
 
 type StageStyle = CSSProperties & {
@@ -16,7 +17,10 @@ type StageStyle = CSSProperties & {
   '--character-y': string
 }
 
-export function WorldStage({ world }: WorldStageProps) {
+export function WorldStage({
+  world,
+  activitySummary = 'まだ仕事は始まっていません',
+}: WorldStageProps) {
   const columnPosition =
     world.character.atlasColumns === 1
       ? 0
@@ -58,7 +62,7 @@ export function WorldStage({ world }: WorldStageProps) {
         <div className="employee__note" role="status">
           <strong>{world.character.name}</strong>
           <span>{world.character.role}</span>
-          <small>まだ仕事は始まっていません</small>
+          <small>{activitySummary}</small>
         </div>
         <div className="employee__sprite" aria-hidden="true" />
         <div className="employee__shadow" aria-hidden="true" />

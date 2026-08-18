@@ -150,6 +150,28 @@ describe('deriveProviderConnectionSummary', () => {
     expect(summary.badgeLabel).not.toContain('codex')
   })
 
+  it('keeps loading ahead of a known fake harness', () => {
+    const summary = deriveProviderConnectionSummary({
+      loadState: 'loading',
+      providers: [],
+      fakeHarness: true,
+      defaultProviderId: null,
+    })
+    expect(summary.status).toBe('loading')
+    expect(summary.badgeLabel).toBe('実行エンジンを確認中')
+  })
+
+  it('keeps a catalog fetch error ahead of a fake harness', () => {
+    const summary = deriveProviderConnectionSummary({
+      loadState: 'error',
+      providers: [],
+      fakeHarness: true,
+      defaultProviderId: null,
+    })
+    expect(summary.status).toBe('error')
+    expect(summary.badgeLabel).toBe('接続状態を確認できません')
+  })
+
   it('describes a configured default that still needs login or install', () => {
     const login = deriveProviderConnectionSummary({
       loadState: 'ready',
@@ -177,6 +199,55 @@ describe('deriveProviderConnectionSummary', () => {
       defaultProviderId: 'grok-build',
     })
     expect(missing.toolLabel).toBe('Grok Build · 未インストール')
+  })
+
+  it('does not present a configured but unusable default as healthy', () => {
+    const disconnected = deriveProviderConnectionSummary({
+      loadState: 'ready',
+      providers: [
+        provider('codex', 'Codex', {
+          installed: true,
+          authenticated: true,
+          status: 'disconnected',
+        }),
+      ],
+      fakeHarness: false,
+      defaultProviderId: 'codex',
+    })
+    expect(disconnected.toolLabel).toBe('Codex · つながっていません')
+    expect(disconnected.toolLabel).not.toBe('Codex')
+    expect(disconnected.toolLabel).not.toContain('codex')
+
+    const mismatch = deriveProviderConnectionSummary({
+      loadState: 'ready',
+      providers: [
+        provider('claude-code', 'Claude Code', {
+          installed: true,
+          authenticated: true,
+          status: 'capability_mismatch',
+        }),
+      ],
+      fakeHarness: false,
+      defaultProviderId: 'claude-code',
+    })
+    expect(mismatch.toolLabel).toBe('Claude Code · この仕事には使えません')
+    expect(mismatch.toolLabel).not.toContain('claude-code')
+
+    const errored = deriveProviderConnectionSummary({
+      loadState: 'error',
+      providers: [
+        provider('grok-build', 'Grok Build', {
+          installed: true,
+          authenticated: true,
+          status: 'disconnected',
+        }),
+      ],
+      fakeHarness: false,
+      defaultProviderId: 'grok-build',
+    })
+    expect(errored.toolLabel).toBe('Grok Build · 確認できません')
+    expect(errored.badgeLabel).toBe('接続状態を確認できません')
+    expect(JSON.stringify(errored)).not.toMatch(/grok-build/)
   })
 })
 

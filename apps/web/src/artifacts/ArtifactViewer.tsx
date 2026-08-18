@@ -133,11 +133,15 @@ export function ArtifactViewer({ artifact, onClose }: ArtifactViewerProps) {
             </div>
           </>
         ) : null}
-        <p className="visually-hidden" aria-live="polite">
-          {copyMessage ?? ''}
-        </p>
-        {copyMessage && copyMessage !== 'コピーしました' ? (
-          <p role="status">{copyMessage}</p>
+        {copyMessage ? (
+          <p
+            className="artifact-viewer__copy-status"
+            role="status"
+            aria-live="polite"
+            data-testid="artifact-viewer-copy-status"
+          >
+            {copyMessage}
+          </p>
         ) : null}
       </div>
     </div>

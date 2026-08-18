@@ -1,9 +1,11 @@
 import {
+  constants,
   mkdirSync,
   symlinkSync,
   writeFileSync,
   chmodSync,
   rmSync,
+  statSync,
 } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -186,6 +188,33 @@ describe('readArtifactContent', () => {
     )
     expect(result.content.includes('\uFFFD')).toBe(false)
     expect(serialized(result)).not.toContain(dataDirectory)
+  })
+
+  it('opens without following links and uses the opened file size', () => {
+    expect(typeof constants.O_NOFOLLOW).toBe('number')
+    const dataDirectory = track(createTemporaryDirectory())
+    const content = 'descriptor-size-check'
+    const storagePath = persistJobArtifactFile({
+      dataDirectory,
+      jobId: 'job-1',
+      artifactId: 'art-stat',
+      artifactType: 'file',
+      title: 'stat',
+      content,
+    })
+    const result = readArtifactContent({
+      artifact: sample({
+        id: 'art-stat',
+        type: 'file',
+        title: 'stat',
+        storagePath,
+      }),
+      dataDirectory,
+    })
+    expect(result.sizeBytes).toBe(statSync(storagePath).size)
+    expect(result.content).toBe(content)
+    expect(serialized(result)).not.toContain(dataDirectory)
+    expect(serialized(result)).not.toContain(storagePath)
   })
 })
 

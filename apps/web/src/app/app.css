@@ -953,6 +953,11 @@ main {
   color: #8a3b2b;
   font-size: 12px;
 }
+.artifact-viewer__copy-status {
+  margin: 0;
+  color: #3f4a3d;
+  font-size: 12px;
+}
 .artifact-json {
   display: grid;
   gap: 8px;

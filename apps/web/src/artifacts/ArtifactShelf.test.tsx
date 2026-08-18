@@ -121,7 +121,11 @@ describe('ArtifactShelf', () => {
         '{"summary":"完了","extra":{"ok":true}}',
       )
     })
-    expect(screen.getByText('コピーしました')).toBeInTheDocument()
+    const copyStatus = screen.getByTestId('artifact-viewer-copy-status')
+    expect(copyStatus).toBeVisible()
+    expect(copyStatus).toHaveTextContent('コピーしました')
+    expect(copyStatus).toHaveAttribute('aria-live', 'polite')
+    expect(screen.queryAllByText('コピーしました')).toHaveLength(1)
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByTestId('artifact-viewer')).not.toBeInTheDocument()
   })
@@ -218,6 +222,38 @@ describe('ArtifactShelf', () => {
       }),
     )
     expect(await screen.findByText('本文')).toBeVisible()
+  })
+
+  it('shows a visible copy failure without a second live region', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: {
+        writeText: vi.fn().mockRejectedValue(new Error('denied')),
+      },
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          artifactId: 'markdown',
+          title: 'Markdown',
+          type: 'markdown',
+          format: 'markdown',
+          content: '本文',
+          sizeBytes: 2,
+          truncated: false,
+        }),
+      ),
+    )
+    render(<ArtifactShelf artifacts={[sample('markdown', 'Markdown', 'x')]} />)
+    await userEvent.click(screen.getByRole('button', { name: '内容を見る' }))
+    expect(await screen.findByText('本文')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'コピー' }))
+    const copyStatus = await screen.findByTestId('artifact-viewer-copy-status')
+    expect(copyStatus).toBeVisible()
+    expect(copyStatus).toHaveTextContent('コピーできませんでした')
+    expect(screen.queryAllByText('コピーできませんでした')).toHaveLength(1)
   })
 })
 

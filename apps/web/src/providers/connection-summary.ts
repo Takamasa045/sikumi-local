@@ -86,6 +86,7 @@ export function connectedProviders(
 }
 
 function deriveToolLabel(input: {
+  readonly loadState?: ProviderLoadState
   readonly providers: readonly ProviderAvailability[]
   readonly fakeHarness: boolean
   readonly defaultProviderId: ProviderId | null
@@ -101,7 +102,7 @@ function deriveToolLabel(input: {
     : undefined
 
   if (selected) {
-    if (selected.executionConnected || selected.status === 'ready') {
+    if (selected.executionConnected) {
       return selected.displayName
     }
     if (selected.status === 'login_required' || needsLogin(selected)) {
@@ -110,7 +111,13 @@ function deriveToolLabel(input: {
     if (selected.status === 'not_installed' || !selected.installed) {
       return `${selected.displayName} · 未インストール`
     }
-    return selected.displayName
+    if (selected.status === 'capability_mismatch') {
+      return `${selected.displayName} · この仕事には使えません`
+    }
+    if (input.loadState === 'error') {
+      return `${selected.displayName} · 確認できません`
+    }
+    return `${selected.displayName} · つながっていません`
   }
 
   if (hasUsableProvider(input.providers)) {

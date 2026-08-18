@@ -1,4 +1,12 @@
-import { closeSync, lstatSync, openSync, readSync, realpathSync } from 'node:fs'
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+  realpathSync,
+} from 'node:fs'
 import { sep } from 'node:path'
 import {
   AppError,
@@ -33,38 +41,53 @@ export function readArtifactContent(input: {
     throw new AppError('NOT_FOUND', '成果の本文が見つかりません', 404)
   }
 
-  let stat
+  let pathStat
   try {
-    stat = lstatSync(input.artifact.storagePath)
+    pathStat = lstatSync(input.artifact.storagePath)
   } catch {
     throw new AppError('NOT_FOUND', '成果の本文が見つかりません', 404)
   }
 
-  if (stat.isSymbolicLink()) {
+  if (pathStat.isSymbolicLink()) {
     throw new AppError('PATH_TRAVERSAL', '成果の保存場所が不正です', 400)
   }
-  if (stat.isDirectory() || !stat.isFile()) {
+  if (pathStat.isDirectory() || !pathStat.isFile()) {
     throw new AppError('VALIDATION_FAILED', '成果の本文を読めません', 400)
   }
 
-  let realFile: string
-  let realRoot: string
-  try {
-    realFile = realpathSync(input.artifact.storagePath)
-    realRoot = realpathSync(input.dataDirectory)
-  } catch {
-    throw new AppError('NOT_FOUND', '成果の本文が見つかりません', 404)
-  }
+  const realRoot = safeRealpath(input.dataDirectory)
+  const realFile = safeRealpath(input.artifact.storagePath)
+  assertInsideDataDirectory(realFile, realRoot)
 
-  if (realFile !== realRoot && !realFile.startsWith(realRoot + sep)) {
-    throw new AppError('PATH_TRAVERSAL', '成果の保存場所が不正です', 400)
-  }
-
-  const sizeBytes = stat.size
-  const toRead = Math.min(sizeBytes, MAX_ARTIFACT_CONTENT_BYTES)
-  const buffer = Buffer.alloc(toRead)
-  const fd = openSync(realFile, 'r')
+  const fd = openRegularFileNoFollow(realFile)
   try {
+    const opened = fstatSync(fd)
+    if (opened.isSymbolicLink() || opened.isDirectory() || !opened.isFile()) {
+      throw new AppError('VALIDATION_FAILED', '成果の本文を読めません', 400)
+    }
+
+    const currentPath = safeRealpath(input.artifact.storagePath)
+    assertInsideDataDirectory(currentPath, realRoot)
+    if (currentPath !== realFile) {
+      throw new AppError('PATH_TRAVERSAL', '成果の保存場所が不正です', 400)
+    }
+
+    let currentStat
+    try {
+      currentStat = lstatSync(realFile)
+    } catch {
+      throw new AppError('NOT_FOUND', '成果の本文が見つかりません', 404)
+    }
+    if (currentStat.isSymbolicLink()) {
+      throw new AppError('PATH_TRAVERSAL', '成果の保存場所が不正です', 400)
+    }
+    if (currentStat.dev !== opened.dev || currentStat.ino !== opened.ino) {
+      throw new AppError('PATH_TRAVERSAL', '成果の保存場所が不正です', 400)
+    }
+
+    const sizeBytes = opened.size
+    const toRead = Math.min(sizeBytes, MAX_ARTIFACT_CONTENT_BYTES)
+    const buffer = Buffer.alloc(toRead)
     let offset = 0
     while (offset < toRead) {
       const bytesRead = readSync(fd, buffer, offset, toRead - offset, offset)
@@ -85,6 +108,42 @@ export function readArtifactContent(input: {
     }
   } finally {
     closeSync(fd)
+  }
+}
+
+function openRegularFileNoFollow(path: string): number {
+  const flags =
+    constants.O_RDONLY |
+    (typeof constants.O_NOFOLLOW === 'number' ? constants.O_NOFOLLOW : 0)
+  try {
+    return openSync(path, flags)
+  } catch (error) {
+    if (isNoFollowRejection(error)) {
+      throw new AppError('PATH_TRAVERSAL', '成果の保存場所が不正です', 400)
+    }
+    throw new AppError('NOT_FOUND', '成果の本文が見つかりません', 404)
+  }
+}
+
+function isNoFollowRejection(error: unknown): boolean {
+  if (!error || typeof error !== 'object' || !('code' in error)) {
+    return false
+  }
+  const code = String(error.code)
+  return code === 'ELOOP' || code === 'EMLINK' || code === 'EPERM'
+}
+
+function safeRealpath(path: string): string {
+  try {
+    return realpathSync(path)
+  } catch {
+    throw new AppError('NOT_FOUND', '成果の本文が見つかりません', 404)
+  }
+}
+
+function assertInsideDataDirectory(realFile: string, realRoot: string): void {
+  if (realFile !== realRoot && !realFile.startsWith(realRoot + sep)) {
+    throw new AppError('PATH_TRAVERSAL', '成果の保存場所が不正です', 400)
   }
 }
 

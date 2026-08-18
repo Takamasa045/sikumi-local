@@ -59,7 +59,10 @@ test('a garden job can be approved through the fake harness to an artifact', asy
     'このRepositoryの構成を整理しました',
   )
   await page.getByRole('button', { name: 'コピー' }).click()
-  await expect(page.getByText('コピーしました')).toBeAttached()
+  await expect(page.getByTestId('artifact-viewer-copy-status')).toBeVisible()
+  await expect(page.getByTestId('artifact-viewer-copy-status')).toHaveText(
+    'コピーしました',
+  )
   await page.keyboard.press('Escape')
   await expect(page.getByTestId('artifact-viewer')).toHaveCount(0)
   await expect(

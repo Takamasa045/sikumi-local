@@ -1,7 +1,8 @@
-import { rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { afterEach, describe, expect, it } from 'vitest'
 import { AppError } from '@sikumi-local/core'
 import type { AgentProviderAdapter } from '@sikumi-local/provider-sdk'
+import { createProviderRunHandle } from '@sikumi-local/provider-sdk'
 import { openDatabase } from '../storage/database.js'
 import { createStore } from '../storage/store.js'
 import {
@@ -22,6 +23,69 @@ afterEach(async () => {
   for (const directory of tempDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+describe('provider selection and restart orphaning', () => {
+  it('does not auto-fallback from an unavailable selected provider', async () => {
+    const { manager, store, workspaceId } = openManager()
+    store.updateWorkspace(workspaceId, { defaultProviderId: 'codex' })
+
+    await expect(
+      manager.createJob({
+        workspaceId,
+        request: '調べて',
+        selectedProvider: 'claude-code',
+      }),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'PROVIDER_UNAVAILABLE',
+    })
+  })
+
+  it('marks leftover running jobs as failed and runs as orphaned', async () => {
+    const { store, workspaceId } = openManager()
+    const job = store.insertJob({
+      id: 'stale-job',
+      workspaceId,
+      employeeId: store.ensureDefaultEmployee().id,
+      request: '古い仕事',
+      jobType: 'research',
+      selectedProvider: 'fake',
+      selectedModel: null,
+      permissionProfile: 'research',
+      status: 'running',
+      providerSessionId: 'thread-old',
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: null,
+    })
+    store.insertRun({
+      id: 'stale-run',
+      jobId: job.id,
+      providerId: 'fake',
+      status: 'running',
+      createdAt: 't',
+      startedAt: 't',
+      completedAt: null,
+    })
+    store.insertProviderSession({
+      id: 'stale-session',
+      providerId: 'fake',
+      providerSessionId: 'thread-old',
+      workspaceId,
+      employeeId: job.employeeId,
+      jobId: job.id,
+      cwd: '/tmp',
+      status: 'active',
+      createdAt: 't',
+      updatedAt: 't',
+    })
+
+    const again = openManagerWithStore(store)
+    expect(again.store.getJob(job.id)?.status).toBe('failed')
+    expect(again.store.getRun('stale-run')?.status).toBe('orphaned')
+    expect(again.store.listProviderSessions(job.id)[0]?.status).toBe('orphaned')
+  })
 })
 
 describe('job manager cancel and start failure', () => {
@@ -149,7 +213,223 @@ describe('job manager cancel and start failure', () => {
         .filter((event) => event.type === 'approval.resolved'),
     ).toHaveLength(1)
   })
+
+  it('persists a late session id once without duplicating rows', async () => {
+    let sessionId: string | undefined
+    const adapter: AgentProviderAdapter = {
+      ...failingAdapter(),
+      async startRun(specification) {
+        return createProviderRunHandle({
+          runId: specification.runId,
+          providerId: 'fake',
+          getSessionId: () => sessionId,
+          events: async function* () {
+            yield {
+              type: 'run.started' as const,
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '仕事を始めます',
+            }
+            sessionId = 'late-session'
+            yield {
+              type: 'run.state_changed' as const,
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '調査しています',
+              state: 'planning' as const,
+            }
+            yield {
+              type: 'run.state_changed' as const,
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '整理しています',
+              state: 'organizing' as const,
+            }
+            yield {
+              type: 'run.completed' as const,
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '調査が完了しました',
+            }
+          },
+          cancel: async () => {},
+        })
+      },
+    }
+    const { manager, store, workspaceId } = openManager({ adapter })
+    const job = await manager.createJob({
+      workspaceId,
+      request: '調べて',
+    })
+    await waitForJob(manager, job.id, 'completed')
+    const sessions = store.listProviderSessions(job.id)
+    expect(sessions).toHaveLength(1)
+    expect(sessions[0]?.providerSessionId).toBe('late-session')
+    expect(store.getJob(job.id)?.providerSessionId).toBe('late-session')
+  })
+
+  it('writes report files under the data directory and keeps secrets out of events', async () => {
+    const secret = 'sk-artifact-secret-value'
+    const adapter: AgentProviderAdapter = {
+      ...failingAdapter(),
+      async startRun(specification) {
+        return {
+          runId: specification.runId,
+          providerId: 'fake',
+          events: async function* () {
+            yield {
+              type: 'artifact.created',
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '調査結果を整理しています',
+              artifactType: 'report' as const,
+              title: '調査メモ',
+              content: JSON.stringify({
+                title: '調査メモ',
+                summary: secret,
+              }),
+            }
+            yield {
+              type: 'run.completed',
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '調査が完了しました',
+            }
+          },
+          cancel: async () => {},
+        }
+      },
+    }
+    const { manager, store, workspaceId, dataDirectory } = openManager({
+      adapter,
+    })
+    const job = await manager.createJob({
+      workspaceId,
+      request: '調べて',
+    })
+    await waitForJob(manager, job.id, 'completed')
+    const artifact = store.listArtifacts(job.id)[0]
+    expect(artifact?.storagePath).toBeTruthy()
+    const storagePath = artifact?.storagePath ?? ''
+    expect(storagePath.startsWith(dataDirectory)).toBe(true)
+    expect(existsSync(storagePath)).toBe(true)
+    expect(statSync(storagePath).mode & 0o777).toBe(0o600)
+    expect(readFileSync(storagePath, 'utf8')).toContain(secret)
+    const events = JSON.stringify(store.listEvents(job.id))
+    expect(events).not.toContain(secret)
+    expect(events).not.toContain('"content"')
+    expect(manager.getArtifact(artifact?.id ?? '')).toMatchObject({
+      title: '調査メモ',
+      storagePath,
+    })
+    expect(manager.getArtifact(artifact?.id ?? '')).not.toHaveProperty(
+      'content',
+    )
+  })
+
+  it('redacts secrets in approval summaries and event payloads', async () => {
+    const secret = 'sk-live-secret-value'
+    const adapter: AgentProviderAdapter = {
+      ...failingAdapter(),
+      async startRun(specification) {
+        return {
+          runId: specification.runId,
+          providerId: 'fake',
+          events: async function* () {
+            yield {
+              type: 'approval.requested' as const,
+              runId: specification.runId,
+              requestId: `${specification.runId}:cmd`,
+              risk: 'high' as const,
+              summary: `コマンド実行の確認が必要です: TOKEN=${secret}`,
+              occurredAt: new Date().toISOString(),
+            }
+            yield {
+              type: 'run.failed' as const,
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: `spawn failed Bearer ${secret}`,
+            }
+          },
+          cancel: async () => {},
+        }
+      },
+    }
+    const { manager, store, workspaceId } = openManager({ adapter })
+    const job = await manager.createJob({
+      workspaceId,
+      request: '調べて',
+    })
+    const approval = await waitForApproval(manager, job.id)
+    expect(approval.summary).not.toContain(secret)
+    expect(approval.summary).toContain('[redacted]')
+    const serialized = JSON.stringify(store.listEvents(job.id))
+    expect(serialized).not.toContain(secret)
+    expect(serialized).toContain('[redacted]')
+  })
+
+  it('stores unique paths when two artifacts share a title', async () => {
+    const adapter: AgentProviderAdapter = {
+      ...failingAdapter(),
+      async startRun(specification) {
+        return {
+          runId: specification.runId,
+          providerId: 'fake',
+          events: async function* () {
+            yield {
+              type: 'artifact.created' as const,
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '調査結果を整理しています',
+              artifactType: 'report' as const,
+              title: '調査メモ',
+              content: '{"n":1}',
+            }
+            yield {
+              type: 'artifact.created' as const,
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '調査結果を整理しています',
+              artifactType: 'report' as const,
+              title: '調査メモ',
+              content: '{"n":2}',
+            }
+            yield {
+              type: 'run.completed' as const,
+              runId: specification.runId,
+              occurredAt: new Date().toISOString(),
+              summary: '調査が完了しました',
+            }
+          },
+          cancel: async () => {},
+        }
+      },
+    }
+    const { manager, store, workspaceId } = openManager({ adapter })
+    const job = await manager.createJob({
+      workspaceId,
+      request: '調べて',
+    })
+    await waitForJob(manager, job.id, 'completed')
+    const artifacts = store.listArtifacts(job.id)
+    expect(artifacts).toHaveLength(2)
+    expect(artifacts[0]?.storagePath).toBeTruthy()
+    expect(artifacts[1]?.storagePath).toBeTruthy()
+    expect(artifacts[0]?.storagePath).not.toBe(artifacts[1]?.storagePath)
+    expect(artifacts[0]?.id).not.toBe(artifacts[1]?.id)
+    expect(
+      artifacts
+        .map((artifact) => readFileSync(artifact.storagePath ?? '', 'utf8'))
+        .sort(),
+    ).toEqual(['{"n":1}', '{"n":2}'])
+  })
 })
+
+function openManagerWithStore(store: ReturnType<typeof createStore>) {
+  const manager = createJobManager(store, { fakeHarnessEnabled: true })
+  managers.push(manager)
+  return { manager, store }
+}
 
 function openManager(options?: { adapter?: AgentProviderAdapter }) {
   const dataDirectory = track(createTemporaryDirectory())
@@ -167,10 +447,29 @@ function openManager(options?: { adapter?: AgentProviderAdapter }) {
   })
   const manager = createJobManager(store, {
     fakeHarnessEnabled: true,
+    dataDirectory,
     ...(options?.adapter ? { adapter: options.adapter } : {}),
   })
   managers.push(manager)
-  return { manager, store, workspaceId: workspace.id }
+  return { manager, store, workspaceId: workspace.id, dataDirectory }
+}
+
+async function waitForJob(
+  manager: ReturnType<typeof createJobManager>,
+  jobId: string,
+  status: string,
+) {
+  const deadline = Date.now() + 5_000
+  while (Date.now() < deadline) {
+    const job = manager.getJob(jobId)
+    if (job.status === status) {
+      return job
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20)
+    })
+  }
+  throw new Error(`Timed out waiting for job ${jobId} to become ${status}`)
 }
 
 function createApprovalAdapter(options: {

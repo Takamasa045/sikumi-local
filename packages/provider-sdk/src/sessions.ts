@@ -28,6 +28,30 @@ export interface UserAnswer {
 export interface ProviderRunHandle {
   readonly runId: string
   readonly providerId: RuntimeProviderId | 'fake'
+  readonly providerSessionId?: string
   events(): AsyncIterable<import('./events.js').CanonicalEvent>
   cancel(): Promise<void>
+}
+
+export function createProviderRunHandle(input: {
+  readonly runId: string
+  readonly providerId: RuntimeProviderId | 'fake'
+  readonly getSessionId?: () => string | undefined
+  readonly events: () => AsyncIterable<import('./events.js').CanonicalEvent>
+  readonly cancel: () => Promise<void>
+}): ProviderRunHandle {
+  const handle: ProviderRunHandle = {
+    runId: input.runId,
+    providerId: input.providerId,
+    events: input.events,
+    cancel: input.cancel,
+  }
+  if (input.getSessionId) {
+    Object.defineProperty(handle, 'providerSessionId', {
+      enumerable: true,
+      configurable: true,
+      get: input.getSessionId,
+    })
+  }
+  return handle
 }

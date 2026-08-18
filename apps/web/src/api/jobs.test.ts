@@ -156,6 +156,50 @@ describe('job API clients', () => {
   })
 })
 
+describe('provider client', () => {
+  it('lists catalog providers and probes one engine', async () => {
+    const { listProviders, probeProvider } = await import('./providers.js')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        if (url.endsWith('/api/session')) {
+          return jsonResponse({ token: 'boot-session-token' })
+        }
+        if (url.endsWith('/api/providers') && init?.method !== 'POST') {
+          return jsonResponse({
+            providers: [
+              { id: 'codex', displayName: 'Codex', executionConnected: false },
+            ],
+            executionConnected: false,
+            fakeHarness: false,
+          })
+        }
+        if (url.endsWith('/api/providers/codex/probe')) {
+          return jsonResponse({
+            id: 'codex',
+            probe: {
+              installed: true,
+              authenticated: false,
+              transport: 'app-server',
+              warnings: [],
+              errors: [],
+              version: '0.144.6',
+            },
+          })
+        }
+        return jsonResponse({ error: { code: 'NOT_FOUND', message: 'x' } }, 404)
+      }),
+    )
+    await expect(listProviders()).resolves.toMatchObject({
+      executionConnected: false,
+    })
+    await expect(probeProvider('codex')).resolves.toMatchObject({
+      probe: { installed: true },
+    })
+  })
+})
+
 describe('health client', () => {
   it('reads the fake harness flag without treating engines as connected', async () => {
     vi.stubGlobal(
@@ -164,11 +208,12 @@ describe('health client', () => {
         jsonResponse({
           ok: true,
           product: 'Shikumi Local',
-          phase: 'provider-sdk-and-fake',
+          phase: 'provider-adapters',
           bind: '127.0.0.1',
           persistence: 'sqlite',
           providerExecution: 'disconnected',
           fakeHarness: true,
+          liveProviderRuns: false,
         }),
       ),
     )

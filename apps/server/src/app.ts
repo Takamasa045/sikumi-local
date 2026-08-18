@@ -1,4 +1,9 @@
-import { AppError, isAppError } from '@sikumi-local/core'
+import {
+  AppError,
+  isAppError,
+  redactSensitiveText,
+  sanitizeEventPayload,
+} from '@sikumi-local/core'
 import Fastify, { type FastifyInstance } from 'fastify'
 import { ZodError } from 'zod'
 import { registerApprovalRoutes } from './api/approvals.js'
@@ -8,7 +13,14 @@ import { registerProviderRoutes } from './api/providers.js'
 import { registerSessionRoutes } from './api/session.js'
 import { registerWorkspaceRoutes } from './api/workspaces.js'
 import { createJobManager } from './jobs/job-manager.js'
-import { resolveFakeHarnessEnabled } from './providers/runtime.js'
+import {
+  createProviderRegistry,
+  type ProviderRegistry,
+} from './providers/registry.js'
+import {
+  resolveFakeHarnessEnabled,
+  resolveLiveProviderRunsEnabled,
+} from './providers/runtime.js'
 import {
   createRequestGuard,
   DEFAULT_BODY_LIMIT_BYTES,
@@ -22,6 +34,8 @@ export interface AppOptions {
   readonly dataDirectory: string
   readonly security?: SecurityOptions
   readonly enableFakeProvider?: boolean
+  readonly liveProviderRuns?: boolean
+  readonly registry?: ProviderRegistry
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
@@ -32,7 +46,21 @@ export function buildApp(options: AppOptions): FastifyInstance {
   const fakeHarnessEnabled = resolveFakeHarnessEnabled(
     options.enableFakeProvider,
   )
-  const jobs = createJobManager(store, { fakeHarnessEnabled })
+  const liveProviderRuns = resolveLiveProviderRunsEnabled(
+    options.liveProviderRuns,
+  )
+  const registry =
+    options.registry ??
+    createProviderRegistry({
+      fakeHarnessEnabled,
+      liveProviderRuns,
+    })
+  const jobs = createJobManager(store, {
+    fakeHarnessEnabled,
+    liveProviderRuns,
+    registry,
+    dataDirectory: options.dataDirectory,
+  })
   const app = Fastify({
     logger: false,
     bodyLimit: options.security?.bodyLimitBytes ?? DEFAULT_BODY_LIMIT_BYTES,
@@ -50,7 +78,13 @@ export function buildApp(options: AppOptions): FastifyInstance {
   app.setErrorHandler((error, _request, reply) => {
     if (isAppError(error)) {
       return reply.status(error.statusCode).send({
-        error: { code: error.code, message: error.message },
+        error: {
+          code: error.code,
+          message: redactSensitiveText(error.message),
+        },
+        ...(error.details
+          ? { details: sanitizeEventPayload({ ...error.details }) }
+          : {}),
       })
     }
 
@@ -84,16 +118,30 @@ export function buildApp(options: AppOptions): FastifyInstance {
   app.get('/api/health', async () => ({
     ok: true,
     product: 'Shikumi Local',
-    phase: 'provider-sdk-and-fake',
+    phase: 'provider-adapters',
     bind: '127.0.0.1',
     persistence: 'sqlite',
-    providerExecution: 'disconnected',
+    providerExecution: liveProviderRuns ? 'registry' : 'disconnected',
     fakeHarness: fakeHarnessEnabled,
+    liveProviderRuns,
   }))
+
+  app.get('/api/doctor', async () => {
+    const probes = await registry.probeAll()
+    return {
+      bind: '127.0.0.1',
+      fakeHarness: fakeHarnessEnabled,
+      liveProviderRuns,
+      providers: [...probes.entries()].map(([id, probe]) => ({
+        id,
+        ...probe,
+      })),
+    }
+  })
 
   registerSessionRoutes(app, security.sessionToken)
   registerWorkspaceRoutes(app, store)
-  registerProviderRoutes(app, store)
+  registerProviderRoutes(app, store, registry, { liveProviderRuns })
   registerJobRoutes(app, jobs)
   registerApprovalRoutes(app, jobs)
   registerArtifactRoutes(app, jobs)

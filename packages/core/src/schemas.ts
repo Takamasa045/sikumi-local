@@ -40,7 +40,7 @@ export const workspaceSchema = z.object({
 export const providerSchema = z.object({
   id: z.enum(providerIds),
   displayName: z.string().min(1),
-  executionConnected: z.literal(false),
+  executionConnected: z.boolean(),
 })
 
 export const employeeSchema = z.object({
@@ -144,6 +144,7 @@ export const apiErrorSchema = z.object({
     code: z.string().min(1),
     message: z.string().min(1),
   }),
+  details: z.record(z.string(), z.unknown()).optional(),
 })
 
 export const sessionResponseSchema = z.object({
@@ -154,6 +155,23 @@ export const createJobRequestSchema = z.object({
   workspaceId: z.string().trim().min(1).max(128),
   request: z.string().trim().min(1).max(8000),
   jobType: z.string().trim().min(1).max(64).default('research'),
+  selectedProvider: z.enum(runtimeProviderIds).optional(),
+  confirmFallbackProvider: z.enum(runtimeProviderIds).optional(),
+  permissionProfile: z.enum(permissionProfileIds).optional(),
+  selectedModel: z.string().trim().min(1).max(128).optional(),
+})
+
+export const updateWorkspaceRequestSchema = z.object({
+  defaultProviderId: z.enum(providerIds).nullable(),
+})
+
+export const updateEmployeeRequestSchema = z.object({
+  defaultProviderId: z.enum(providerIds).nullable(),
+})
+
+export const updateProviderSettingsRequestSchema = z.object({
+  workspaceId: z.string().trim().min(1).max(128),
+  selectedModel: z.string().trim().min(1).max(128).nullable(),
 })
 
 export const resolveApprovalRequestSchema = z.object({
@@ -166,6 +184,7 @@ export const healthResponseSchema = z.object({
   phase: z.string().min(1),
   bind: z.literal('127.0.0.1'),
   persistence: z.literal('sqlite'),
-  providerExecution: z.literal('disconnected'),
+  providerExecution: z.enum(['disconnected', 'registry']),
   fakeHarness: z.boolean(),
+  liveProviderRuns: z.boolean(),
 })

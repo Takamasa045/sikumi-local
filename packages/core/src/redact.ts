@@ -19,6 +19,27 @@ const SECRET_VALUE_KEYS = new Set([
 ])
 
 const MAX_PAYLOAD_DEPTH = 32
+const MAX_REDACT_INPUT = 8_192
+
+const KNOWN_SECRET_PREFIX = /\b(?:sk|xai)-[A-Za-z0-9_-]{8,}/g
+const BEARER_TOKEN = /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi
+const SECRET_ASSIGNMENT =
+  /\b(?:API[_-]?KEY|KEY|TOKEN|SECRET|PASSWORD)\s*[=:]\s*\S+/gi
+
+export function redactSensitiveText(value: string): string {
+  const bounded =
+    value.length > MAX_REDACT_INPUT ? value.slice(0, MAX_REDACT_INPUT) : value
+  return bounded
+    .replace(KNOWN_SECRET_PREFIX, (match) => {
+      const prefix = match.startsWith('xai-') ? 'xai-' : 'sk-'
+      return `${prefix}[redacted]`
+    })
+    .replace(BEARER_TOKEN, 'Bearer [redacted]')
+    .replace(SECRET_ASSIGNMENT, (match) => {
+      const name = match.split(/[=:]/, 1)[0]?.trim() ?? 'SECRET'
+      return `${name}=[redacted]`
+    })
+}
 
 export function redactRemoteUrl(url: string): string {
   const trimmed = url.trim()
@@ -50,6 +71,10 @@ function sanitizeValue(
 ): unknown {
   assertSafeDepth(depth)
 
+  if (typeof value === 'string') {
+    return redactSensitiveText(value)
+  }
+
   if (value === null || typeof value !== 'object') {
     return value
   }
@@ -77,6 +102,12 @@ function containsSecrets(
   seen: WeakSet<object>,
 ): boolean {
   assertSafeDepth(depth)
+
+  if (typeof value === 'string') {
+    const bounded =
+      value.length > MAX_REDACT_INPUT ? value.slice(0, MAX_REDACT_INPUT) : value
+    return redactSensitiveText(bounded) !== bounded
+  }
 
   if (value === null || typeof value !== 'object') {
     return false

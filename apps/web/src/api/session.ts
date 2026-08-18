@@ -69,5 +69,7 @@ export function toApiError(body: unknown, status: number): AppError {
   const code = isErrorCode(parsed.data.error.code)
     ? parsed.data.error.code
     : 'VALIDATION_FAILED'
-  return new AppError(code, parsed.data.error.message, status)
+  return parsed.data.details
+    ? new AppError(code, parsed.data.error.message, status, parsed.data.details)
+    : new AppError(code, parsed.data.error.message, status)
 }

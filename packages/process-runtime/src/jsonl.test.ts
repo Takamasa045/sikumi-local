@@ -48,4 +48,18 @@ describe('createLineBuffer', () => {
     buffer.flush()
     expect(lines).toEqual([])
   })
+
+  it('drops oversized lines and keeps later valid JSONL', () => {
+    const lines: string[] = []
+    const buffer = createLineBuffer(
+      (line) => {
+        lines.push(line)
+      },
+      { maxLineBytes: 8 },
+    )
+    buffer.push('{"ok":1}\n')
+    buffer.push('{"too-large":true}\n')
+    buffer.push('{"ok":2}\n')
+    expect(lines).toEqual(['{"ok":1}', '{"ok":2}'])
+  })
 })

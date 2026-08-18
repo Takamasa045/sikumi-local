@@ -2,7 +2,13 @@
 
 自分のGit RepositoryにAI社員が住み、仕事を頼むとローカルのAI実行エンジンが働く、小さな庭・工房のWebアプリです。
 
-現在は完全実装計画の **Phase 4: Provider SDKとFake Provider** です。Process Runtime（safe spawn、process group、JSONL、timeout/cancel、environment allowlist、cwd検証）と、Provider Adapter / Capabilities / RunHandle / Canonical Events / Approval model、そして決定的な Fake Provider までが動きます。開発用ハーネスを有効にすると、実エンジンや外部ネットワークなしで UI → Job → イベント → 承認 → Artifact まで確認できます。本番の Codex / Grok Build / Claude Code は `executionConnected=false` のままです。Fake はテストまたは明示的な development injection 専用で、実Providerとしては表示しません。
+現在は完全実装計画の **Phase 5〜7: Codex / Grok Build / Claude Code Adapter** です。Job は Provider registry を通り、Workspace → Employee → Job の優先順位で道具を選びます。利用できない道具へは自動fallbackせず、確認後に別Jobとして始めます。実行途中の自動切替はありません。
+
+- Codex: `codex app-server` stdio JSON-RPC が主経路。非互換時のみ `codex exec --json` へcapabilityを下げてfallbackします。
+- Grok Build: `grok --no-auto-update agent stdio` ACP が主経路。ACP不可時は `streaming-json`。`--always-approve` と native `--worktree` は使いません。
+- Claude Code: `claude -p --output-format stream-json`。`shikumi-permission-broker` MCP で確認画面へつなぎ、`bypassPermissions` は禁止です。CLI認証情報は保存しません。
+
+通常の `pnpm test` は fixture だけで、外部AIを呼びません。インストール済みCLIの read-only 診断だけ見たいときは `node scripts/live-provider-probe.mjs` を使います。Fake は `SIKUMI_LOCAL_ENABLE_FAKE_PROVIDER=1` のときだけ有効で、実Providerとしては表示しません。
 
 ## 必要環境
 
@@ -54,15 +60,18 @@ apps/server              ローカルAPI（127.0.0.1限定）とSQLite
 packages/core            Domain型、スキーマ、永続化境界
 packages/process-runtime safe spawn と JSONL / timeout / cancel
 packages/provider-sdk    Adapter / Capabilities / Events / Approval
+packages/provider-codex  Codex app-server / exec --json
+packages/provider-grok   Grok ACP / streaming-json
+packages/provider-claude Claude stream-json と permission broker
 packages/provider-fake   決定的なテスト/開発用ハーネス
 docs                     計画書と設計資料
-scripts                  setup / doctor
+scripts                  setup / doctor / live-provider-probe
 e2e                      Playwright受け入れテスト
 ```
 
 Process Runtime は登録済み Git Repository だけを cwd に許可します。shell injection、path traversal、allowlist 外の環境変数は拒否します。cancel / timeout 後に子孫 process を残しません。stdout/stderr の reasoning と secret は永続化しません。
 
-今後は計画書のPhase順に、実Provider Adapter（Codex / Grok Build / Claude Code）と Employee Pack を追加します。BrowserからCLIやGitを直接操作せず、すべてLocal Serverを経由します。
+今後は計画書のPhase順に Employee Pack と Worktree 採用を追加します。BrowserからCLIやGitを直接操作せず、すべてLocal Serverを経由します。再起動時に残っていた running Job は process を推測せず orphan / failed にします。
 
 ## 初期World Pack
 

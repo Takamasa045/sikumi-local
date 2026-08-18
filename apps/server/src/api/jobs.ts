@@ -29,7 +29,25 @@ export function registerJobRoutes(
     if (!parsed.success) {
       throw new AppError('VALIDATION_FAILED', 'Job request is invalid', 400)
     }
-    const job = jobSchema.parse(await jobs.createJob(parsed.data))
+    const job = jobSchema.parse(
+      await jobs.createJob({
+        workspaceId: parsed.data.workspaceId,
+        request: parsed.data.request,
+        jobType: parsed.data.jobType,
+        ...(parsed.data.selectedProvider
+          ? { selectedProvider: parsed.data.selectedProvider }
+          : {}),
+        ...(parsed.data.confirmFallbackProvider
+          ? { confirmFallbackProvider: parsed.data.confirmFallbackProvider }
+          : {}),
+        ...(parsed.data.permissionProfile
+          ? { permissionProfile: parsed.data.permissionProfile }
+          : {}),
+        ...(parsed.data.selectedModel
+          ? { selectedModel: parsed.data.selectedModel }
+          : {}),
+      }),
+    )
     return reply.status(201).send({ job })
   })
 

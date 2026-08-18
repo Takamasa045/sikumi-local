@@ -488,6 +488,41 @@ main {
   font-size: 11px;
   font-weight: 700;
 }
+.job-composer select {
+  width: 100%;
+  padding: 10px 12px;
+  color: #36372f;
+  background: #f7f2e1;
+  border: 1px solid #c6beaa;
+  border-radius: 3px;
+}
+.provider-confirm {
+  grid-column: 1 / -1;
+  padding: 12px 14px;
+  background: #f7f2e1;
+  border: 1px solid #c6beaa;
+}
+.provider-confirm p {
+  margin: 0 0 10px;
+}
+.provider-confirm__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.provider-confirm button {
+  min-width: 88px;
+  padding: 8px 14px;
+  color: #f7f2e1;
+  background: var(--moss);
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.provider-confirm button.is-quiet {
+  color: #5f5e51;
+  background: #e6e0cf;
+}
 .job-composer textarea {
   width: 100%;
   padding: 13px 15px;

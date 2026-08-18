@@ -24,6 +24,13 @@ const checks = [
 
 console.log('Shikumi Local doctor')
 console.log('Bind policy: 127.0.0.1 only')
+console.log(
+  'Phase 5-7: Codex app-server / Grok ACP / Claude stream-json adapters are registered.',
+)
+console.log(
+  'Regular tests use fixtures and do not start live model runs. Fake requires SIKUMI_LOCAL_ENABLE_FAKE_PROVIDER=1.',
+)
+console.log('Read-only live CLI probe: node scripts/live-provider-probe.mjs')
 
 let requiredMissing = false
 for (const [label, version, required] of checks) {

@@ -56,10 +56,17 @@ describe('workspaceSchema', () => {
 })
 
 describe('providerSchema', () => {
-  it('keeps every catalog provider disconnected in this phase', () => {
+  it('accepts catalog providers as connected or disconnected', () => {
     for (const provider of defaultProviders) {
       expect(providerSchema.parse(provider).executionConnected).toBe(false)
     }
+    expect(
+      providerSchema.parse({
+        id: 'codex',
+        displayName: 'Codex',
+        executionConnected: true,
+      }).executionConnected,
+    ).toBe(true)
   })
 })
 
@@ -116,6 +123,16 @@ describe('job and health contracts', () => {
       jobType: 'research',
     })
     expect(
+      createJobRequestSchema.parse({
+        workspaceId: 'ws_1',
+        request: '調べて',
+        selectedProvider: 'codex',
+        confirmFallbackProvider: 'grok-build',
+        permissionProfile: 'research',
+        selectedModel: 'default',
+      }).selectedProvider,
+    ).toBe('codex')
+    expect(
       resolveApprovalRequestSchema.parse({ decision: 'approved' }),
     ).toEqual({ decision: 'approved' })
     expect(() =>
@@ -125,11 +142,12 @@ describe('job and health contracts', () => {
       healthResponseSchema.parse({
         ok: true,
         product: 'Shikumi Local',
-        phase: 'provider-sdk-and-fake',
+        phase: 'provider-adapters',
         bind: '127.0.0.1',
         persistence: 'sqlite',
         providerExecution: 'disconnected',
         fakeHarness: true,
+        liveProviderRuns: false,
       }).fakeHarness,
     ).toBe(true)
   })

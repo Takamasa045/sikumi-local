@@ -50,9 +50,18 @@ importers:
       '@sikumi-local/process-runtime':
         specifier: workspace:*
         version: link:../../packages/process-runtime
+      '@sikumi-local/provider-claude':
+        specifier: workspace:*
+        version: link:../../packages/provider-claude
+      '@sikumi-local/provider-codex':
+        specifier: workspace:*
+        version: link:../../packages/provider-codex
       '@sikumi-local/provider-fake':
         specifier: workspace:*
         version: link:../../packages/provider-fake
+      '@sikumi-local/provider-grok':
+        specifier: workspace:*
+        version: link:../../packages/provider-grok
       '@sikumi-local/provider-sdk':
         specifier: workspace:*
         version: link:../../packages/provider-sdk
@@ -134,7 +143,43 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/provider-claude:
+    dependencies:
+      '@sikumi-local/core':
+        specifier: workspace:*
+        version: link:../core
+      '@sikumi-local/process-runtime':
+        specifier: workspace:*
+        version: link:../process-runtime
+      '@sikumi-local/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
+
+  packages/provider-codex:
+    dependencies:
+      '@sikumi-local/core':
+        specifier: workspace:*
+        version: link:../core
+      '@sikumi-local/process-runtime':
+        specifier: workspace:*
+        version: link:../process-runtime
+      '@sikumi-local/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
+
   packages/provider-fake:
+    dependencies:
+      '@sikumi-local/core':
+        specifier: workspace:*
+        version: link:../core
+      '@sikumi-local/process-runtime':
+        specifier: workspace:*
+        version: link:../process-runtime
+      '@sikumi-local/provider-sdk':
+        specifier: workspace:*
+        version: link:../provider-sdk
+
+  packages/provider-grok:
     dependencies:
       '@sikumi-local/core':
         specifier: workspace:*

@@ -67,6 +67,11 @@ function createMemoryStore(): AppStore {
       repositories.find(
         (repository) => repository.absolutePath === absolutePath,
       ),
+    updateWorkspace: (id, patch) => {
+      throw new Error(
+        `unexpected updateWorkspace ${id} ${JSON.stringify(patch)}`,
+      )
+    },
     createWorkspace: (inspection) => {
       const workspace: Workspace = {
         id: `ws_${workspaces.length + 1}`,
@@ -91,7 +96,13 @@ function createMemoryStore(): AppStore {
     },
     listProviders: () => [],
     insertEmployee: (employee) => employee,
+    getEmployee: () => undefined,
     listEmployees: () => [],
+    updateEmployee: (id, patch) => {
+      throw new Error(
+        `unexpected updateEmployee ${id} ${JSON.stringify(patch)}`,
+      )
+    },
     insertEmployeeInstance: (instance) => instance,
     insertProviderSetting: (setting) => setting,
     insertJob: (job) => job,
@@ -107,6 +118,13 @@ function createMemoryStore(): AppStore {
       throw new Error(`unexpected updateRun ${id} ${JSON.stringify(patch)}`)
     },
     insertProviderSession: (session) => session,
+    listProviderSessions: () => [],
+    updateProviderSession: (id, patch) => {
+      throw new Error(
+        `unexpected updateProviderSession ${id} ${JSON.stringify(patch)}`,
+      )
+    },
+    listAllRuns: () => [],
     insertEvent: (event) => event,
     listEvents: () => [],
     insertApproval: (approval) => approval,

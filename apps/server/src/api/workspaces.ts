@@ -1,6 +1,7 @@
 import {
   AppError,
   registerWorkspaceRequestSchema,
+  updateWorkspaceRequestSchema,
   workspaceSchema,
 } from '@sikumi-local/core'
 import type { FastifyInstance } from 'fastify'
@@ -41,4 +42,23 @@ export function registerWorkspaceRoutes(
     )
     return reply.status(201).send({ workspace })
   })
+
+  app.patch<{ Params: { id: string } }>(
+    '/api/workspaces/:id',
+    async (request) => {
+      const parsed = updateWorkspaceRequestSchema.safeParse(request.body)
+      if (!parsed.success) {
+        throw new AppError(
+          'VALIDATION_FAILED',
+          'Workspace update is invalid',
+          400,
+        )
+      }
+      return {
+        workspace: workspaceSchema.parse(
+          store.updateWorkspace(request.params.id, parsed.data),
+        ),
+      }
+    },
+  )
 }

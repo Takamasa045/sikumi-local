@@ -95,7 +95,7 @@ describe('AppStore persistence boundary', () => {
       runId: 'run_1',
       type: 'run.state_changed',
       payload: {
-        summary: 'この工房の資料を読んでいます',
+        summary: 'この工房の資料を読んでいます TOKEN=sk-live-secret-value',
         reasoning: 'must not persist',
         token: 'secret-token',
         details: {
@@ -110,7 +110,7 @@ describe('AppStore persistence boundary', () => {
       jobId: job.id,
       runId: 'run_1',
       risk: 'high',
-      summary: '依存関係を追加します',
+      summary: 'コマンド実行の確認が必要です: TOKEN=sk-live-secret-value',
       status: 'pending',
       createdAt: 't',
       resolvedAt: null,
@@ -166,9 +166,12 @@ describe('AppStore persistence boundary', () => {
     expect(store.getJob(job.id)?.request).toBe('構成を調べて')
     expect(store.listRuns(job.id)).toHaveLength(1)
     expect(store.listEvents(job.id)[0]?.payload).toEqual({
-      summary: 'この工房の資料を読んでいます',
+      summary: 'この工房の資料を読んでいます TOKEN=[redacted]',
       details: { items: [{ note: 'ok' }] },
     })
+    expect(store.getApproval('apr_1')?.summary).toBe(
+      'コマンド実行の確認が必要です: TOKEN=[redacted]',
+    )
     expect(() =>
       store.insertEvent({
         id: 'evt_cycle',
@@ -194,6 +197,16 @@ describe('AppStore persistence boundary', () => {
     )
     expect(store.getArtifact('art_1')?.title).toBe('調査メモ')
     expect(store.getRun('run_1')?.status).toBe('queued')
+    expect(store.listAllRuns()).toHaveLength(1)
+    expect(store.listProviderSessions(job.id)).toHaveLength(1)
+    expect(
+      store.updateWorkspace(workspace.id, { defaultProviderId: 'codex' })
+        .defaultProviderId,
+    ).toBe('codex')
+    expect(
+      store.updateEmployee(employee.id, { defaultProviderId: 'claude-code' })
+        .defaultProviderId,
+    ).toBe('claude-code')
     expect(store.updateRun('run_1', { status: 'running' }).status).toBe(
       'running',
     )
@@ -211,6 +224,7 @@ describe('AppStore persistence boundary', () => {
     expect(raw.includes('secret-token')).toBe(false)
     expect(raw.includes('nested-reasoning')).toBe(false)
     expect(raw.includes('nested-secret')).toBe(false)
+    expect(raw.includes('sk-live-secret-value')).toBe(false)
   })
 
   it('never writes secret remote credentials into sqlite', () => {

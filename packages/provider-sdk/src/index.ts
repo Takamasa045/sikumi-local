@@ -9,10 +9,12 @@ export {
 export {
   capabilitiesMissing,
   DISCONNECTED_CAPABILITIES,
+  providerTransports,
   type ModelOption,
   type ProviderAuthStatus,
   type ProviderCapabilities,
   type ProviderProbeResult,
+  type ProviderTransport,
 } from './capabilities.js'
 export {
   isCanonicalEventType,
@@ -37,9 +39,20 @@ export {
   type UserQuestionEvent,
   type WebSearchEvent,
 } from './events.js'
-export type {
-  ProviderResumeSpecification,
-  ProviderRunHandle,
-  ProviderRunSpecification,
-  UserAnswer,
+export {
+  createProviderRunHandle,
+  type ProviderResumeSpecification,
+  type ProviderRunHandle,
+  type ProviderRunSpecification,
+  type UserAnswer,
 } from './sessions.js'
+export {
+  resolveProviderSelection,
+  type ProviderSelectionInput,
+  type ProviderSelectionResult,
+} from './selection.js'
+export {
+  extractJsonObject,
+  validateJsonSchema,
+  type JsonSchemaValidation,
+} from './result-schema.js'

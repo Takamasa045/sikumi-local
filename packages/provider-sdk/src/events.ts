@@ -72,6 +72,7 @@ export interface ArtifactCreatedEvent extends CanonicalEventBase {
   readonly type: 'artifact.created'
   readonly artifactType: ArtifactType
   readonly title: string
+  readonly content?: string
 }
 
 export interface UsageUpdatedEvent extends CanonicalEventBase {
@@ -80,6 +81,7 @@ export interface UsageUpdatedEvent extends CanonicalEventBase {
 
 export interface RunCompletedEvent extends CanonicalEventBase {
   readonly type: 'run.completed'
+  readonly invalidResult?: boolean
 }
 
 export interface RunFailedEvent extends CanonicalEventBase {

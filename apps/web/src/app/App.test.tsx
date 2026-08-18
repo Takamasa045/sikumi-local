@@ -18,6 +18,13 @@ beforeEach(() => {
     if (url.endsWith('/api/workspaces')) {
       return jsonResponse({ workspaces: [] })
     }
+    if (url.endsWith('/api/providers')) {
+      return jsonResponse({
+        providers: catalogProviders(),
+        executionConnected: false,
+        fakeHarness: false,
+      })
+    }
     return jsonResponse(
       { error: { code: 'NOT_FOUND', message: 'not found' } },
       404,
@@ -64,7 +71,7 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByRole('button', { name: '仕事を頼む' })).toBeDisabled()
     expect(
       screen.getByText(
-        '実行エンジン（Codex / Grok Build / Claude Code）は未接続です',
+        '道具を選び、ログイン済みの実行エンジンだけで仕事を始めます。自動切替はしません',
       ),
     ).toBeVisible()
     expect(screen.getAllByText('実行エンジン未接続').length).toBeGreaterThan(0)
@@ -80,6 +87,13 @@ describe('Shikumi Local garden', () => {
         }
         if (url.endsWith('/api/health')) {
           return jsonResponse(disconnectedHealth())
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
+            fakeHarness: false,
+          })
         }
         if (url.endsWith('/api/workspaces') && method === 'GET') {
           return jsonResponse({ workspaces: [] })
@@ -146,6 +160,13 @@ describe('Shikumi Local garden', () => {
       if (String(input).endsWith('/api/health')) {
         return jsonResponse(disconnectedHealth())
       }
+      if (String(input).endsWith('/api/providers')) {
+        return jsonResponse({
+          providers: catalogProviders(),
+          executionConnected: false,
+          fakeHarness: false,
+        })
+      }
       if (String(input).endsWith('/api/workspaces')) {
         return jsonResponse({
           workspaces: [
@@ -183,6 +204,92 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByText('✓ Git Repository')).toBeVisible()
   })
 
+  it('restores job history for a real provider without the fake harness', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return jsonResponse({ token: 'test-session' })
+      }
+      if (url.endsWith('/api/health')) {
+        return jsonResponse({
+          ...disconnectedHealth(),
+          liveProviderRuns: true,
+        })
+      }
+      if (url.endsWith('/api/providers')) {
+        return jsonResponse({
+          providers: [
+            { id: 'codex', displayName: 'Codex', executionConnected: true },
+            {
+              id: 'grok-build',
+              displayName: 'Grok Build',
+              executionConnected: false,
+            },
+            {
+              id: 'claude-code',
+              displayName: 'Claude Code',
+              executionConnected: false,
+            },
+          ],
+          executionConnected: true,
+          fakeHarness: false,
+        })
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return jsonResponse({ workspaces: [sampleWorkspace()] })
+      }
+      if (url.includes('/api/jobs/job_1/events')) {
+        return jsonResponse({
+          events: [
+            {
+              id: 'evt_1',
+              jobId: 'job_1',
+              runId: 'run_1',
+              type: 'run.state_changed',
+              payload: { summary: '公式情報を探しています' },
+              occurredAt: 't',
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/api/jobs/job_1')) {
+        return jsonResponse({
+          job: { ...sampleJob('running'), selectedProvider: 'codex' },
+        })
+      }
+      if (url.includes('/api/jobs?') || url.endsWith('/api/jobs')) {
+        return jsonResponse({
+          jobs: [{ ...sampleJob('running'), selectedProvider: 'codex' }],
+        })
+      }
+      if (url.includes('/api/approvals')) {
+        return jsonResponse({ approvals: [] })
+      }
+      if (url.includes('/api/artifacts')) {
+        return jsonResponse({ artifacts: [] })
+      }
+      return jsonResponse(
+        { error: { code: 'NOT_FOUND', message: 'not found' } },
+        404,
+      )
+    })
+
+    render(<App />)
+
+    expect(
+      await screen.findByRole('button', { name: '仕事を中止' }),
+    ).toBeVisible()
+    expect(await screen.findByText('公式情報を探しています')).toBeVisible()
+    expect(
+      fetchMock.mock.calls.some((call) =>
+        String(call[0]).includes('/api/jobs?workspaceId=ws_1'),
+      ),
+    ).toBe(true)
+    expect(
+      screen.getByPlaceholderText('例：このRepositoryの構成と改善点を調べて'),
+    ).toBeEnabled()
+  })
+
   it('keeps the garden usable when workspace listing fails', async () => {
     fetchMock.mockImplementation(async () => {
       throw new Error('offline')
@@ -206,6 +313,13 @@ describe('Shikumi Local garden', () => {
         }
         if (url.endsWith('/api/health')) {
           return jsonResponse(disconnectedHealth())
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
+            fakeHarness: false,
+          })
         }
         if (url.endsWith('/api/workspaces') && method === 'GET') {
           return jsonResponse({ workspaces: [] })
@@ -250,6 +364,13 @@ describe('Shikumi Local garden', () => {
         if (url.endsWith('/api/health')) {
           return jsonResponse({
             ...disconnectedHealth(),
+            fakeHarness: true,
+          })
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
             fakeHarness: true,
           })
         }
@@ -343,7 +464,7 @@ describe('Shikumi Local garden', () => {
 
     expect(await screen.findByText('開発用ハーネス')).toBeVisible()
     expect(screen.getByText('テスト実行（実エンジン未接続）')).toBeVisible()
-    expect(screen.queryByText('Codex')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('道具')).toBeVisible()
 
     await userEvent.type(
       screen.getByPlaceholderText('例：このRepositoryの構成と改善点を調べて'),
@@ -357,6 +478,87 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByText('この工房の資料を読んでいます')).toBeVisible()
   })
 
+  it('asks before switching away from an unavailable provider', async () => {
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method ?? 'GET'
+        if (url.endsWith('/api/session')) {
+          return jsonResponse({ token: 'test-session' })
+        }
+        if (url.endsWith('/api/health')) {
+          return jsonResponse({ ...disconnectedHealth(), fakeHarness: true })
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
+            fakeHarness: true,
+          })
+        }
+        if (url.endsWith('/api/workspaces')) {
+          return jsonResponse({ workspaces: [sampleWorkspace()] })
+        }
+        if (url.endsWith('/api/jobs') && method === 'GET') {
+          return jsonResponse({ jobs: [] })
+        }
+        if (url.endsWith('/api/jobs') && method === 'POST') {
+          const body = JSON.parse(String(init?.body ?? '{}')) as {
+            confirmFallbackProvider?: string
+          }
+          if (body.confirmFallbackProvider === 'grok-build') {
+            return jsonResponse({ job: sampleJob('completed') }, 201)
+          }
+          return jsonResponse(
+            {
+              error: {
+                code: 'PROVIDER_UNAVAILABLE',
+                message: 'Codexを起動できませんでした。別の道具で始めますか？',
+              },
+              details: {
+                alternatives: ['grok-build'],
+                confirmationRequired: true,
+              },
+            },
+            409,
+          )
+        }
+        if (url.includes('/api/jobs/job_1')) {
+          return jsonResponse({ job: sampleJob('completed') })
+        }
+        if (url.includes('/api/jobs/job_1/events')) {
+          return jsonResponse({ events: [] })
+        }
+        if (url.includes('/api/approvals')) {
+          return jsonResponse({ approvals: [] })
+        }
+        if (url.includes('/api/artifacts')) {
+          return jsonResponse({ artifacts: [] })
+        }
+        return jsonResponse(
+          { error: { code: 'NOT_FOUND', message: 'not found' } },
+          404,
+        )
+      },
+    )
+
+    render(<App />)
+    await userEvent.selectOptions(await screen.findByLabelText('道具'), 'codex')
+    await userEvent.type(
+      screen.getByPlaceholderText('例：このRepositoryの構成と改善点を調べて'),
+      '調べて',
+    )
+    await userEvent.click(screen.getByRole('button', { name: '仕事を頼む' }))
+    expect(
+      await screen.findByText(
+        'Codexを起動できませんでした。別の道具で始めますか？',
+      ),
+    ).toBeVisible()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Grok Buildで始める' }),
+    )
+  })
+
   it('cancels a running harness job from the garden', async () => {
     let status: 'running' | 'cancelled' = 'running'
     fetchMock.mockImplementation(
@@ -368,6 +570,13 @@ describe('Shikumi Local garden', () => {
         }
         if (url.endsWith('/api/health')) {
           return jsonResponse({ ...disconnectedHealth(), fakeHarness: true })
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
+            fakeHarness: true,
+          })
         }
         if (url.endsWith('/api/workspaces')) {
           return jsonResponse({ workspaces: [sampleWorkspace()] })
@@ -414,12 +623,25 @@ function disconnectedHealth() {
   return {
     ok: true,
     product: 'Shikumi Local',
-    phase: 'provider-sdk-and-fake',
+    phase: 'provider-adapters',
     bind: '127.0.0.1',
     persistence: 'sqlite',
     providerExecution: 'disconnected',
     fakeHarness: false,
+    liveProviderRuns: false,
   }
+}
+
+function catalogProviders() {
+  return [
+    { id: 'codex', displayName: 'Codex', executionConnected: false },
+    { id: 'grok-build', displayName: 'Grok Build', executionConnected: false },
+    {
+      id: 'claude-code',
+      displayName: 'Claude Code',
+      executionConnected: false,
+    },
+  ]
 }
 
 function sampleWorkspace() {

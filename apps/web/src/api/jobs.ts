@@ -18,6 +18,8 @@ const artifactResponseSchema = z.object({ artifact: artifactSchema })
 export async function createJob(input: {
   workspaceId: string
   request: string
+  selectedProvider?: Job['selectedProvider']
+  confirmFallbackProvider?: Job['selectedProvider']
 }): Promise<Job> {
   const response = await writeWithCsrfRetry((token) =>
     fetch('/api/jobs', {

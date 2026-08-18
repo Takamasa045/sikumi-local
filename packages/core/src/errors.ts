@@ -7,6 +7,9 @@ export const errorCodes = [
   'VALIDATION_FAILED',
   'NOT_FOUND',
   'PROVIDER_EXECUTION_DISCONNECTED',
+  'PROVIDER_UNAVAILABLE',
+  'PROVIDER_CAPABILITY_MISMATCH',
+  'PROVIDER_SWITCH_FORBIDDEN',
   'UNREGISTERED_CWD',
   'PROCESS_SPAWN_REJECTED',
   'PROCESS_TIMEOUT',
@@ -23,12 +26,21 @@ export type ErrorCode = (typeof errorCodes)[number]
 export class AppError extends Error {
   readonly code: ErrorCode
   readonly statusCode: number
+  readonly details?: Record<string, unknown>
 
-  constructor(code: ErrorCode, message: string, statusCode: number) {
+  constructor(
+    code: ErrorCode,
+    message: string,
+    statusCode: number,
+    details?: Record<string, unknown>,
+  ) {
     super(message)
     this.name = 'AppError'
     this.code = code
     this.statusCode = statusCode
+    if (details !== undefined) {
+      this.details = details
+    }
   }
 }
 

@@ -75,6 +75,7 @@ export function createFakeProvider(
         version: 'fake-0',
         authenticated: true,
         authDescription: 'Test/development harness only',
+        transport: 'fake',
         supportedFeatures: FAKE_PROVIDER_CAPABILITIES,
         warnings: ['Development/test harness only. Not a production provider.'],
         errors: [],

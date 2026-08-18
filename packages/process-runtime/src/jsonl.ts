@@ -1,5 +1,7 @@
 import { sanitizeEventPayload } from '@sikumi-local/core'
 
+export const DEFAULT_MAX_JSONL_LINE_BYTES = 1_048_576
+
 export interface ParsedJsonlObject {
   readonly value: Record<string, unknown>
 }
@@ -21,34 +23,50 @@ export function parseJsonlLine(line: string): ParsedJsonlObject | null {
     return null
   }
 
-  return { value: sanitizeEventPayload(parsed) }
+  try {
+    return { value: sanitizeEventPayload(parsed) }
+  } catch {
+    return null
+  }
 }
 
-export function createLineBuffer(onLine: (line: string) => void) {
+export function createLineBuffer(
+  onLine: (line: string) => void,
+  options: { readonly maxLineBytes?: number } = {},
+) {
+  const maxLineBytes = options.maxLineBytes ?? DEFAULT_MAX_JSONL_LINE_BYTES
   let buffer = ''
+  let overflow = false
 
   return {
     push(chunk: Buffer | string) {
       buffer += String(chunk)
       let newline = buffer.indexOf('\n')
       while (newline !== -1) {
-        const line = buffer.slice(0, newline).replace(/\r$/, '')
+        const raw = buffer.slice(0, newline).replace(/\r$/, '')
         buffer = buffer.slice(newline + 1)
-        if (line.length > 0) {
-          onLine(line)
+        if (!overflow && raw.length > 0 && raw.length <= maxLineBytes) {
+          onLine(raw)
         }
+        overflow = false
         newline = buffer.indexOf('\n')
+      }
+      if (buffer.length > maxLineBytes) {
+        overflow = true
+        buffer = ''
       }
     },
     flush() {
       if (buffer.length === 0) {
+        overflow = false
         return
       }
       const line = buffer.replace(/\r$/, '')
       buffer = ''
-      if (line.length > 0) {
+      if (!overflow && line.length > 0 && line.length <= maxLineBytes) {
         onLine(line)
       }
+      overflow = false
     },
   }
 }

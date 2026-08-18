@@ -30,8 +30,8 @@ describe('job execution API', () => {
       url: '/api/providers',
     })
 
-    expect(created.statusCode).toBe(409)
-    expect(created.json().error.code).toBe('PROVIDER_EXECUTION_DISCONNECTED')
+    expect(created.statusCode).toBe(404)
+    expect(created.json().error.code).toBe('NOT_FOUND')
     expect(providers.json().executionConnected).toBe(false)
     expect(
       providers
@@ -41,6 +41,25 @@ describe('job execution API', () => {
             provider.id !== 'fake' && provider.executionConnected === false,
         ),
     ).toBe(true)
+
+    const repositoryPath = track(createTemporaryGitRepository())
+    const workspaceResponse = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/workspaces',
+      payload: { path: repositoryPath },
+    })
+    const disconnectedJob = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/jobs',
+      payload: {
+        workspaceId: workspaceResponse.json().workspace.id,
+        request: '調べて',
+      },
+    })
+    expect(disconnectedJob.statusCode).toBe(409)
+    expect(disconnectedJob.json().error.code).toBe(
+      'PROVIDER_EXECUTION_DISCONNECTED',
+    )
   })
 
   it('runs UI-to-artifact flow through the fake harness only', async () => {
@@ -86,7 +105,10 @@ describe('job execution API', () => {
       app,
       `/api/artifacts?jobId=${jobId}`,
       (body) => {
-        const artifacts = body.artifacts as Array<{ title: string }>
+        const artifacts = body.artifacts as Array<{
+          title: string
+          storagePath: string | null
+        }>
         return artifacts[0]
       },
     )
@@ -106,6 +128,8 @@ describe('job execution API', () => {
     ).map((event) => event.type)
 
     expect(artifact.title).toBe('調査メモ')
+    expect(artifact).not.toHaveProperty('content')
+    expect(artifact.storagePath).toBeNull()
     expect(completed.status).toBe('completed')
     expect(eventTypes).toContain('repository.read')
     expect(eventTypes).toContain('web.search')
@@ -257,6 +281,32 @@ describe('job execution API', () => {
       url: `/api/jobs/${jobId}/cancel`,
     })
     expect(alreadyCancelled.statusCode).toBe(200)
+  })
+
+  it('runs two fake harness jobs concurrently without mixing approvals', async () => {
+    const repositoryPath = track(createTemporaryGitRepository())
+    const app = createApp(track(createTemporaryDirectory()), true)
+    const workspaceId = (
+      await injectAuthed(app, {
+        method: 'POST',
+        url: '/api/workspaces',
+        payload: { path: repositoryPath },
+      })
+    ).json().workspace.id as string
+
+    const first = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/jobs',
+      payload: { workspaceId, request: '1件目を調べて' },
+    })
+    const second = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/jobs',
+      payload: { workspaceId, request: '2件目を調べて' },
+    })
+    expect(first.statusCode).toBe(201)
+    expect(second.statusCode).toBe(201)
+    expect(first.json().job.id).not.toBe(second.json().job.id)
   })
 
   it('denies a pending approval and marks the job failed', async () => {

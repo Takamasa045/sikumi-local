@@ -1,14 +1,17 @@
 import { randomUUID } from 'node:crypto'
 import {
   AppError,
-  FAKE_PROVIDER_ID,
   isAppError,
+  redactSensitiveText,
   type ApprovalRequest,
   type Artifact,
   type Job,
+  type PermissionProfileId,
   type PersistedEvent,
+  type RuntimeProviderId,
 } from '@sikumi-local/core'
 import { createFakeProvider } from '@sikumi-local/provider-fake'
+import { resolveProviderSelection } from '@sikumi-local/provider-sdk'
 import type {
   AgentProviderAdapter,
   ApprovalDecision,
@@ -19,6 +22,12 @@ import {
   assertRegisteredCwd,
   registeredRepositoryRoots,
 } from '../providers/cwd-policy.js'
+import {
+  providerApiKeyEnvironment,
+  resolveLiveProviderRunsEnabled,
+} from '../providers/runtime.js'
+import type { ProviderRegistry } from '../providers/registry.js'
+import { persistJobArtifactFile } from '../artifacts/persist.js'
 import type { AppStore } from '../storage/store.js'
 import { createEventHub, type EventHub } from './event-hub.js'
 
@@ -26,6 +35,10 @@ export interface CreateJobInput {
   readonly workspaceId: string
   readonly request: string
   readonly jobType?: string
+  readonly selectedProvider?: RuntimeProviderId
+  readonly confirmFallbackProvider?: RuntimeProviderId
+  readonly permissionProfile?: PermissionProfileId
+  readonly selectedModel?: string
 }
 
 export interface JobManager {
@@ -55,6 +68,9 @@ export interface JobManager {
 interface ActiveJob {
   readonly jobId: string
   readonly runId: string
+  readonly workspaceId: string
+  readonly employeeId: string
+  readonly cwd: string
   readonly handle: ProviderRunHandle
   readonly adapter: AgentProviderAdapter
   readonly approvalRequestIds: Map<string, string>
@@ -64,35 +80,88 @@ export function createJobManager(
   store: AppStore,
   options: {
     readonly fakeHarnessEnabled: boolean
+    readonly liveProviderRuns?: boolean
     readonly adapter?: AgentProviderAdapter
+    readonly registry?: ProviderRegistry
+    readonly dataDirectory?: string
   },
 ): JobManager {
   const hub: EventHub = createEventHub()
   const activeJobs = new Map<string, ActiveJob>()
   const approvalLocks = new Map<string, Promise<void>>()
-  const adapter =
-    options.adapter ??
-    (options.fakeHarnessEnabled ? createFakeProvider() : null)
+  const liveProviderRuns = resolveLiveProviderRunsEnabled(
+    options.liveProviderRuns,
+  )
+  const fallbackFake =
+    options.fakeHarnessEnabled && !options.adapter && !options.registry
+      ? createFakeProvider()
+      : undefined
+  orphanStaleExecutions(store)
 
   return {
     fakeHarnessEnabled: options.fakeHarnessEnabled,
 
     async createJob(input) {
-      if (!options.fakeHarnessEnabled || !adapter) {
-        throw new AppError(
-          'PROVIDER_EXECUTION_DISCONNECTED',
-          '実行エンジンは未接続です',
-          409,
-        )
-      }
-
       const workspace = store.getWorkspace(input.workspaceId)
       if (!workspace) {
         throw new AppError('NOT_FOUND', 'Workspaceが見つかりません', 404)
       }
 
-      const cwd = assertRegisteredCwd(store, workspace.repository.absolutePath)
       const employee = store.ensureDefaultEmployee()
+      if (options.registry) {
+        await options.registry.ensureProbed()
+      }
+      const available = listAvailableIds(options, liveProviderRuns)
+      const selection = resolveProviderSelection({
+        ...(input.selectedProvider
+          ? { jobOverride: input.selectedProvider }
+          : {}),
+        ...(input.confirmFallbackProvider
+          ? { confirmFallbackProvider: input.confirmFallbackProvider }
+          : {}),
+        employeeDefault: employee.defaultProviderId,
+        workspaceDefault: workspace.defaultProviderId,
+        fakeHarnessEnabled: options.fakeHarnessEnabled,
+        available,
+      })
+
+      if (selection.kind !== 'selected') {
+        throw new AppError(
+          selection.kind === 'unavailable'
+            ? 'PROVIDER_UNAVAILABLE'
+            : options.fakeHarnessEnabled
+              ? 'PROVIDER_UNAVAILABLE'
+              : 'PROVIDER_EXECUTION_DISCONNECTED',
+          selection.kind === 'unavailable'
+            ? `${displayProvider(selection.requested)}を起動できませんでした。別の道具で始めますか？`
+            : '使う道具を選んでください',
+          409,
+          {
+            requested:
+              selection.kind === 'unavailable'
+                ? selection.requested
+                : undefined,
+            alternatives: selection.alternatives,
+            confirmationRequired: true,
+          },
+        )
+      }
+
+      const adapter = resolveAdapter(
+        options,
+        selection.providerId,
+        fallbackFake,
+      )
+      if (!adapter) {
+        throw new AppError(
+          'PROVIDER_UNAVAILABLE',
+          '選択した実行エンジンが見つかりません',
+          409,
+        )
+      }
+
+      const cwd = assertRegisteredCwd(store, workspace.repository.absolutePath)
+      const permissionProfile = input.permissionProfile ?? 'research'
       const now = new Date().toISOString()
       const job = store.insertJob({
         id: randomUUID(),
@@ -100,9 +169,9 @@ export function createJobManager(
         employeeId: employee.id,
         request: input.request,
         jobType: input.jobType ?? 'research',
-        selectedProvider: FAKE_PROVIDER_ID,
-        selectedModel: null,
-        permissionProfile: 'research',
+        selectedProvider: selection.providerId,
+        selectedModel: input.selectedModel ?? null,
+        permissionProfile,
         status: 'preparing',
         providerSessionId: null,
         createdAt: now,
@@ -112,7 +181,7 @@ export function createJobManager(
       const run = store.insertRun({
         id: randomUUID(),
         jobId: job.id,
-        providerId: FAKE_PROVIDER_ID,
+        providerId: selection.providerId,
         status: 'running',
         createdAt: now,
         startedAt: now,
@@ -121,7 +190,7 @@ export function createJobManager(
       store.updateJob(job.id, { status: 'running' })
 
       try {
-        await startFakeRun({
+        await startProviderRun({
           adapter,
           store,
           hub,
@@ -132,6 +201,14 @@ export function createJobManager(
           employeeId: employee.id,
           cwd,
           prompt: input.request,
+          permissionProfile,
+          environment: providerApiKeyEnvironment(selection.providerId),
+          ...(options.dataDirectory
+            ? { dataDirectory: options.dataDirectory }
+            : {}),
+          ...(input.selectedModel
+            ? { selectedModel: input.selectedModel }
+            : {}),
         })
       } catch (error) {
         finishJob(store, job.id, run.id, 'failed')
@@ -197,13 +274,6 @@ export function createJobManager(
     },
 
     async resolveApproval(id, decision) {
-      if (!adapter) {
-        throw new AppError(
-          'PROVIDER_EXECUTION_DISCONNECTED',
-          '実行エンジンは未接続です',
-          409,
-        )
-      }
       return withLock(approvalLocks, id, async () => {
         const approval = store.getApproval(id)
         if (!approval) {
@@ -224,7 +294,7 @@ export function createJobManager(
         }
 
         try {
-          await adapter.respondToApproval(requestId, decision)
+          await active.adapter.respondToApproval(requestId, decision)
         } catch (error) {
           if (isAppError(error)) {
             throw error
@@ -285,14 +355,64 @@ export function createJobManager(
         ),
       )
       activeJobs.clear()
-      if (adapter) {
-        await adapter.dispose()
+      if (options.registry) {
+        await options.registry.dispose()
+      } else if (options.adapter) {
+        await options.adapter.dispose()
+      } else if (fallbackFake) {
+        await fallbackFake.dispose()
       }
     },
   }
 }
 
-async function startFakeRun(input: {
+function listAvailableIds(
+  options: {
+    readonly fakeHarnessEnabled: boolean
+    readonly adapter?: AgentProviderAdapter
+    readonly registry?: ProviderRegistry
+  },
+  liveProviderRuns: boolean,
+): RuntimeProviderId[] {
+  if (options.adapter) {
+    return [options.adapter.id]
+  }
+  if (options.registry) {
+    return options.registry.availableIds()
+  }
+  if (options.fakeHarnessEnabled) {
+    return ['fake']
+  }
+  if (liveProviderRuns) {
+    return ['codex', 'grok-build', 'claude-code']
+  }
+  return []
+}
+
+function resolveAdapter(
+  options: {
+    readonly adapter?: AgentProviderAdapter
+    readonly registry?: ProviderRegistry
+  },
+  providerId: RuntimeProviderId,
+  fallbackFake?: AgentProviderAdapter,
+): AgentProviderAdapter | undefined {
+  if (options.adapter && options.adapter.id === providerId) {
+    return options.adapter
+  }
+  if (options.adapter && providerId === 'fake') {
+    return options.adapter
+  }
+  if (options.registry) {
+    return options.registry.get(providerId)
+  }
+  if (providerId === 'fake') {
+    return fallbackFake
+  }
+  return undefined
+}
+
+async function startProviderRun(input: {
   readonly adapter: AgentProviderAdapter
   readonly store: AppStore
   readonly hub: EventHub
@@ -303,6 +423,10 @@ async function startFakeRun(input: {
   readonly employeeId: string
   readonly cwd: string
   readonly prompt: string
+  readonly permissionProfile: PermissionProfileId
+  readonly environment: Record<string, string>
+  readonly selectedModel?: string
+  readonly dataDirectory?: string
 }): Promise<void> {
   const handle = await input.adapter.startRun({
     runId: input.runId,
@@ -310,21 +434,40 @@ async function startFakeRun(input: {
     employeeId: input.employeeId,
     cwd: input.cwd,
     prompt: input.prompt,
-    permissionProfile: 'research',
-    environment: {},
+    permissionProfile: input.permissionProfile,
+    environment: input.environment,
     allowedCwdRoots: registeredRepositoryRoots(input.store),
+    ...(input.selectedModel ? { model: input.selectedModel } : {}),
+    outputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        summary: { type: 'string' },
+      },
+      required: ['title', 'summary'],
+      additionalProperties: false,
+    },
   })
 
   const active: ActiveJob = {
     jobId: input.jobId,
     runId: input.runId,
+    workspaceId: input.workspaceId,
+    employeeId: input.employeeId,
+    cwd: input.cwd,
     handle,
     adapter: input.adapter,
     approvalRequestIds: new Map(),
   }
+  persistHandleSession(input.store, active)
   input.activeJobs.set(input.jobId, active)
-
-  void consumeRun(input.store, input.hub, input.activeJobs, active)
+  void consumeRun(
+    input.store,
+    input.hub,
+    input.activeJobs,
+    active,
+    input.dataDirectory,
+  )
 }
 
 async function consumeRun(
@@ -332,15 +475,18 @@ async function consumeRun(
   hub: EventHub,
   activeJobs: Map<string, ActiveJob>,
   active: ActiveJob,
+  dataDirectory?: string,
 ): Promise<void> {
   try {
     for await (const event of active.handle.events()) {
-      applyCanonicalEvent(store, hub, active, event)
+      persistHandleSession(store, active)
+      applyCanonicalEvent(store, hub, active, event, dataDirectory)
     }
   } catch {
     finishJob(store, active.jobId, active.runId, 'failed')
   } finally {
     activeJobs.delete(active.jobId)
+    closeProviderSessions(store, active.jobId)
   }
 }
 
@@ -349,7 +495,12 @@ function applyCanonicalEvent(
   hub: EventHub,
   active: ActiveJob,
   event: CanonicalEvent,
+  dataDirectory?: string,
 ): void {
+  if (event.type === 'approval.resolved') {
+    return
+  }
+
   persistEvent(store, hub, {
     jobId: active.jobId,
     runId: active.runId,
@@ -375,19 +526,37 @@ function applyCanonicalEvent(
   }
 
   if (event.type === 'artifact.created') {
+    const artifactId = randomUUID()
+    const title = redactSensitiveText(event.title)
+    let storagePath: string | null = null
+    if (dataDirectory && typeof event.content === 'string') {
+      storagePath = persistJobArtifactFile({
+        dataDirectory,
+        jobId: active.jobId,
+        artifactId,
+        artifactType: event.artifactType,
+        title,
+        content: event.content,
+      })
+    }
     store.insertArtifact({
-      id: randomUUID(),
+      id: artifactId,
       jobId: active.jobId,
       type: event.artifactType,
-      title: event.title,
-      storagePath: null,
+      title,
+      storagePath,
       createdAt: event.occurredAt,
     })
     return
   }
 
   if (event.type === 'run.completed') {
-    finishJob(store, active.jobId, active.runId, 'completed')
+    finishJob(
+      store,
+      active.jobId,
+      active.runId,
+      event.invalidResult ? 'completed_with_invalid_result' : 'completed',
+    )
     return
   }
   if (event.type === 'run.failed') {
@@ -418,14 +587,46 @@ function eventPayload(event: CanonicalEvent): Record<string, unknown> {
   delete rest.type
   delete rest.runId
   delete rest.occurredAt
+  delete rest.content
   return rest
+}
+
+function persistHandleSession(store: AppStore, active: ActiveJob): void {
+  const sessionId = active.handle.providerSessionId
+  if (!sessionId) {
+    return
+  }
+  const job = store.getJob(active.jobId)
+  if (job?.providerSessionId === sessionId) {
+    return
+  }
+  const existing = store
+    .listProviderSessions(active.jobId)
+    .find((session) => session.providerSessionId === sessionId)
+  if (!existing) {
+    const now = new Date().toISOString()
+    store.insertProviderSession({
+      id: randomUUID(),
+      providerId: active.handle.providerId,
+      providerSessionId: sessionId,
+      workspaceId: active.workspaceId,
+      employeeId: active.employeeId,
+      jobId: active.jobId,
+      cwd: active.cwd,
+      status: 'active',
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+  store.updateJob(active.jobId, { providerSessionId: sessionId })
 }
 
 function finishJob(
   store: AppStore,
   jobId: string,
   runId: string,
-  status: 'completed' | 'failed' | 'cancelled',
+  status:
+    'completed' | 'failed' | 'cancelled' | 'completed_with_invalid_result',
 ): void {
   const now = new Date().toISOString()
   const current = store.getJob(jobId)
@@ -435,7 +636,49 @@ function finishJob(
   store.updateJob(jobId, { status, completedAt: now })
   const run = store.getRun(runId)
   if (run && !isTerminalRun(run.status)) {
-    store.updateRun(runId, { status, completedAt: now })
+    store.updateRun(runId, {
+      status: status === 'completed_with_invalid_result' ? 'completed' : status,
+      completedAt: now,
+    })
+  }
+}
+
+function closeProviderSessions(store: AppStore, jobId: string): void {
+  const now = new Date().toISOString()
+  for (const session of store.listProviderSessions(jobId)) {
+    if (session.status === 'active' || session.status === 'idle') {
+      store.updateProviderSession(session.id, {
+        status: 'closed',
+        updatedAt: now,
+      })
+    }
+  }
+}
+
+export function orphanStaleExecutions(store: AppStore): void {
+  const now = new Date().toISOString()
+  for (const job of store.listJobs()) {
+    if (
+      job.status === 'running' ||
+      job.status === 'preparing' ||
+      job.status === 'waiting_for_user' ||
+      job.status === 'queued'
+    ) {
+      store.updateJob(job.id, { status: 'failed', completedAt: now })
+    }
+  }
+  for (const run of store.listAllRuns()) {
+    if (run.status === 'running' || run.status === 'queued') {
+      store.updateRun(run.id, { status: 'orphaned', completedAt: now })
+    }
+  }
+  for (const session of store.listProviderSessions()) {
+    if (session.status === 'active' || session.status === 'idle') {
+      store.updateProviderSession(session.id, {
+        status: 'orphaned',
+        updatedAt: now,
+      })
+    }
   }
 }
 
@@ -455,6 +698,19 @@ function isTerminalRun(status: string): boolean {
     status === 'cancelled' ||
     status === 'orphaned'
   )
+}
+
+function displayProvider(id: RuntimeProviderId): string {
+  if (id === 'codex') {
+    return 'Codex'
+  }
+  if (id === 'grok-build') {
+    return 'Grok Build'
+  }
+  if (id === 'claude-code') {
+    return 'Claude Code'
+  }
+  return '開発用ハーネス'
 }
 
 function withLock<T>(

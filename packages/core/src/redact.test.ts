@@ -3,8 +3,38 @@ import { AppError } from './errors.js'
 import {
   payloadContainsSecrets,
   redactRemoteUrl,
+  redactSensitiveText,
   sanitizeEventPayload,
 } from './redact.js'
+
+describe('redactSensitiveText', () => {
+  it('masks known secret prefixes, bearer tokens, and assignments', () => {
+    expect(
+      redactSensitiveText(
+        'curl -H "Authorization: Bearer abcdefghijklmnop" TOKEN=sk-live-secret-value KEY=xai-live-secret-value',
+      ),
+    ).toBe(
+      'curl -H "Authorization: Bearer [redacted]" TOKEN=[redacted] KEY=[redacted]',
+    )
+    expect(redactSensitiveText('PASSWORD: hunter2-extra')).toBe(
+      'PASSWORD=[redacted]',
+    )
+    expect(redactSensitiveText('この工房の資料を読んでいます')).toBe(
+      'この工房の資料を読んでいます',
+    )
+    expect(redactSensitiveText('ask-the-user about a token')).toBe(
+      'ask-the-user about a token',
+    )
+  })
+
+  it('bounds huge inputs and does not keep a secret tail', () => {
+    const secret = `sk-${'a'.repeat(24)}`
+    const huge = `${'safe '.repeat(2_000)}${secret}`
+    const redacted = redactSensitiveText(huge)
+    expect(redacted.length).toBeLessThanOrEqual(8_192)
+    expect(redacted).not.toContain(secret)
+  })
+})
 
 describe('redactRemoteUrl', () => {
   it('strips credentials from https remotes', () => {
@@ -83,6 +113,16 @@ describe('sanitizeEventPayload', () => {
     expect(() => sanitizeEventPayload(deep)).toThrow(AppError)
   })
 
+  it('redacts secrets embedded in string leaves without dropping the field', () => {
+    expect(
+      sanitizeEventPayload({
+        summary: 'コマンド実行の確認が必要です: TOKEN=sk-live-secret-value',
+      }),
+    ).toEqual({
+      summary: 'コマンド実行の確認が必要です: TOKEN=[redacted]',
+    })
+  })
+
   it('detects secret-bearing payloads including nested values', () => {
     expect(payloadContainsSecrets({ summary: 'ok' })).toBe(false)
     expect(payloadContainsSecrets({ apiKey: 'abc' })).toBe(true)
@@ -90,6 +130,11 @@ describe('sanitizeEventPayload', () => {
     expect(payloadContainsSecrets({ items: [{ access_token: 'abc' }] })).toBe(
       true,
     )
+    expect(
+      payloadContainsSecrets({
+        summary: 'Bearer abcdefghijklmnop',
+      }),
+    ).toBe(true)
   })
 
   it('fails safely when secret detection hits a cycle or excessive depth', () => {

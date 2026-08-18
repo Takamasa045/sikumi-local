@@ -30,11 +30,12 @@ describe('local server', () => {
     expect(response.json()).toEqual({
       ok: true,
       product: 'Shikumi Local',
-      phase: 'provider-sdk-and-fake',
+      phase: 'provider-adapters',
       bind: '127.0.0.1',
       persistence: 'sqlite',
       providerExecution: 'disconnected',
       fakeHarness: false,
+      liveProviderRuns: false,
     })
   })
 
@@ -57,6 +58,7 @@ describe('local server', () => {
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({
       executionConnected: false,
+      fakeHarness: false,
       providers: [
         { id: 'codex', displayName: 'Codex', executionConnected: false },
         {
@@ -172,6 +174,24 @@ describe('local server', () => {
     expect(duplicate.json().error.code).toBe('REPOSITORY_DUPLICATE')
     expect(invalid.statusCode).toBe(400)
     expect(unknown.statusCode).toBe(404)
+  })
+
+  it('redacts secrets in AppError API responses', async () => {
+    const app = createApp()
+    const response = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/jobs',
+      payload: {
+        workspaceId: 'missing',
+        request: '調べて TOKEN=sk-live-secret-value',
+      },
+    })
+
+    expect(response.statusCode).toBe(404)
+    expect(JSON.stringify(response.json())).not.toContain(
+      'sk-live-secret-value',
+    )
+    expect(response.json().error.message).toBe('Workspaceが見つかりません')
   })
 })
 

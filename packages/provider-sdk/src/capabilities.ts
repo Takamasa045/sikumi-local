@@ -14,12 +14,24 @@ export interface ProviderCapabilities {
   readonly costReporting: boolean
 }
 
+export const providerTransports = [
+  'app-server',
+  'exec-json',
+  'acp',
+  'streaming-json',
+  'stream-json',
+  'fake',
+  'disconnected',
+] as const
+export type ProviderTransport = (typeof providerTransports)[number]
+
 export interface ProviderProbeResult {
   readonly installed: boolean
   readonly commandPath?: string
   readonly version?: string
   readonly authenticated: boolean
   readonly authDescription?: string
+  readonly transport: ProviderTransport
   readonly supportedFeatures: ProviderCapabilities
   readonly warnings: readonly string[]
   readonly errors: readonly string[]

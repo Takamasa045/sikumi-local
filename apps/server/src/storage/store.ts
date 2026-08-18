@@ -14,6 +14,7 @@ import {
   providerSchema,
   providerSessionSchema,
   runSchema,
+  redactSensitiveText,
   sanitizeEventPayload,
   workspaceSchema,
   type ApprovalRequest,
@@ -65,9 +66,18 @@ export interface AppStore {
   getWorkspace(id: string): Workspace | undefined
   findRepositoryByAbsolutePath(absolutePath: string): Repository | undefined
   createWorkspace(inspection: GitInspection): Workspace
+  updateWorkspace(
+    id: string,
+    patch: Partial<Pick<Workspace, 'defaultProviderId'>>,
+  ): Workspace
   listProviders(): Provider[]
   insertEmployee(employee: Employee): Employee
+  getEmployee(id: string): Employee | undefined
   listEmployees(): Employee[]
+  updateEmployee(
+    id: string,
+    patch: Partial<Pick<Employee, 'defaultProviderId'>>,
+  ): Employee
   insertEmployeeInstance(instance: EmployeeInstance): EmployeeInstance
   insertProviderSetting(setting: ProviderSetting): ProviderSetting
   insertJob(job: Job): Job
@@ -87,6 +97,12 @@ export interface AppStore {
     patch: Partial<Pick<Run, 'status' | 'startedAt' | 'completedAt'>>,
   ): Run
   insertProviderSession(session: ProviderSession): ProviderSession
+  listProviderSessions(jobId?: string): ProviderSession[]
+  updateProviderSession(
+    id: string,
+    patch: Partial<Pick<ProviderSession, 'status' | 'updatedAt'>>,
+  ): ProviderSession
+  listAllRuns(): Run[]
   insertEvent(event: PersistedEvent): PersistedEvent
   listEvents(jobId: string): PersistedEvent[]
   insertApproval(approval: ApprovalRequest): ApprovalRequest
@@ -190,6 +206,26 @@ export function createStore(db: AppDatabase): AppStore {
       return created
     },
 
+    updateWorkspace(id, patch) {
+      const current = this.getWorkspace(id)
+      if (!current) {
+        throw new AppError('NOT_FOUND', 'Workspaceが見つかりません', 404)
+      }
+      const next = workspaceSchema.parse({
+        ...current,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      })
+      db.update(workspaces)
+        .set({
+          defaultProviderId: next.defaultProviderId,
+          updatedAt: next.updatedAt,
+        })
+        .where(eq(workspaces.id, id))
+        .run()
+      return next
+    },
+
     listProviders() {
       return db
         .select()
@@ -220,6 +256,10 @@ export function createStore(db: AppDatabase): AppStore {
       return parsed
     },
 
+    getEmployee(id) {
+      return this.listEmployees().find((employee) => employee.id === id)
+    },
+
     listEmployees() {
       return db
         .select()
@@ -236,6 +276,26 @@ export function createStore(db: AppDatabase): AppStore {
             updatedAt: row.updatedAt,
           }),
         )
+    },
+
+    updateEmployee(id, patch) {
+      const current = this.getEmployee(id)
+      if (!current) {
+        throw new AppError('NOT_FOUND', 'AI社員が見つかりません', 404)
+      }
+      const next = employeeSchema.parse({
+        ...current,
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      })
+      db.update(employees)
+        .set({
+          defaultProviderId: next.defaultProviderId,
+          updatedAt: next.updatedAt,
+        })
+        .where(eq(employees.id, id))
+        .run()
+      return next
     },
 
     insertEmployeeInstance(instance) {
@@ -385,6 +445,52 @@ export function createStore(db: AppDatabase): AppStore {
       return parsed
     },
 
+    listProviderSessions(jobId) {
+      const rows = jobId
+        ? db
+            .select()
+            .from(providerSessions)
+            .where(eq(providerSessions.jobId, jobId))
+            .all()
+        : db.select().from(providerSessions).all()
+      return rows.map((row) =>
+        providerSessionSchema.parse({
+          id: row.id,
+          providerId: parseRuntimeProviderId(row.providerId),
+          providerSessionId: row.providerSessionId,
+          workspaceId: row.workspaceId,
+          employeeId: row.employeeId,
+          jobId: row.jobId,
+          cwd: row.cwd,
+          status: row.status,
+          createdAt: row.createdAt,
+          updatedAt: row.updatedAt,
+        }),
+      )
+    },
+
+    updateProviderSession(id, patch) {
+      const current = this.listProviderSessions().find(
+        (session) => session.id === id,
+      )
+      if (!current) {
+        throw new AppError('NOT_FOUND', 'Provider sessionが見つかりません', 404)
+      }
+      const next = providerSessionSchema.parse({ ...current, ...patch })
+      db.update(providerSessions)
+        .set({
+          status: next.status,
+          updatedAt: next.updatedAt,
+        })
+        .where(eq(providerSessions.id, id))
+        .run()
+      return next
+    },
+
+    listAllRuns() {
+      return db.select().from(runs).all().map(mapRun)
+    },
+
     insertEvent(event) {
       if (!isShikumiEventType(event.type)) {
         throw new AppError('VALIDATION_FAILED', 'Unknown event type', 400)
@@ -469,7 +575,10 @@ export function createStore(db: AppDatabase): AppStore {
     },
 
     insertApproval(approval) {
-      const parsed = approvalRequestSchema.parse(approval)
+      const parsed = approvalRequestSchema.parse({
+        ...approval,
+        summary: redactSensitiveText(approval.summary),
+      })
       db.insert(approvalRequests)
         .values({
           id: parsed.id,
@@ -534,7 +643,10 @@ export function createStore(db: AppDatabase): AppStore {
     },
 
     insertArtifact(artifact) {
-      const parsed = artifactSchema.parse(artifact)
+      const parsed = artifactSchema.parse({
+        ...artifact,
+        title: redactSensitiveText(artifact.title),
+      })
       db.insert(artifacts)
         .values({
           id: parsed.id,

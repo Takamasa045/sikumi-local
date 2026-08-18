@@ -4,8 +4,11 @@ import type {
   Artifact,
   Job,
   PersistedEvent,
+  Provider,
+  ProviderId,
   Workspace,
 } from '@sikumi-local/core'
+import { AppError } from '@sikumi-local/core'
 import { listApprovals, resolveApproval } from '../api/approvals'
 import { getHealth } from '../api/health'
 import {
@@ -16,6 +19,7 @@ import {
   listJobEvents,
   listJobs,
 } from '../api/jobs'
+import { listProviders } from '../api/providers'
 import { listWorkspaces, registerWorkspace } from '../api/workspaces'
 import { ApprovalPanel } from '../approvals/ApprovalPanel'
 import { ArtifactShelf } from '../artifacts/ArtifactShelf'
@@ -29,6 +33,15 @@ export function App() {
   const [worldPackId, setWorldPackId] = useState<WorldPackId>('dog-office')
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [fakeHarness, setFakeHarness] = useState(false)
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<ProviderId | 'auto'>(
+    'auto',
+  )
+  const [confirmation, setConfirmation] = useState<{
+    message: string
+    alternatives: ProviderId[]
+    request: string
+  } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [request, setRequest] = useState('')
@@ -37,7 +50,9 @@ export function App() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const world = getWorldPack(worldPackId)
-  const jobEnabled = fakeHarness && workspace !== null
+  const jobEnabled =
+    workspace !== null &&
+    (fakeHarness || providers.some((provider) => provider.executionConnected))
   const activitySummary =
     latestSummary(events) ??
     (job ? statusLabel(job.status) : 'まだ仕事は始まっていません')
@@ -45,19 +60,36 @@ export function App() {
   useEffect(() => {
     let cancelled = false
 
-    void Promise.all([listWorkspaces(), getHealth()])
-      .then(([workspaces, health]) => {
-        if (cancelled) {
-          return
+    void listWorkspaces()
+      .then((workspaces) => {
+        if (!cancelled) {
+          setWorkspace(workspaces[0] ?? null)
         }
-        setWorkspace(workspaces[0] ?? null)
-        setFakeHarness(health.fakeHarness)
       })
       .catch(() => {
         if (!cancelled) {
           setWorkspace(null)
+        }
+      })
+    void getHealth()
+      .then((health) => {
+        if (!cancelled) {
+          setFakeHarness(health.fakeHarness)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
           setFakeHarness(false)
         }
+      })
+    void listProviders()
+      .then((listed) => {
+        if (!cancelled) {
+          setProviders(listed.providers)
+        }
+      })
+      .catch(() => {
+        // Provider catalog can arrive after the garden is already usable.
       })
 
     return () => {
@@ -66,7 +98,7 @@ export function App() {
   }, [])
 
   useEffect(() => {
-    if (!workspace || !fakeHarness) {
+    if (!workspace) {
       return
     }
     let cancelled = false
@@ -82,7 +114,7 @@ export function App() {
     return () => {
       cancelled = true
     }
-  }, [workspace, fakeHarness])
+  }, [workspace])
 
   useEffect(() => {
     if (!job) {
@@ -146,14 +178,38 @@ export function App() {
       const created = await createJob({
         workspaceId: workspace.id,
         request: value,
+        ...(selectedProvider === 'auto' ? {} : { selectedProvider }),
       })
       setJob(created)
       setEvents([])
       setApprovals([])
       setArtifacts([])
       setRequest('')
+      setConfirmation(null)
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '依頼に失敗しました')
+      if (
+        caught instanceof AppError &&
+        (caught.code === 'PROVIDER_UNAVAILABLE' ||
+          caught.code === 'PROVIDER_EXECUTION_DISCONNECTED')
+      ) {
+        const alternatives = Array.isArray(caught.details?.alternatives)
+          ? (caught.details.alternatives.filter(
+              (item): item is ProviderId =>
+                item === 'codex' ||
+                item === 'grok-build' ||
+                item === 'claude-code',
+            ) as ProviderId[])
+          : []
+        setConfirmation({
+          message: caught.message,
+          alternatives,
+          request: value,
+        })
+      } else {
+        setError(
+          caught instanceof Error ? caught.message : '依頼に失敗しました',
+        )
+      }
     } finally {
       setBusy(false)
     }
@@ -180,6 +236,33 @@ export function App() {
       setJob(await cancelJob(job.id))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '中止に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleSubmitJobWithFallback(
+    value: string,
+    providerId: ProviderId,
+  ) {
+    if (!workspace) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const created = await createJob({
+        workspaceId: workspace.id,
+        request: value,
+        confirmFallbackProvider: providerId,
+      })
+      setJob(created)
+      setEvents([])
+      setApprovals([])
+      setArtifacts([])
+      setRequest('')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '依頼に失敗しました')
     } finally {
       setBusy(false)
     }
@@ -226,7 +309,9 @@ export function App() {
             <strong>
               {fakeHarness
                 ? 'テスト実行（実エンジン未接続）'
-                : '実行エンジン未接続'}
+                : workspace?.defaultProviderId
+                  ? workspace.defaultProviderId
+                  : '実行エンジン未接続'}
             </strong>
           </div>
         </div>
@@ -279,14 +364,34 @@ export function App() {
             enabled={jobEnabled}
             busy={busy}
             request={request}
+            providers={providers}
+            selectedProvider={selectedProvider}
+            {...(confirmation
+              ? {
+                  confirmation: {
+                    message: confirmation.message,
+                    alternatives: confirmation.alternatives,
+                  },
+                }
+              : {})}
             notice={
               fakeHarness
                 ? '開発用ハーネスです。Codex / Grok Build / Claude Code としては表示しません'
-                : '実行エンジン（Codex / Grok Build / Claude Code）は未接続です'
+                : '道具を選び、ログイン済みの実行エンジンだけで仕事を始めます。自動切替はしません'
             }
             onRequestChange={setRequest}
+            onProviderChange={setSelectedProvider}
             onSubmit={(value) => {
               void handleSubmitJob(value)
+            }}
+            onConfirmFallback={(providerId) => {
+              const pending = confirmation?.request ?? request
+              setSelectedProvider(providerId)
+              setConfirmation(null)
+              void handleSubmitJobWithFallback(pending, providerId)
+            }}
+            onCancelConfirmation={() => {
+              setConfirmation(null)
             }}
           />
 
@@ -312,8 +417,8 @@ export function App() {
 
       <footer>
         <p>
-          この画面はPhase 4です。Codex / Grok Build / Claude Code
-          は未接続です。開発用ハーネスを有効にすると、実エンジンなしで仕事・承認・成果の流れを確認できます。
+          この画面はPhase 5〜7です。Codex / Grok Build / Claude Code
+          を道具として選べます。利用できない道具へは自動で切り替えず、確認してから別の仕事として始めます。
         </p>
         <span>Shikumi Local · 127.0.0.1</span>
       </footer>
@@ -344,6 +449,8 @@ function statusLabel(status: Job['status']): string {
       return '調査を完了できませんでした'
     case 'cancelled':
       return '仕事を中止しました'
+    case 'completed_with_invalid_result':
+      return '結果の形式が正しくありません'
     default:
       return 'まだ仕事は始まっていません'
   }

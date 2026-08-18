@@ -14,7 +14,10 @@
   "dependencies": {
     "@sikumi-local/core": "workspace:*",
     "@sikumi-local/process-runtime": "workspace:*",
+    "@sikumi-local/provider-claude": "workspace:*",
+    "@sikumi-local/provider-codex": "workspace:*",
     "@sikumi-local/provider-fake": "workspace:*",
+    "@sikumi-local/provider-grok": "workspace:*",
     "@sikumi-local/provider-sdk": "workspace:*",
     "better-sqlite3": "latest",
     "drizzle-orm": "latest",

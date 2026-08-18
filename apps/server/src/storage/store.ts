@@ -105,6 +105,7 @@ export interface AppStore {
   listAllRuns(): Run[]
   insertEvent(event: PersistedEvent): PersistedEvent
   listEvents(jobId: string): PersistedEvent[]
+  listAllEvents(): PersistedEvent[]
   insertApproval(approval: ApprovalRequest): ApprovalRequest
   getApproval(id: string): ApprovalRequest | undefined
   listApprovals(filter?: {
@@ -514,10 +515,13 @@ export function createStore(db: AppDatabase): AppStore {
     },
 
     listEvents(jobId) {
+      return this.listAllEvents().filter((event) => event.jobId === jobId)
+    },
+
+    listAllEvents() {
       return db
         .select()
         .from(events)
-        .where(eq(events.jobId, jobId))
         .all()
         .map((row) =>
           persistedEventSchema.parse({
@@ -529,6 +533,10 @@ export function createStore(db: AppDatabase): AppStore {
             occurredAt: row.occurredAt,
           }),
         )
+        .sort((left, right) => {
+          const byTime = left.occurredAt.localeCompare(right.occurredAt)
+          return byTime === 0 ? left.id.localeCompare(right.id) : byTime
+        })
     },
 
     getApproval(id) {

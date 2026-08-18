@@ -1,0 +1,8 @@
+metrics:
+  - id: watches_completed
+    label: 見守り完了
+    incrementOn: job.completed
+
+levels:
+  - level: 1
+    threshold: 0

@@ -70,6 +70,38 @@ export type ArtifactType = (typeof artifactTypes)[number]
 export const packKinds = ['employee', 'character', 'world'] as const
 export type PackKind = (typeof packKinds)[number]
 
+export const employeeSources = ['builtin', 'installed'] as const
+export type EmployeeSource = (typeof employeeSources)[number]
+
+export const CORE_EMPLOYEE_COMPATIBILITY = 1
+
+export const providerCapabilityKeys = [
+  'streaming',
+  'structuredOutput',
+  'sessionResume',
+  'interruption',
+  'liveApprovals',
+  'liveQuestions',
+  'readOnlySandbox',
+  'workspaceWriteSandbox',
+  'networkControl',
+  'nativeWorktree',
+  'modelListing',
+  'usageReporting',
+  'costReporting',
+] as const
+export type ProviderCapabilityKey = (typeof providerCapabilityKeys)[number]
+
+export const gardenStationIds = [
+  'archive',
+  'observatory',
+  'workbench',
+  'waiting',
+  'delivery',
+  'rest',
+] as const
+export type GardenStationId = (typeof gardenStationIds)[number]
+
 export const shikumiEventTypes = [
   'run.started',
   'run.state_changed',
@@ -139,6 +171,17 @@ export interface Employee {
   readonly defaultProviderId: ProviderId | null
   readonly createdAt: string
   readonly updatedAt: string
+}
+
+export interface EmployeeSummary extends Employee {
+  readonly description: string
+  readonly version: string
+  readonly permissionProfile: PermissionProfileId
+  readonly supportedJobTypes: readonly string[]
+  readonly defaultProviderOrder: readonly ProviderId[]
+  readonly requiredProviderCapabilities: readonly ProviderCapabilityKey[]
+  readonly character: string
+  readonly source: EmployeeSource
 }
 
 export interface EmployeeInstance {
@@ -286,4 +329,14 @@ export function isRuntimeProviderId(value: string): value is RuntimeProviderId {
 
 export function isShikumiEventType(value: string): value is ShikumiEventType {
   return (shikumiEventTypes as readonly string[]).includes(value)
+}
+
+export function isProviderCapabilityKey(
+  value: string,
+): value is ProviderCapabilityKey {
+  return (providerCapabilityKeys as readonly string[]).includes(value)
+}
+
+export function isGardenStationId(value: string): value is GardenStationId {
+  return (gardenStationIds as readonly string[]).includes(value)
 }

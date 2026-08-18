@@ -125,6 +125,7 @@ describe('job and health contracts', () => {
     expect(
       createJobRequestSchema.parse({
         workspaceId: 'ws_1',
+        employeeId: 'saguru',
         request: '調べて',
         selectedProvider: 'codex',
         confirmFallbackProvider: 'grok-build',

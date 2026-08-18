@@ -25,6 +25,30 @@ afterEach(async () => {
   }
 })
 
+describe('employee registry selection', () => {
+  it('creates a job for the registry employee and rejects an unsupported job type', async () => {
+    const { manager, workspaceId } = openManager()
+    const job = await manager.createJob({
+      workspaceId,
+      request: '調べて',
+      employeeId: 'saguru',
+      jobType: 'research',
+    })
+    expect(job.employeeId).toBe('saguru')
+    await expect(
+      manager.createJob({
+        workspaceId,
+        request: '調べて',
+        employeeId: 'saguru',
+        jobType: 'not-a-job',
+      }),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'UNSUPPORTED_JOB_TYPE',
+    })
+  })
+})
+
 describe('provider selection and restart orphaning', () => {
   it('does not auto-fallback from an unavailable selected provider', async () => {
     const { manager, store, workspaceId } = openManager()

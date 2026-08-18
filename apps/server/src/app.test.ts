@@ -30,7 +30,7 @@ describe('local server', () => {
     expect(response.json()).toEqual({
       ok: true,
       product: 'Shikumi Local',
-      phase: 'provider-adapters',
+      phase: 'employee-garden',
       bind: '127.0.0.1',
       persistence: 'sqlite',
       providerExecution: 'disconnected',
@@ -60,16 +60,32 @@ describe('local server', () => {
       executionConnected: false,
       fakeHarness: false,
       providers: [
-        { id: 'codex', displayName: 'Codex', executionConnected: false },
+        {
+          id: 'codex',
+          displayName: 'Codex',
+          executionConnected: false,
+          installed: false,
+          authenticated: false,
+          status: 'not_installed',
+          capabilities: [],
+        },
         {
           id: 'grok-build',
           displayName: 'Grok Build',
           executionConnected: false,
+          installed: false,
+          authenticated: false,
+          status: 'not_installed',
+          capabilities: [],
         },
         {
           id: 'claude-code',
           displayName: 'Claude Code',
           executionConnected: false,
+          installed: false,
+          authenticated: false,
+          status: 'not_installed',
+          capabilities: [],
         },
       ],
     })

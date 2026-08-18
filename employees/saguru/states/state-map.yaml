@@ -1,0 +1,51 @@
+states:
+  idle:
+    station: rest
+    pose: idle
+    summary: まだ仕事は始まっていません
+  preparing:
+    station: rest
+    pose: idle
+    summary: 仕事の準備をしています
+  reading_repository:
+    station: archive
+    pose: reading
+    summary: この工房の資料を読んでいます
+  searching_web:
+    station: observatory
+    pose: searching
+    summary: 外の世界を調べています
+  working:
+    station: workbench
+    pose: working
+    summary: 作業台で整理しています
+  waiting_for_user:
+    station: waiting
+    pose: waiting
+    summary: あなたの確認を待っています
+  delivering:
+    station: delivery
+    pose: delivering
+    summary: 成果を納品台へ運んでいます
+  completed:
+    station: delivery
+    pose: completed
+    summary: 調査が完了しました
+  failed:
+    station: rest
+    pose: failed
+    summary: 調査を完了できませんでした
+  cancelled:
+    station: rest
+    pose: cancelled
+    summary: 仕事を中止しました
+
+eventBindings:
+  repository.read: reading_repository
+  web.search: searching_web
+  file.changed: working
+  approval.requested: waiting_for_user
+  artifact.created: delivering
+  run.completed: completed
+  run.failed: failed
+  run.cancelled: cancelled

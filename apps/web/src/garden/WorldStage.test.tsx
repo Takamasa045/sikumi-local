@@ -18,9 +18,35 @@ describe('WorldStage', () => {
             atlasRow: 0,
           },
         }}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="rest"
+        pose="idle"
       />,
     )
 
     expect(screen.getByTestId('world-stage')).toBeVisible()
+    expect(screen.getByTestId('garden-where')).toHaveTextContent('いま 縁側')
+  })
+
+  it('keeps archive and delivery station labels in the stage markup', () => {
+    render(
+      <WorldStage
+        world={getWorldPack('dog-office')}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="archive"
+        pose="reading"
+      />,
+    )
+
+    expect(screen.getByText('資料棚')).toBeVisible()
+    expect(screen.getByText('納品台')).toBeVisible()
+    expect(screen.getByText('資料棚').closest('.garden-station')).toHaveClass(
+      'is-active',
+    )
+    expect(
+      screen.getByText('納品台').closest('.garden-station'),
+    ).not.toHaveClass('is-active')
   })
 })

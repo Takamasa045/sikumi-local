@@ -2,8 +2,10 @@ import {
   AppError,
   isProviderId,
   isRuntimeProviderId,
-  providerSchema,
+  providerAvailabilitySchema,
+  providerCapabilityKeys,
   updateProviderSettingsRequestSchema,
+  type ProviderCapabilityKey,
 } from '@sikumi-local/core'
 import type { FastifyInstance } from 'fastify'
 import type { ProviderRegistry } from '../providers/registry.js'
@@ -26,9 +28,18 @@ export function registerProviderRoutes(
         probe.transport !== 'disconnected' &&
         registry.get(provider.id),
       )
-      return providerSchema.parse({
+      const capabilities = listedCapabilities(probe?.supportedFeatures)
+      return providerAvailabilitySchema.parse({
         ...provider,
         executionConnected: connected,
+        installed: Boolean(probe?.installed),
+        authenticated: Boolean(probe?.authenticated),
+        status: resolveProviderStatus({
+          connected,
+          installed: Boolean(probe?.installed),
+          authenticated: Boolean(probe?.authenticated),
+        }),
+        capabilities,
       })
     })
     return {
@@ -118,4 +129,30 @@ export function registerProviderRoutes(
       return { setting }
     },
   )
+}
+
+function listedCapabilities(
+  features: Partial<Record<ProviderCapabilityKey, boolean>> | undefined,
+): ProviderCapabilityKey[] {
+  if (!features) {
+    return []
+  }
+  return providerCapabilityKeys.filter((key) => features[key] === true)
+}
+
+function resolveProviderStatus(input: {
+  readonly connected: boolean
+  readonly installed: boolean
+  readonly authenticated: boolean
+}): 'ready' | 'login_required' | 'not_installed' | 'disconnected' {
+  if (input.connected) {
+    return 'ready'
+  }
+  if (!input.installed) {
+    return 'not_installed'
+  }
+  if (!input.authenticated) {
+    return 'login_required'
+  }
+  return 'disconnected'
 }

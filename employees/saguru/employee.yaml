@@ -1,0 +1,45 @@
+schemaVersion: 1
+
+id: saguru
+name: サグル
+role: 調査担当
+version: 1.0.0
+
+description: >
+  Repositoryを理解し、Webや資料を調査して、
+  根拠付きのレポートを届けるAI社員。
+
+compatibility:
+  core: '>=1'
+
+capabilities:
+  - repository.read
+  - web.search
+  - report.create
+  - source.compare
+
+requiredProviderCapabilities:
+  - streaming
+  - sessionResume
+
+permissionProfile: research
+
+supportedJobTypes:
+  - research
+  - comparison
+  - repository-analysis
+  - trend-research
+
+defaultProviderOrder:
+  - grok-build
+  - codex
+  - claude-code
+
+prompts:
+  system: prompts/system.md
+  job: prompts/job.md
+
+resultSchema: schemas/research-result.json
+stateMap: states/state-map.yaml
+growth: growth/growth.yaml
+character: saguru-default

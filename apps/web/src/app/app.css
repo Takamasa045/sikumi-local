@@ -38,7 +38,9 @@ textarea {
 }
 button:focus-visible,
 a:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+select:focus-visible,
+input:focus-visible {
   outline: 3px solid var(--lantern);
   outline-offset: 3px;
 }
@@ -226,6 +228,9 @@ main {
   color: #ded8c7;
   font-size: clamp(11px, 1.4vw, 14px);
 }
+.world-stage__where {
+  display: none;
+}
 
 .world-stage__local-mark {
   position: absolute;
@@ -254,6 +259,32 @@ main {
   box-shadow: 0 0 9px #9bc58b;
 }
 
+.world-stage__stations {
+  pointer-events: none;
+}
+
+.garden-station {
+  position: absolute;
+  left: var(--station-x);
+  top: var(--station-y);
+  z-index: 2;
+  transform: translate(-50%, -120%);
+  padding: 4px 8px;
+  color: #efe6cc;
+  background: rgba(23, 33, 25, 0.62);
+  border: 1px solid rgba(232, 196, 129, 0.28);
+  border-radius: 2px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  opacity: 0.72;
+}
+.garden-station.is-active {
+  color: #fff4d4;
+  border-color: rgba(232, 196, 129, 0.7);
+  opacity: 1;
+}
+
 .employee {
   position: absolute;
   left: var(--character-x);
@@ -262,6 +293,12 @@ main {
   width: clamp(104px, 15vw, 184px);
   aspect-ratio: 1;
   transform: translate(-50%, -62%);
+  transition:
+    left 700ms ease,
+    top 700ms ease;
+}
+.employee.is-idle .employee__sprite {
+  animation: employee-idle 4.8s ease-in-out infinite;
 }
 .employee__sprite {
   position: absolute;
@@ -569,10 +606,109 @@ main {
   cursor: pointer;
 }
 
+.current-job,
 .approval-panel,
 .artifact-shelf,
-.job-live {
+.job-live,
+.settings-panel,
+.employee-index {
   padding: 0 26px 22px;
+}
+.current-job {
+  border-top: 1px solid #c8c0aa;
+  padding-top: 22px;
+}
+.current-job__request {
+  margin: 8px 0;
+  color: #5f5e51;
+  overflow-wrap: anywhere;
+}
+.garden-peek {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 26px 22px;
+}
+.garden-peek .washi-tab,
+.garden-peek a.washi-tab {
+  text-decoration: none;
+}
+.employee-index {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 22px 26px;
+  list-style: none;
+}
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  align-items: end;
+  background: rgba(17, 21, 16, 0.28);
+}
+.drawer {
+  width: min(640px, 100%);
+  max-height: min(78vh, 720px);
+  overflow: auto;
+  justify-self: center;
+  padding: 22px 24px 28px;
+  background: var(--washi);
+  border: 1px solid #b9b099;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -16px 32px rgba(27, 30, 22, 0.2);
+}
+.drawer__role {
+  margin-top: 0;
+  color: #6f6c5e;
+}
+.drawer__facts {
+  display: grid;
+  gap: 12px;
+}
+.drawer__facts dt {
+  color: #7c796a;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+.drawer__facts dd,
+.drawer__providers,
+.drawer__jobs {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.drawer select {
+  width: 100%;
+  padding: 10px 12px;
+  color: #36372f;
+  background: #f7f2e1;
+  border: 1px solid #c6beaa;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+.settings-panel__tool {
+  display: grid;
+  gap: 7px;
+  padding: 0 0 22px;
+}
+@keyframes employee-idle {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 .approval-panel h2,
 .artifact-shelf h2 {
@@ -688,13 +824,57 @@ footer span {
     align-items: flex-start;
   }
   .world-stage {
-    min-height: 440px;
+    min-height: 500px;
     border-radius: 2px 2px 12px 12px;
   }
   .world-stage__heading {
-    top: 22px;
-    left: 18px;
-    right: 18px;
+    top: 16px;
+    left: 14px;
+    right: 14px;
+    max-width: none;
+    z-index: 4;
+  }
+  .world-stage__heading h1 {
+    font-size: clamp(20px, 5.6vw, 24px);
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+    word-break: keep-all;
+  }
+  .world-stage__where {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 4px 8px;
+    color: #fff4d4;
+    background: rgba(23, 33, 25, 0.72);
+    border: 1px solid rgba(232, 196, 129, 0.45);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+  }
+  .world-stage__stations {
+    position: absolute;
+    top: auto;
+    left: 10px;
+    right: 10px;
+    bottom: 44px;
+    height: auto;
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    align-content: flex-end;
+    gap: 6px;
+  }
+  .garden-station {
+    position: static;
+    left: auto;
+    top: auto;
+    transform: none;
+  }
+  .garden-station.is-active {
+    background: rgba(23, 33, 25, 0.88);
+    box-shadow: 0 0 0 1px rgba(232, 196, 129, 0.85);
+    z-index: 3;
   }
   .world-stage__local-mark {
     top: auto;
@@ -702,13 +882,27 @@ footer span {
     bottom: 14px;
   }
   .employee {
-    width: 118px;
-    top: 59%;
+    width: 112px;
+    top: 56%;
   }
   .employee__note {
-    left: 14%;
-    bottom: 90%;
-    min-width: 176px;
+    left: 50%;
+    right: auto;
+    top: calc(100% + 6px);
+    bottom: auto;
+    min-width: 0;
+    width: max-content;
+    max-width: 188px;
+    padding: 10px 12px;
+    transform: translateX(-50%);
+  }
+  .employee__note::after {
+    left: 50%;
+    bottom: auto;
+    top: -8px;
+    transform: translateX(-50%);
+    border-top: 0;
+    border-bottom: 8px solid rgba(244, 239, 219, 0.94);
   }
   .garden-controls {
     width: calc(100% - 18px);
@@ -750,5 +944,11 @@ footer span {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+  .employee {
+    transition: none;
+  }
+  .employee.is-idle .employee__sprite {
+    animation: none;
   }
 }

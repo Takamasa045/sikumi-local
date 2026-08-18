@@ -1,4 +1,8 @@
-import { workspaceSchema, type Workspace } from '@sikumi-local/core'
+import {
+  workspaceSchema,
+  type ProviderId,
+  type Workspace,
+} from '@sikumi-local/core'
 import { z } from 'zod'
 import { authorizedHeaders, toApiError, writeWithCsrfRetry } from './session.js'
 
@@ -26,6 +30,25 @@ export async function registerWorkspace(path: string): Promise<Workspace> {
       credentials: 'include',
       headers: authorizedHeaders(token),
       body: JSON.stringify({ path }),
+    }),
+  )
+  const body: unknown = await response.json()
+  if (!response.ok) {
+    throw toApiError(body, response.status)
+  }
+  return workspaceResponseSchema.parse(body).workspace
+}
+
+export async function updateWorkspace(
+  id: string,
+  defaultProviderId: ProviderId | null,
+): Promise<Workspace> {
+  const response = await writeWithCsrfRetry((token) =>
+    fetch(`/api/workspaces/${id}`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: authorizedHeaders(token),
+      body: JSON.stringify({ defaultProviderId }),
     }),
   )
   const body: unknown = await response.json()

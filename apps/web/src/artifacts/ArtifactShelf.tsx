@@ -21,11 +21,43 @@ export function ArtifactShelf({ artifacts }: ArtifactShelfProps) {
           {artifacts.map((artifact) => (
             <li key={artifact.id}>
               <strong>{artifact.title}</strong>
-              <small>{artifact.type}</small>
+              <small>
+                {artifactTypeLabel(artifact.type)}
+                {artifact.storagePath
+                  ? ' · 保存済み'
+                  : ' · 本文はまだありません'}
+              </small>
             </li>
           ))}
         </ul>
       )}
     </section>
   )
+}
+
+function artifactTypeLabel(type: Artifact['type']): string {
+  switch (type) {
+    case 'report':
+      return '調査レポート'
+    case 'markdown':
+      return 'Markdown'
+    case 'code_diff':
+      return 'コード差分'
+    case 'patch':
+      return 'Patch'
+    case 'test_result':
+      return 'テスト結果'
+    case 'review':
+      return 'レビュー結果'
+    case 'plan':
+      return '計画'
+    case 'handoff':
+      return '引き継ぎメモ'
+    case 'file':
+      return 'ファイル'
+    case 'link':
+      return 'URL'
+    default:
+      return type
+  }
 }

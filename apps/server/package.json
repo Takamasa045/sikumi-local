@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@sikumi-local/core": "workspace:*",
+    "@sikumi-local/employee-sdk": "workspace:*",
     "@sikumi-local/process-runtime": "workspace:*",
     "@sikumi-local/provider-claude": "workspace:*",
     "@sikumi-local/provider-codex": "workspace:*",

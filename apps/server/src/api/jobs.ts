@@ -6,10 +6,21 @@ import {
 } from '@sikumi-local/core'
 import type { FastifyInstance } from 'fastify'
 import type { JobManager } from '../jobs/job-manager.js'
+import {
+  eventsAfter,
+  readSseCursor,
+  startSseStream,
+  wantsEventStream,
+} from '../jobs/sse.js'
+import {
+  assertSseAllowed,
+  type SecurityConfig,
+} from '../security/http-guard.js'
 
 export function registerJobRoutes(
   app: FastifyInstance,
   jobs: JobManager,
+  security: SecurityConfig,
 ): void {
   app.get('/api/jobs', async (request) => {
     const workspaceId =
@@ -32,6 +43,9 @@ export function registerJobRoutes(
     const job = jobSchema.parse(
       await jobs.createJob({
         workspaceId: parsed.data.workspaceId,
+        ...(parsed.data.employeeId
+          ? { employeeId: parsed.data.employeeId }
+          : {}),
         request: parsed.data.request,
         jobType: parsed.data.jobType,
         ...(parsed.data.selectedProvider
@@ -65,26 +79,20 @@ export function registerJobRoutes(
   app.get<{ Params: { id: string } }>(
     '/api/jobs/:id/events',
     async (request, reply) => {
-      const accept = request.headers.accept ?? ''
-      if (accept.includes('text/event-stream')) {
-        const existing = jobs
-          .listEvents(request.params.id)
-          .map((event) => persistedEventSchema.parse(event))
+      if (wantsEventStream(request.headers.accept)) {
+        assertSseAllowed(request, security)
+        const existing = eventsAfter(
+          jobs
+            .listEvents(request.params.id)
+            .map((event) => persistedEventSchema.parse(event)),
+          readSseCursor(request.headers['last-event-id'], request.query),
+        )
         reply.hijack()
-        reply.raw.writeHead(200, {
-          'Content-Type': 'text/event-stream; charset=utf-8',
-          'Cache-Control': 'no-store',
-          Connection: 'keep-alive',
+        startSseStream({
+          raw: reply.raw,
+          replay: existing,
+          subscribe: (listener) => jobs.subscribe(request.params.id, listener),
         })
-        for (const event of existing) {
-          reply.raw.write(`data: ${JSON.stringify(event)}\n\n`)
-        }
-        const unsubscribe = jobs.subscribe(request.params.id, (event) => {
-          reply.raw.write(
-            `data: ${JSON.stringify(persistedEventSchema.parse(event))}\n\n`,
-          )
-        })
-        request.raw.on('close', unsubscribe)
         return
       }
 

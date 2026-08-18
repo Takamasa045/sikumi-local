@@ -127,6 +127,7 @@ function createMemoryStore(): AppStore {
     listAllRuns: () => [],
     insertEvent: (event) => event,
     listEvents: () => [],
+    listAllEvents: () => [],
     insertApproval: (approval) => approval,
     getApproval: () => undefined,
     listApprovals: () => [],

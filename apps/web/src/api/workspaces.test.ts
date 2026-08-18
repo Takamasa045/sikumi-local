@@ -1,7 +1,11 @@
 import { AppError } from '@sikumi-local/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CSRF_HEADER_NAME, resetSessionToken } from './session.js'
-import { listWorkspaces, registerWorkspace } from './workspaces.js'
+import {
+  listWorkspaces,
+  registerWorkspace,
+  updateWorkspace,
+} from './workspaces.js'
 
 afterEach(() => {
   resetSessionToken()
@@ -121,6 +125,24 @@ describe('workspace API client', () => {
       code: 'VALIDATION_FAILED',
       message: 'nope',
     })
+  })
+
+  it('updates the workspace default tool', async () => {
+    const workspace = {
+      ...sampleWorkspace('/Users/example/project'),
+      defaultProviderId: 'codex' as const,
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/api/session')) {
+          return jsonResponse({ token: 'boot-session-token' })
+        }
+        expect(init?.method).toBe('PATCH')
+        return jsonResponse({ workspace })
+      }),
+    )
+    await expect(updateWorkspace('ws_1', 'codex')).resolves.toEqual(workspace)
   })
 })
 

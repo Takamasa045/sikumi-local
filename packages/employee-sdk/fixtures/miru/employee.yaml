@@ -1,0 +1,39 @@
+schemaVersion: 1
+
+id: miru
+name: ミル
+role: 見守り担当
+version: 1.0.0
+
+description: >
+  Repositoryの変化を静かに見守り、気づきを届けるテスト用AI社員。
+
+compatibility:
+  core: '>=1'
+
+capabilities:
+  - repository.read
+  - report.create
+
+requiredProviderCapabilities:
+  - streaming
+
+permissionProfile: observe
+
+supportedJobTypes:
+  - watch
+  - repository-analysis
+
+defaultProviderOrder:
+  - codex
+  - grok-build
+  - claude-code
+
+prompts:
+  system: prompts/system.md
+  job: prompts/job.md
+
+resultSchema: schemas/watch-result.json
+stateMap: states/state-map.yaml
+growth: growth/growth.yaml
+character: miru-default

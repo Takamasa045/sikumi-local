@@ -25,6 +25,9 @@ beforeEach(() => {
         fakeHarness: false,
       })
     }
+    if (url.includes('/api/employees')) {
+      return employeePayload()
+    }
     return jsonResponse(
       { error: { code: 'NOT_FOUND', message: 'not found' } },
       404,
@@ -49,6 +52,26 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByText('まだ仕事は始まっていません')).toBeVisible()
     expect(screen.queryByText('作業中')).not.toBeInTheDocument()
     expect(await screen.findByText('Repository未登録')).toBeVisible()
+  })
+
+  it('opens the four main screens and the employee drawer from the garden', async () => {
+    render(<App />)
+
+    expect(await screen.findByLabelText('担当')).toBeVisible()
+    await userEvent.click(screen.getByRole('link', { name: 'AI社員' }))
+    expect(await screen.findByRole('heading', { name: 'AI社員' })).toBeVisible()
+    await userEvent.click(screen.getByRole('link', { name: '成果棚' }))
+    expect(await screen.findByRole('heading', { name: '成果棚' })).toBeVisible()
+    await userEvent.click(screen.getByRole('link', { name: '設定' }))
+    expect(
+      await screen.findByRole('heading', { name: '工房の整え方' }),
+    ).toBeVisible()
+    await userEvent.click(screen.getByRole('link', { name: '庭' }))
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'サグルを確認する' }),
+    )
+    expect(await screen.findByTestId('employee-drawer')).toBeVisible()
+    expect(screen.getByText('受けられる仕事', { exact: false })).toBeVisible()
   })
 
   it('switches to the craft workshop', async () => {
@@ -94,6 +117,9 @@ describe('Shikumi Local garden', () => {
             executionConnected: false,
             fakeHarness: false,
           })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
         }
         if (url.endsWith('/api/workspaces') && method === 'GET') {
           return jsonResponse({ workspaces: [] })
@@ -167,6 +193,9 @@ describe('Shikumi Local garden', () => {
           fakeHarness: false,
         })
       }
+      if (String(input).includes('/api/employees')) {
+        return jsonResponse({ employees: [sampleEmployee()] })
+      }
       if (String(input).endsWith('/api/workspaces')) {
         return jsonResponse({
           workspaces: [
@@ -235,6 +264,14 @@ describe('Shikumi Local garden', () => {
           fakeHarness: false,
         })
       }
+      if (url.includes('/api/employees')) {
+        return jsonResponse({
+          employees: [sampleEmployee()],
+          employee: sampleEmployee(),
+          recentJobs: [],
+          stateMap: { states: {}, eventBindings: {} },
+        })
+      }
       if (url.endsWith('/api/workspaces')) {
         return jsonResponse({ workspaces: [sampleWorkspace()] })
       }
@@ -290,6 +327,123 @@ describe('Shikumi Local garden', () => {
     ).toBeEnabled()
   })
 
+  it('keeps the current job employee and station when another employee is selected to ask next', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return jsonResponse({ token: 'test-session' })
+      }
+      if (url.endsWith('/api/health')) {
+        return jsonResponse({ ...disconnectedHealth(), fakeHarness: true })
+      }
+      if (url.endsWith('/api/providers')) {
+        return jsonResponse({
+          providers: catalogProviders(),
+          executionConnected: false,
+          fakeHarness: true,
+        })
+      }
+      if (url.endsWith('/api/employees/miru')) {
+        return jsonResponse({
+          employee: sampleMiru(),
+          recentJobs: [],
+          stateMap: miruStateMap(),
+        })
+      }
+      if (url.includes('/api/employees')) {
+        return jsonResponse({
+          employees: [sampleEmployee(), sampleMiru()],
+          employee: sampleEmployee(),
+          recentJobs: [],
+          stateMap: saguruStateMap(),
+        })
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return jsonResponse({ workspaces: [sampleWorkspace()] })
+      }
+      if (url.includes('/api/jobs/job_1/events')) {
+        return jsonResponse({
+          events: [
+            {
+              id: 'evt_read',
+              jobId: 'job_1',
+              runId: 'run_1',
+              type: 'repository.read',
+              payload: { summary: 'この工房の資料を読んでいます' },
+              occurredAt: 't',
+            },
+          ],
+        })
+      }
+      if (url.includes('/api/jobs')) {
+        return jsonResponse({
+          jobs: [sampleJob('running')],
+          job: sampleJob('running'),
+        })
+      }
+      if (url.includes('/api/approvals')) {
+        return jsonResponse({
+          approvals: [
+            {
+              id: 'apr_1',
+              jobId: 'job_1',
+              runId: 'run_1',
+              risk: 'medium',
+              summary: '外部サイトへアクセスします',
+              status: 'pending',
+              createdAt: 't',
+              resolvedAt: null,
+            },
+          ],
+        })
+      }
+      if (url.includes('/api/artifacts')) {
+        return jsonResponse({ artifacts: [] })
+      }
+      return jsonResponse(
+        { error: { code: 'NOT_FOUND', message: 'not found' } },
+        404,
+      )
+    })
+
+    render(<App />)
+
+    expect(await screen.findByTestId('world-stage')).toHaveAttribute(
+      'data-employee-id',
+      'saguru',
+    )
+    await waitFor(() => {
+      expect(screen.getByTestId('world-stage')).toHaveAttribute(
+        'data-station',
+        'archive',
+      )
+    })
+    expect(screen.getByTestId('current-job')).toHaveTextContent('サグル')
+    expect(screen.getByTestId('approval-panel')).toHaveTextContent('サグル')
+
+    await userEvent.selectOptions(
+      screen.getByRole('combobox', { name: '担当' }),
+      'miru',
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: 'ミルに何を頼みますか' }),
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'ミルを確認する' })).toBeVisible()
+    expect(screen.getByTestId('world-stage')).toHaveAttribute(
+      'data-employee-id',
+      'saguru',
+    )
+    expect(screen.getByTestId('world-stage')).toHaveAttribute(
+      'data-station',
+      'archive',
+    )
+    expect(screen.getByTestId('current-job')).toHaveTextContent('サグル')
+    expect(screen.getByTestId('current-job')).not.toHaveTextContent('ミル')
+    expect(screen.getByTestId('approval-panel')).toHaveTextContent('サグル')
+    expect(screen.getByTestId('approval-panel')).not.toHaveTextContent('ミル')
+  })
+
   it('keeps the garden usable when workspace listing fails', async () => {
     fetchMock.mockImplementation(async () => {
       throw new Error('offline')
@@ -320,6 +474,9 @@ describe('Shikumi Local garden', () => {
             executionConnected: false,
             fakeHarness: false,
           })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
         }
         if (url.endsWith('/api/workspaces') && method === 'GET') {
           return jsonResponse({ workspaces: [] })
@@ -373,6 +530,9 @@ describe('Shikumi Local garden', () => {
             executionConnected: false,
             fakeHarness: true,
           })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
         }
         if (url.endsWith('/api/workspaces') && method === 'GET') {
           return jsonResponse({
@@ -473,9 +633,9 @@ describe('Shikumi Local garden', () => {
     await userEvent.click(screen.getByRole('button', { name: '仕事を頼む' }))
     expect(await screen.findByText('外部サイトへアクセスします')).toBeVisible()
 
-    await userEvent.click(screen.getByRole('button', { name: '許可' }))
+    await userEvent.click(screen.getByRole('button', { name: '今回だけ許可' }))
     expect(await screen.findByText('調査メモ')).toBeVisible()
-    expect(screen.getByText('この工房の資料を読んでいます')).toBeVisible()
+    expect(screen.getByText('調査が完了しました')).toBeVisible()
   })
 
   it('asks before switching away from an unavailable provider', async () => {
@@ -495,6 +655,9 @@ describe('Shikumi Local garden', () => {
             executionConnected: false,
             fakeHarness: true,
           })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
         }
         if (url.endsWith('/api/workspaces')) {
           return jsonResponse({ workspaces: [sampleWorkspace()] })
@@ -578,6 +741,9 @@ describe('Shikumi Local garden', () => {
             fakeHarness: true,
           })
         }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
+        }
         if (url.endsWith('/api/workspaces')) {
           return jsonResponse({ workspaces: [sampleWorkspace()] })
         }
@@ -623,12 +789,97 @@ function disconnectedHealth() {
   return {
     ok: true,
     product: 'Shikumi Local',
-    phase: 'provider-adapters',
+    phase: 'employee-garden',
     bind: '127.0.0.1',
     persistence: 'sqlite',
     providerExecution: 'disconnected',
     fakeHarness: false,
     liveProviderRuns: false,
+  }
+}
+
+function employeePayload() {
+  return jsonResponse({
+    employees: [sampleEmployee()],
+    employee: sampleEmployee(),
+    recentJobs: [],
+    stateMap: { states: {}, eventBindings: {} },
+  })
+}
+
+function sampleMiru() {
+  return {
+    id: 'miru',
+    packId: 'miru',
+    name: 'ミル',
+    role: '見守り担当',
+    defaultProviderId: null,
+    createdAt: 't',
+    updatedAt: 't',
+    description: '変化を見守る',
+    version: '1.0.0',
+    permissionProfile: 'observe',
+    supportedJobTypes: ['watch'],
+    defaultProviderOrder: ['codex', 'grok-build', 'claude-code'],
+    requiredProviderCapabilities: ['streaming'],
+    character: 'miru-default',
+    source: 'installed',
+  }
+}
+
+function saguruStateMap() {
+  return {
+    states: {
+      idle: {
+        station: 'rest',
+        pose: 'idle',
+        summary: 'まだ仕事は始まっていません',
+      },
+      reading_repository: {
+        station: 'archive',
+        pose: 'reading',
+        summary: 'この工房の資料を読んでいます',
+      },
+    },
+    eventBindings: { 'repository.read': 'reading_repository' },
+  }
+}
+
+function miruStateMap() {
+  return {
+    states: {
+      idle: {
+        station: 'rest',
+        pose: 'idle',
+        summary: 'ミルは待っています',
+      },
+      reading_repository: {
+        station: 'observatory',
+        pose: 'searching',
+        summary: 'ミルが見ています',
+      },
+    },
+    eventBindings: { 'repository.read': 'reading_repository' },
+  }
+}
+
+function sampleEmployee() {
+  return {
+    id: 'saguru',
+    packId: 'saguru',
+    name: 'サグル',
+    role: '調査担当',
+    defaultProviderId: null,
+    createdAt: 't',
+    updatedAt: 't',
+    description: 'Repositoryを理解し、根拠付きのレポートを届けるAI社員。',
+    version: '1.0.0',
+    permissionProfile: 'research',
+    supportedJobTypes: ['research'],
+    defaultProviderOrder: ['grok-build', 'codex', 'claude-code'],
+    requiredProviderCapabilities: ['streaming', 'sessionResume'],
+    character: 'saguru-default',
+    source: 'builtin',
   }
 }
 

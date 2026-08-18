@@ -1,15 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type {
   ApprovalRequest,
   Artifact,
+  EmployeeSummary,
   Job,
   PersistedEvent,
-  Provider,
   ProviderId,
   Workspace,
 } from '@sikumi-local/core'
-import { AppError } from '@sikumi-local/core'
+import { AppError, isGardenStationId } from '@sikumi-local/core'
 import { listApprovals, resolveApproval } from '../api/approvals'
+import {
+  getEmployee,
+  listEmployees,
+  updateEmployeeDefaultProvider,
+} from '../api/employees'
 import { getHealth } from '../api/health'
 import {
   cancelJob,
@@ -19,24 +24,41 @@ import {
   listJobEvents,
   listJobs,
 } from '../api/jobs'
-import { listProviders } from '../api/providers'
-import { listWorkspaces, registerWorkspace } from '../api/workspaces'
+import { openEventStream } from '../api/live'
+import { listProviders, type ProviderAvailability } from '../api/providers'
+import {
+  listWorkspaces,
+  registerWorkspace,
+  updateWorkspace,
+} from '../api/workspaces'
 import { ApprovalPanel } from '../approvals/ApprovalPanel'
 import { ArtifactShelf } from '../artifacts/ArtifactShelf'
+import { EmployeeDrawer } from '../employees/EmployeeDrawer'
+import { resolveGardenPresence, type GardenStateMap } from '../garden/presence'
 import { WorldStage } from '../garden/WorldStage'
 import { getWorldPack, worldPacks, type WorldPackId } from '../garden/worlds'
+import { CurrentJob } from '../jobs/CurrentJob'
 import { JobComposer } from '../jobs/JobComposer'
+import { SettingsPanel } from '../settings/SettingsPanel'
 import { RepositoryPanel } from '../workspace/RepositoryPanel'
 import './app.css'
 
+type Screen = 'garden' | 'artifacts' | 'employees' | 'settings'
+
 export function App() {
+  const [screen, setScreen] = useState<Screen>(readScreen())
   const [worldPackId, setWorldPackId] = useState<WorldPackId>('dog-office')
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [fakeHarness, setFakeHarness] = useState(false)
-  const [providers, setProviders] = useState<Provider[]>([])
+  const [providers, setProviders] = useState<ProviderAvailability[]>([])
+  const [employees, setEmployees] = useState<EmployeeSummary[]>([])
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [selectedProvider, setSelectedProvider] = useState<ProviderId | 'auto'>(
     'auto',
   )
+  const [employeeDrawerOpen, setEmployeeDrawerOpen] = useState(false)
+  const [recentJobs, setRecentJobs] = useState<Job[]>([])
+  const [stateMap, setStateMap] = useState<GardenStateMap | undefined>()
   const [confirmation, setConfirmation] = useState<{
     message: string
     alternatives: ProviderId[]
@@ -50,12 +72,33 @@ export function App() {
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const world = getWorldPack(worldPackId)
+  const selectedEmployee =
+    employees.find((employee) => employee.id === selectedEmployeeId) ??
+    employees[0] ??
+    null
+  const displayEmployeeId = job?.employeeId ?? selectedEmployeeId
+  const displayEmployee =
+    employees.find((employee) => employee.id === displayEmployeeId) ?? null
   const jobEnabled =
     workspace !== null &&
     (fakeHarness || providers.some((provider) => provider.executionConnected))
-  const activitySummary =
-    latestSummary(events) ??
-    (job ? statusLabel(job.status) : 'まだ仕事は始まっていません')
+  const presence = resolveGardenPresence({
+    job,
+    events,
+    ...(stateMap ? { stateMap } : {}),
+  })
+  const gardenEmployeeName = displayEmployee?.name ?? world.character.name
+  const gardenEmployeeRole = displayEmployee?.role ?? world.character.role
+
+  useEffect(() => {
+    const onHash = () => {
+      setScreen(readScreen())
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => {
+      window.removeEventListener('hashchange', onHash)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -91,6 +134,17 @@ export function App() {
       .catch(() => {
         // Provider catalog can arrive after the garden is already usable.
       })
+    void listEmployees()
+      .then((listed) => {
+        if (cancelled) {
+          return
+        }
+        setEmployees(listed)
+        setSelectedEmployeeId((current) => current || listed[0]?.id || '')
+      })
+      .catch(() => {
+        // Garden stays usable with the world pack name.
+      })
 
     return () => {
       cancelled = true
@@ -117,15 +171,60 @@ export function App() {
   }, [workspace])
 
   useEffect(() => {
+    if (!displayEmployeeId) {
+      return
+    }
+    let cancelled = false
+    void getEmployee(displayEmployeeId)
+      .then((detail) => {
+        if (cancelled) {
+          return
+        }
+        setStateMap(toGardenStateMap(detail.stateMap))
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStateMap(undefined)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [displayEmployeeId])
+
+  useEffect(() => {
+    if (!selectedEmployeeId) {
+      return
+    }
+    let cancelled = false
+    void getEmployee(selectedEmployeeId)
+      .then((detail) => {
+        if (!cancelled) {
+          setRecentJobs(detail.recentJobs)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRecentJobs([])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedEmployeeId])
+
+  useEffect(() => {
     if (!job) {
       return
     }
     let cancelled = false
+    let lastSnapshot = 0
 
-    async function refresh() {
-      if (!job) {
+    async function snapshot() {
+      if (!job || cancelled) {
         return
       }
+      lastSnapshot = Date.now()
       try {
         const [nextJob, nextEvents, nextApprovals, nextArtifacts] =
           await Promise.all([
@@ -142,17 +241,31 @@ export function App() {
         setApprovals(nextApprovals)
         setArtifacts(nextArtifacts)
       } catch {
-        // Keep the last known snapshot while a poll fails.
+        // Keep the last known snapshot while recovery fails.
       }
     }
 
-    void refresh()
-    const timer = window.setInterval(() => {
-      void refresh()
-    }, 400)
+    void snapshot()
+    const close = openEventStream(
+      `/api/jobs/${job.id}/events`,
+      (event) => {
+        setEvents((current) =>
+          current.some((item) => item.id === event.id)
+            ? current
+            : [...current, event],
+        )
+        void snapshot()
+      },
+      () => {
+        if (Date.now() - lastSnapshot < 1000) {
+          return
+        }
+        void snapshot()
+      },
+    )
     return () => {
       cancelled = true
-      window.clearInterval(timer)
+      close()
     }
   }, [job?.id])
 
@@ -178,6 +291,10 @@ export function App() {
       const created = await createJob({
         workspaceId: workspace.id,
         request: value,
+        ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
+        ...(selectedEmployee?.supportedJobTypes[0]
+          ? { jobType: selectedEmployee.supportedJobTypes[0] }
+          : {}),
         ...(selectedProvider === 'auto' ? {} : { selectedProvider }),
       })
       setJob(created)
@@ -220,6 +337,19 @@ export function App() {
     setError(null)
     try {
       await resolveApproval(id, decision)
+      if (job) {
+        const [nextJob, nextEvents, nextApprovals, nextArtifacts] =
+          await Promise.all([
+            getJob(job.id),
+            listJobEvents(job.id),
+            listApprovals({ jobId: job.id, status: 'pending' }),
+            listArtifacts(job.id),
+          ])
+        setJob(nextJob)
+        setEvents(nextEvents)
+        setApprovals(nextApprovals)
+        setArtifacts(nextArtifacts)
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '確認に失敗しました')
     } finally {
@@ -255,6 +385,7 @@ export function App() {
         workspaceId: workspace.id,
         request: value,
         confirmFallbackProvider: providerId,
+        ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
       })
       setJob(created)
       setEvents([])
@@ -267,6 +398,8 @@ export function App() {
       setBusy(false)
     }
   }
+
+  const employeeList = useMemo(() => employees, [employees])
 
   return (
     <div className="app-shell">
@@ -281,12 +414,30 @@ export function App() {
           </span>
         </a>
         <nav aria-label="主要画面">
-          <a aria-current="page" href="#garden">
+          <a
+            aria-current={screen === 'garden' ? 'page' : undefined}
+            href="#garden"
+          >
             庭
           </a>
-          <a href="#artifacts">成果棚</a>
-          <a href="#employees">AI社員</a>
-          <a href="#settings">設定</a>
+          <a
+            aria-current={screen === 'artifacts' ? 'page' : undefined}
+            href="#artifacts"
+          >
+            成果棚
+          </a>
+          <a
+            aria-current={screen === 'employees' ? 'page' : undefined}
+            href="#employees"
+          >
+            AI社員
+          </a>
+          <a
+            aria-current={screen === 'settings' ? 'page' : undefined}
+            href="#settings"
+          >
+            設定
+          </a>
         </nav>
         <div className="connection-badge">
           <span aria-hidden="true" />
@@ -294,131 +445,264 @@ export function App() {
         </div>
       </header>
 
-      <main id="garden">
-        <div className="workspace-line" data-testid="workspace-line">
-          <div>
-            <span className="eyebrow">最初の工房</span>
-            <strong>
-              {workspace
-                ? workspace.repository.displayName
-                : 'Repository未登録'}
-            </strong>
-          </div>
-          <div>
-            <span className="eyebrow">標準の道具</span>
-            <strong>
-              {fakeHarness
-                ? 'テスト実行（実エンジン未接続）'
-                : workspace?.defaultProviderId
-                  ? workspace.defaultProviderId
-                  : '実行エンジン未接続'}
-            </strong>
-          </div>
-        </div>
-
-        <WorldStage world={world} activitySummary={activitySummary} />
-
-        <section className="garden-controls" aria-label="庭の操作">
-          <div className="world-selector">
+      {screen === 'garden' ||
+      screen === 'artifacts' ||
+      screen === 'employees' ||
+      screen === 'settings' ? (
+        <main id={screen === 'garden' ? 'garden' : screen}>
+          <div className="workspace-line" data-testid="workspace-line">
             <div>
-              <p className="section-kicker">庭の見立て</p>
-              <h2>どの工房で迎えますか</h2>
+              <span className="eyebrow">最初の工房</span>
+              <strong>
+                {workspace
+                  ? workspace.repository.displayName
+                  : 'Repository未登録'}
+              </strong>
             </div>
-            <div
-              className="world-selector__tabs"
-              role="group"
-              aria-label="World Pack"
-            >
-              {worldPacks.map((pack) => (
-                <button
-                  key={pack.id}
-                  type="button"
-                  className={
-                    pack.id === world.id ? 'washi-tab is-active' : 'washi-tab'
-                  }
-                  aria-pressed={pack.id === world.id}
-                  aria-label={`${pack.name}を表示`}
-                  onClick={() => setWorldPackId(pack.id)}
-                >
-                  <span>{pack.shortName}</span>
-                  <small>
-                    {pack.id === 'dog-office'
-                      ? '竹・苔・縁側'
-                      : '木工・金工・和紙・漆'}
-                  </small>
-                </button>
-              ))}
+            <div>
+              <span className="eyebrow">標準の道具</span>
+              <strong>
+                {fakeHarness
+                  ? 'テスト実行（実エンジン未接続）'
+                  : workspace?.defaultProviderId
+                    ? workspace.defaultProviderId
+                    : '実行エンジン未接続'}
+              </strong>
             </div>
           </div>
 
-          <RepositoryPanel
-            workspace={workspace}
-            busy={busy}
-            error={error}
-            onRegister={(path) => {
-              void handleRegister(path)
-            }}
-          />
-
-          <JobComposer
-            enabled={jobEnabled}
-            busy={busy}
-            request={request}
-            providers={providers}
-            selectedProvider={selectedProvider}
-            {...(confirmation
-              ? {
-                  confirmation: {
-                    message: confirmation.message,
-                    alternatives: confirmation.alternatives,
-                  },
+          {screen === 'garden' ? (
+            <>
+              <WorldStage
+                world={world}
+                employeeName={gardenEmployeeName}
+                employeeRole={gardenEmployeeRole}
+                {...(displayEmployeeId
+                  ? { employeeId: displayEmployeeId }
+                  : {})}
+                station={presence.station}
+                pose={presence.pose}
+                activitySummary={
+                  job &&
+                  (job.status === 'completed' ||
+                    job.status === 'failed' ||
+                    job.status === 'cancelled' ||
+                    job.status === 'completed_with_invalid_result')
+                    ? presence.summary
+                    : (latestSummary(events) ?? presence.summary)
                 }
-              : {})}
-            notice={
-              fakeHarness
-                ? '開発用ハーネスです。Codex / Grok Build / Claude Code としては表示しません'
-                : '道具を選び、ログイン済みの実行エンジンだけで仕事を始めます。自動切替はしません'
-            }
-            onRequestChange={setRequest}
-            onProviderChange={setSelectedProvider}
-            onSubmit={(value) => {
-              void handleSubmitJob(value)
-            }}
-            onConfirmFallback={(providerId) => {
-              const pending = confirmation?.request ?? request
-              setSelectedProvider(providerId)
-              setConfirmation(null)
-              void handleSubmitJobWithFallback(pending, providerId)
-            }}
-            onCancelConfirmation={() => {
-              setConfirmation(null)
-            }}
-          />
+              />
 
-          <ApprovalPanel
-            approvals={approvals}
-            busy={busy}
-            onResolve={(id, decision) => {
-              void handleResolve(id, decision)
-            }}
-          />
+              <section className="garden-controls" aria-label="庭の操作">
+                <div className="world-selector">
+                  <div>
+                    <p className="section-kicker">庭の見立て</p>
+                    <h2>どの工房で迎えますか</h2>
+                  </div>
+                  <div
+                    className="world-selector__tabs"
+                    role="group"
+                    aria-label="World Pack"
+                  >
+                    {worldPacks.map((pack) => (
+                      <button
+                        key={pack.id}
+                        type="button"
+                        className={
+                          pack.id === world.id
+                            ? 'washi-tab is-active'
+                            : 'washi-tab'
+                        }
+                        aria-pressed={pack.id === world.id}
+                        aria-label={`${pack.name}を表示`}
+                        onClick={() => setWorldPackId(pack.id)}
+                      >
+                        <span>{pack.shortName}</span>
+                        <small>
+                          {pack.id === 'dog-office'
+                            ? '竹・苔・縁側'
+                            : '木工・金工・和紙・漆'}
+                        </small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-          {job && job.status === 'running' ? (
-            <div className="job-live">
-              <button type="button" onClick={() => void handleCancel()}>
-                仕事を中止
-              </button>
-            </div>
+                <RepositoryPanel
+                  workspace={workspace}
+                  busy={busy}
+                  error={error}
+                  onRegister={(path) => {
+                    void handleRegister(path)
+                  }}
+                />
+
+                <JobComposer
+                  enabled={jobEnabled}
+                  busy={busy}
+                  request={request}
+                  employees={employeeList}
+                  selectedEmployeeId={selectedEmployeeId}
+                  providers={providers}
+                  selectedProvider={selectedProvider}
+                  {...(confirmation
+                    ? {
+                        confirmation: {
+                          message: confirmation.message,
+                          alternatives: confirmation.alternatives,
+                        },
+                      }
+                    : {})}
+                  notice={
+                    fakeHarness
+                      ? '開発用ハーネスです。Codex / Grok Build / Claude Code としては表示しません'
+                      : '道具を選び、ログイン済みの実行エンジンだけで仕事を始めます。自動切替はしません'
+                  }
+                  onRequestChange={setRequest}
+                  onEmployeeChange={setSelectedEmployeeId}
+                  onProviderChange={setSelectedProvider}
+                  onSubmit={(value) => {
+                    void handleSubmitJob(value)
+                  }}
+                  onConfirmFallback={(providerId) => {
+                    const pending = confirmation?.request ?? request
+                    setSelectedProvider(providerId)
+                    setConfirmation(null)
+                    void handleSubmitJobWithFallback(pending, providerId)
+                  }}
+                  onCancelConfirmation={() => {
+                    setConfirmation(null)
+                  }}
+                />
+
+                <CurrentJob
+                  job={job}
+                  presence={presence}
+                  employeeName={gardenEmployeeName}
+                  busy={busy}
+                  onCancel={() => {
+                    void handleCancel()
+                  }}
+                />
+
+                <div className="garden-peek">
+                  <button
+                    type="button"
+                    className="washi-tab"
+                    onClick={() => {
+                      setEmployeeDrawerOpen(true)
+                    }}
+                  >
+                    {selectedEmployee?.name ?? gardenEmployeeName}を確認する
+                  </button>
+                  <a className="washi-tab" href="#artifacts">
+                    成果を受け取る
+                  </a>
+                  <a className="washi-tab" href="#settings">
+                    設定
+                  </a>
+                </div>
+
+                <ArtifactShelf artifacts={artifacts} />
+              </section>
+            </>
           ) : null}
 
-          <ArtifactShelf artifacts={artifacts} />
-        </section>
-      </main>
+          {screen === 'artifacts' ? (
+            <section className="garden-controls">
+              <ArtifactShelf artifacts={artifacts} />
+            </section>
+          ) : null}
+
+          {screen === 'employees' ? (
+            <section className="garden-controls" id="employees">
+              <p className="section-kicker">庭の住人</p>
+              <h2>AI社員</h2>
+              <ul className="employee-index">
+                {employeeList.map((employee) => (
+                  <li key={employee.id}>
+                    <button
+                      type="button"
+                      className="washi-tab"
+                      onClick={() => {
+                        setSelectedEmployeeId(employee.id)
+                        setEmployeeDrawerOpen(true)
+                      }}
+                    >
+                      <span>{employee.name}</span>
+                      <small>{employee.role}</small>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {screen === 'settings' ? (
+            <section className="garden-controls">
+              <SettingsPanel
+                workspace={workspace}
+                providers={providers}
+                busy={busy}
+                error={error}
+                onRegister={(path) => {
+                  void handleRegister(path)
+                }}
+                onWorkspaceProviderChange={(providerId) => {
+                  if (!workspace) {
+                    return
+                  }
+                  void updateWorkspace(workspace.id, providerId).then(
+                    setWorkspace,
+                  )
+                }}
+              />
+            </section>
+          ) : null}
+        </main>
+      ) : null}
+
+      <ApprovalPanel
+        approvals={approvals}
+        employeeName={gardenEmployeeName}
+        busy={busy}
+        onResolve={(id, decision) => {
+          void handleResolve(id, decision)
+        }}
+        onCancelJob={() => {
+          void handleCancel()
+        }}
+      />
+
+      <EmployeeDrawer
+        employee={selectedEmployee}
+        recentJobs={recentJobs}
+        providers={providers}
+        open={employeeDrawerOpen}
+        busy={busy}
+        onClose={() => {
+          setEmployeeDrawerOpen(false)
+        }}
+        onDefaultProviderChange={(providerId) => {
+          if (!selectedEmployee) {
+            return
+          }
+          void updateEmployeeDefaultProvider(
+            selectedEmployee.id,
+            providerId,
+          ).then((updated) => {
+            setEmployees((current) =>
+              current.map((employee) =>
+                employee.id === updated.id ? updated : employee,
+              ),
+            )
+          })
+        }}
+      />
 
       <footer>
         <p>
-          この画面はPhase 5〜7です。Codex / Grok Build / Claude Code
-          を道具として選べます。利用できない道具へは自動で切り替えず、確認してから別の仕事として始めます。
+          庭だけで頼む・確認する・受け取る。偽の進捗は出しません。社員は資料棚・望遠鏡・作業台・納品台のあいだを移ります。
         </p>
         <span>Shikumi Local · 127.0.0.1</span>
       </footer>
@@ -436,22 +720,31 @@ function latestSummary(events: readonly PersistedEvent[]): string | null {
   return null
 }
 
-function statusLabel(status: Job['status']): string {
-  switch (status) {
-    case 'waiting_for_user':
-      return 'あなたの確認を待っています'
-    case 'running':
-    case 'preparing':
-      return '仕事を進めています'
-    case 'completed':
-      return '調査が完了しました'
-    case 'failed':
-      return '調査を完了できませんでした'
-    case 'cancelled':
-      return '仕事を中止しました'
-    case 'completed_with_invalid_result':
-      return '結果の形式が正しくありません'
-    default:
-      return 'まだ仕事は始まっていません'
+function readScreen(): Screen {
+  const hash = window.location.hash.replace('#', '')
+  if (hash === 'artifacts' || hash === 'employees' || hash === 'settings') {
+    return hash
+  }
+  return 'garden'
+}
+
+function toGardenStateMap(input: {
+  states: Record<string, { station: string; pose: string; summary: string }>
+  eventBindings: Record<string, string>
+}): GardenStateMap {
+  const states: Record<string, GardenStateMap['states'][string]> = {}
+  for (const [name, state] of Object.entries(input.states)) {
+    if (!isGardenStationId(state.station)) {
+      continue
+    }
+    states[name] = {
+      station: state.station,
+      pose: state.pose,
+      summary: state.summary,
+    }
+  }
+  return {
+    states,
+    eventBindings: input.eventBindings,
   }
 }

@@ -1,0 +1,15 @@
+metrics:
+  - id: research_completed
+    label: 調査完了
+    incrementOn: job.completed
+  - id: sources_compared
+    label: 出典比較
+    incrementOn: comparison.completed
+
+levels:
+  - level: 1
+    threshold: 0
+  - level: 2
+    threshold: 5
+  - level: 3
+    threshold: 18

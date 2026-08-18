@@ -1,18 +1,22 @@
 import type { FormEvent } from 'react'
-import type { Provider, ProviderId } from '@sikumi-local/core'
+import type { EmployeeSummary, ProviderId } from '@sikumi-local/core'
+import type { ProviderAvailability } from '../api/providers'
 
 interface JobComposerProps {
   readonly enabled: boolean
   readonly busy: boolean
   readonly request: string
   readonly notice: string
-  readonly providers: readonly Provider[]
+  readonly employees: readonly EmployeeSummary[]
+  readonly selectedEmployeeId: string
+  readonly providers: readonly ProviderAvailability[]
   readonly selectedProvider: ProviderId | 'auto'
   readonly confirmation?: {
     readonly message: string
     readonly alternatives: readonly ProviderId[]
   }
   readonly onRequestChange: (value: string) => void
+  readonly onEmployeeChange: (value: string) => void
   readonly onProviderChange: (value: ProviderId | 'auto') => void
   readonly onSubmit: (request: string) => void
   readonly onConfirmFallback: (providerId: ProviderId) => void
@@ -24,15 +28,22 @@ export function JobComposer({
   busy,
   request,
   notice,
+  employees,
+  selectedEmployeeId,
   providers,
   selectedProvider,
   confirmation,
   onRequestChange,
+  onEmployeeChange,
   onProviderChange,
   onSubmit,
   onConfirmFallback,
   onCancelConfirmation,
 }: JobComposerProps) {
+  const selected =
+    employees.find((employee) => employee.id === selectedEmployeeId) ??
+    employees[0]
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (enabled && !busy && request.trim().length > 0) {
@@ -48,8 +59,27 @@ export function JobComposer({
     >
       <div className="job-composer__intro">
         <p className="section-kicker">仕事の入口</p>
-        <h2>サグルに何を調べてもらいますか</h2>
+        <h2>
+          {selected ? `${selected.name}に何を頼みますか` : '誰に頼みますか'}
+        </h2>
       </div>
+      <label>
+        <span>担当</span>
+        <select
+          aria-label="担当"
+          value={selectedEmployeeId}
+          disabled={busy || employees.length === 0}
+          onChange={(event) => {
+            onEmployeeChange(event.target.value)
+          }}
+        >
+          {employees.map((employee) => (
+            <option key={employee.id} value={employee.id}>
+              {employee.name} · {employee.role}
+            </option>
+          ))}
+        </select>
+      </label>
       <label>
         <span>道具</span>
         <select
@@ -64,8 +94,7 @@ export function JobComposer({
           <option value="auto">この工房の標準 / 提案</option>
           {providers.map((provider) => (
             <option key={provider.id} value={provider.id}>
-              {provider.displayName}
-              {provider.executionConnected ? ' ✓' : ' ×'}
+              {provider.displayName} · {statusLabel(provider, selected)}
             </option>
           ))}
         </select>
@@ -120,6 +149,32 @@ export function JobComposer({
       </div>
     </form>
   )
+}
+
+export function statusLabel(
+  provider: ProviderAvailability,
+  employee?: EmployeeSummary,
+): string {
+  if (employee) {
+    const missing = employee.requiredProviderCapabilities.some(
+      (key) => !provider.capabilities.includes(key),
+    )
+    if (provider.installed && missing && provider.capabilities.length > 0) {
+      return 'この仕事に必要な権限へ対応していません'
+    }
+  }
+  switch (provider.status) {
+    case 'ready':
+      return '使用できます'
+    case 'login_required':
+      return 'ログインが必要です'
+    case 'not_installed':
+      return 'インストールされていません'
+    case 'capability_mismatch':
+      return 'この仕事に必要な権限へ対応していません'
+    default:
+      return provider.executionConnected ? '使用できます' : '実行エンジン未接続'
+  }
 }
 
 function labelFor(id: ProviderId): string {

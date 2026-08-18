@@ -17,6 +17,8 @@ const artifactResponseSchema = z.object({ artifact: artifactSchema })
 
 export async function createJob(input: {
   workspaceId: string
+  employeeId?: string
+  jobType?: string
   request: string
   selectedProvider?: Job['selectedProvider']
   confirmFallbackProvider?: Job['selectedProvider']

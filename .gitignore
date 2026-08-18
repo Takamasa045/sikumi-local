@@ -10,3 +10,4 @@ test-results/
 .env.*
 !.env.example
 .sikumi-local/
+tmp/

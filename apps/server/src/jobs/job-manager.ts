@@ -11,13 +11,22 @@ import {
   type RuntimeProviderId,
 } from '@sikumi-local/core'
 import { createFakeProvider } from '@sikumi-local/provider-fake'
-import { resolveProviderSelection } from '@sikumi-local/provider-sdk'
+import { compileJobPrompt } from '@sikumi-local/employee-sdk'
+import {
+  capabilitiesMissing,
+  resolveProviderSelection,
+} from '@sikumi-local/provider-sdk'
 import type {
   AgentProviderAdapter,
   ApprovalDecision,
   CanonicalEvent,
+  ProviderCapabilities,
   ProviderRunHandle,
 } from '@sikumi-local/provider-sdk'
+import {
+  createEmployeeRegistry,
+  type EmployeeRegistry,
+} from '../employees/registry.js'
 import {
   assertRegisteredCwd,
   registeredRepositoryRoots,
@@ -33,6 +42,7 @@ import { createEventHub, type EventHub } from './event-hub.js'
 
 export interface CreateJobInput {
   readonly workspaceId: string
+  readonly employeeId?: string
   readonly request: string
   readonly jobType?: string
   readonly selectedProvider?: RuntimeProviderId
@@ -62,6 +72,10 @@ export interface JobManager {
     jobId: string,
     listener: (event: PersistedEvent) => void,
   ): () => void
+  subscribeAll(listener: (event: PersistedEvent) => void): () => void
+  listAllEvents(): PersistedEvent[]
+  jobSubscriberCount(jobId: string): number
+  globalSubscriberCount(): number
   dispose(): Promise<void>
 }
 
@@ -83,10 +97,18 @@ export function createJobManager(
     readonly liveProviderRuns?: boolean
     readonly adapter?: AgentProviderAdapter
     readonly registry?: ProviderRegistry
+    readonly employees?: EmployeeRegistry
     readonly dataDirectory?: string
   },
 ): JobManager {
   const hub: EventHub = createEventHub()
+  const employees =
+    options.employees ??
+    createEmployeeRegistry({
+      ...(options.dataDirectory
+        ? { dataDirectory: options.dataDirectory }
+        : {}),
+    })
   const activeJobs = new Map<string, ActiveJob>()
   const approvalLocks = new Map<string, Promise<void>>()
   const liveProviderRuns = resolveLiveProviderRunsEnabled(
@@ -107,11 +129,35 @@ export function createJobManager(
         throw new AppError('NOT_FOUND', 'Workspaceが見つかりません', 404)
       }
 
-      const employee = store.ensureDefaultEmployee()
+      employees.refresh()
+      employees.syncToStore(store)
+      const listed = employees.list()
+      if (listed.length === 0) {
+        throw new AppError('NOT_FOUND', 'AI社員が見つかりません', 404)
+      }
+      const definition = input.employeeId
+        ? employees.get(input.employeeId)
+        : listed[0]!
+      const pack = employees.getPack(definition.id)
+      const persisted = store.getEmployee(definition.id)
+      const jobType = input.jobType ?? 'research'
+      if (!definition.supportedJobTypes.includes(jobType)) {
+        throw new AppError(
+          'UNSUPPORTED_JOB_TYPE',
+          'この社員はこの仕事を受けられません',
+          400,
+        )
+      }
       if (options.registry) {
         await options.registry.ensureProbed()
       }
       const available = listAvailableIds(options, liveProviderRuns)
+      const employeeDefault = resolveEmployeeDefault(
+        persisted?.defaultProviderId ?? null,
+        definition.defaultProviderOrder,
+        options.fakeHarnessEnabled,
+        available,
+      )
       const selection = resolveProviderSelection({
         ...(input.selectedProvider
           ? { jobOverride: input.selectedProvider }
@@ -119,7 +165,7 @@ export function createJobManager(
         ...(input.confirmFallbackProvider
           ? { confirmFallbackProvider: input.confirmFallbackProvider }
           : {}),
-        employeeDefault: employee.defaultProviderId,
+        employeeDefault,
         workspaceDefault: workspace.defaultProviderId,
         fakeHarnessEnabled: options.fakeHarnessEnabled,
         available,
@@ -161,14 +207,20 @@ export function createJobManager(
       }
 
       const cwd = assertRegisteredCwd(store, workspace.repository.absolutePath)
-      const permissionProfile = input.permissionProfile ?? 'research'
+      const permissionProfile =
+        input.permissionProfile ?? definition.permissionProfile
+      await assertProviderCapabilities(
+        adapter,
+        definition.requiredProviderCapabilities,
+        selection.providerId,
+      )
       const now = new Date().toISOString()
       const job = store.insertJob({
         id: randomUUID(),
         workspaceId: workspace.id,
-        employeeId: employee.id,
+        employeeId: definition.id,
         request: input.request,
-        jobType: input.jobType ?? 'research',
+        jobType,
         selectedProvider: selection.providerId,
         selectedModel: input.selectedModel ?? null,
         permissionProfile,
@@ -198,10 +250,11 @@ export function createJobManager(
           jobId: job.id,
           runId: run.id,
           workspaceId: workspace.id,
-          employeeId: employee.id,
+          employeeId: definition.id,
           cwd,
-          prompt: input.request,
+          prompt: compileJobPrompt(pack.compiled, input.request),
           permissionProfile,
+          outputSchema: pack.resultSchema,
           environment: providerApiKeyEnvironment(selection.providerId),
           ...(options.dataDirectory
             ? { dataDirectory: options.dataDirectory }
@@ -254,6 +307,13 @@ export function createJobManager(
       const active = activeJobs.get(id)
       if (active) {
         await active.adapter.cancelRun(active.runId)
+        persistEvent(store, hub, {
+          jobId: id,
+          runId: active.runId,
+          type: 'run.cancelled',
+          payload: { summary: '仕事を中止しました' },
+          occurredAt: new Date().toISOString(),
+        })
         finishJob(store, id, active.runId, 'cancelled')
       } else {
         const run = store.listRuns(id)[0]
@@ -348,6 +408,22 @@ export function createJobManager(
       return hub.subscribe(jobId, listener)
     },
 
+    subscribeAll(listener) {
+      return hub.subscribeAll(listener)
+    },
+
+    listAllEvents() {
+      return store.listAllEvents()
+    },
+
+    jobSubscriberCount(jobId) {
+      return hub.jobSubscriberCount(jobId)
+    },
+
+    globalSubscriberCount() {
+      return hub.globalSubscriberCount()
+    },
+
     async dispose() {
       await Promise.all(
         [...activeJobs.values()].map((active) =>
@@ -427,6 +503,7 @@ async function startProviderRun(input: {
   readonly environment: Record<string, string>
   readonly selectedModel?: string
   readonly dataDirectory?: string
+  readonly outputSchema?: Record<string, unknown>
 }): Promise<void> {
   const handle = await input.adapter.startRun({
     runId: input.runId,
@@ -438,7 +515,7 @@ async function startProviderRun(input: {
     environment: input.environment,
     allowedCwdRoots: registeredRepositoryRoots(input.store),
     ...(input.selectedModel ? { model: input.selectedModel } : {}),
-    outputSchema: {
+    outputSchema: input.outputSchema ?? {
       type: 'object',
       properties: {
         title: { type: 'string' },
@@ -698,6 +775,53 @@ function isTerminalRun(status: string): boolean {
     status === 'cancelled' ||
     status === 'orphaned'
   )
+}
+
+function resolveEmployeeDefault(
+  stored: import('@sikumi-local/core').ProviderId | null,
+  order: readonly import('@sikumi-local/core').ProviderId[],
+  fakeHarnessEnabled: boolean,
+  available: readonly RuntimeProviderId[],
+): import('@sikumi-local/core').ProviderId | null {
+  if (stored) {
+    return stored
+  }
+  if (fakeHarnessEnabled) {
+    return null
+  }
+  const preferredAvailable = order.find((id) => available.includes(id))
+  if (preferredAvailable) {
+    return preferredAvailable
+  }
+  if (available.length > 0 && order[0]) {
+    return order[0]
+  }
+  return null
+}
+
+async function assertProviderCapabilities(
+  adapter: AgentProviderAdapter,
+  required: readonly (keyof ProviderCapabilities)[],
+  providerId: RuntimeProviderId,
+): Promise<void> {
+  if (providerId === 'fake') {
+    return
+  }
+  let capabilities: ProviderCapabilities
+  try {
+    capabilities = await adapter.getCapabilities()
+  } catch {
+    return
+  }
+  const missing = capabilitiesMissing(required, capabilities)
+  if (missing.length > 0) {
+    throw new AppError(
+      'PROVIDER_CAPABILITY_MISMATCH',
+      'この仕事に必要な権限へ対応していません',
+      409,
+      { missing },
+    )
+  }
 }
 
 function displayProvider(id: RuntimeProviderId): string {

@@ -4,9 +4,12 @@ import {
   approvalStatuses,
   artifactTypes,
   jobStatuses,
+  gardenStationIds,
   packKinds,
   permissionProfileIds,
+  providerCapabilityKeys,
   providerIds,
+  employeeSources,
   providerSessionStatuses,
   runStatuses,
   runtimeProviderIds,
@@ -43,6 +46,23 @@ export const providerSchema = z.object({
   executionConnected: z.boolean(),
 })
 
+export const providerAvailabilityStatuses = [
+  'ready',
+  'login_required',
+  'not_installed',
+  'capability_mismatch',
+  'disconnected',
+] as const
+
+export const providerAvailabilitySchema = providerSchema.extend({
+  installed: z.boolean().default(false),
+  authenticated: z.boolean().default(false),
+  status: z.enum(providerAvailabilityStatuses).default('disconnected'),
+  capabilities: z.array(z.enum(providerCapabilityKeys)).default([]),
+})
+
+export type ProviderAvailability = z.infer<typeof providerAvailabilitySchema>
+
 export const employeeSchema = z.object({
   id: z.string().min(1),
   packId: z.string().min(1),
@@ -51,6 +71,25 @@ export const employeeSchema = z.object({
   defaultProviderId: z.enum(providerIds).nullable(),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
+})
+
+export const employeeSummarySchema = employeeSchema.extend({
+  description: z.string().min(1),
+  version: z.string().min(1),
+  permissionProfile: z.enum(permissionProfileIds),
+  supportedJobTypes: z.array(z.string().min(1)).min(1),
+  defaultProviderOrder: z.array(z.enum(providerIds)).min(1),
+  requiredProviderCapabilities: z.array(z.enum(providerCapabilityKeys)),
+  character: z.string().min(1),
+  source: z.enum(employeeSources),
+})
+
+export const gardenStationSchema = z.enum(gardenStationIds)
+
+export const employeeStateBindingSchema = z.object({
+  station: gardenStationSchema,
+  pose: z.string().min(1),
+  summary: z.string().min(1),
 })
 
 export const jobSchema = z.object({
@@ -153,6 +192,7 @@ export const sessionResponseSchema = z.object({
 
 export const createJobRequestSchema = z.object({
   workspaceId: z.string().trim().min(1).max(128),
+  employeeId: z.string().trim().min(1).max(128).optional(),
   request: z.string().trim().min(1).max(8000),
   jobType: z.string().trim().min(1).max(64).default('research'),
   selectedProvider: z.enum(runtimeProviderIds).optional(),

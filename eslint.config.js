@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/coverage/**',
       'playwright-report/**',
       'test-results/**',
+      'tmp/**',
     ],
   },
   eslint.configs.recommended,

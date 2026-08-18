@@ -3,8 +3,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { defineConfig, devices } from '@playwright/test'
 
-const e2eDataDirectory = mkdtempSync(join(tmpdir(), 'sikumi-local-e2e-'))
+const e2eDataDirectory =
+  process.env.SIKUMI_E2E_DATA_DIR ??
+  mkdtempSync(join(tmpdir(), 'sikumi-local-e2e-'))
 process.env.SIKUMI_E2E_DATA_DIR = e2eDataDirectory
+process.env.SIKUMI_LOCAL_DATA_DIR = e2eDataDirectory
 
 export default defineConfig({
   testDir: './e2e',

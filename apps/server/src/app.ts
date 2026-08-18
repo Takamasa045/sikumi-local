@@ -8,10 +8,13 @@ import Fastify, { type FastifyInstance } from 'fastify'
 import { ZodError } from 'zod'
 import { registerApprovalRoutes } from './api/approvals.js'
 import { registerArtifactRoutes } from './api/artifacts.js'
+import { registerEmployeeRoutes } from './api/employees.js'
+import { registerEventRoutes } from './api/events.js'
 import { registerJobRoutes } from './api/jobs.js'
 import { registerProviderRoutes } from './api/providers.js'
 import { registerSessionRoutes } from './api/session.js'
 import { registerWorkspaceRoutes } from './api/workspaces.js'
+import { createEmployeeRegistry } from './employees/registry.js'
 import { createJobManager } from './jobs/job-manager.js'
 import {
   createProviderRegistry,
@@ -55,10 +58,16 @@ export function buildApp(options: AppOptions): FastifyInstance {
       fakeHarnessEnabled,
       liveProviderRuns,
     })
+  const employees = createEmployeeRegistry({
+    dataDirectory: options.dataDirectory,
+  })
+  employees.refresh()
+  employees.syncToStore(store)
   const jobs = createJobManager(store, {
     fakeHarnessEnabled,
     liveProviderRuns,
     registry,
+    employees,
     dataDirectory: options.dataDirectory,
   })
   const app = Fastify({
@@ -118,7 +127,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
   app.get('/api/health', async () => ({
     ok: true,
     product: 'Shikumi Local',
-    phase: 'provider-adapters',
+    phase: 'employee-garden',
     bind: '127.0.0.1',
     persistence: 'sqlite',
     providerExecution: liveProviderRuns ? 'registry' : 'disconnected',
@@ -142,7 +151,9 @@ export function buildApp(options: AppOptions): FastifyInstance {
   registerSessionRoutes(app, security.sessionToken)
   registerWorkspaceRoutes(app, store)
   registerProviderRoutes(app, store, registry, { liveProviderRuns })
-  registerJobRoutes(app, jobs)
+  registerEmployeeRoutes(app, store, employees)
+  registerJobRoutes(app, jobs, security)
+  registerEventRoutes(app, jobs, security)
   registerApprovalRoutes(app, jobs)
   registerArtifactRoutes(app, jobs)
 

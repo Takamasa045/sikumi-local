@@ -1,13 +1,15 @@
 import {
-  providerSchema,
-  type Provider,
+  providerAvailabilitySchema,
+  type ProviderAvailability as SchemaProviderAvailability,
   type ProviderId,
 } from '@sikumi-local/core'
 import { z } from 'zod'
 import { authorizedHeaders, toApiError, writeWithCsrfRetry } from './session.js'
 
+export type ProviderAvailability = SchemaProviderAvailability
+
 const providerListSchema = z.object({
-  providers: z.array(providerSchema),
+  providers: z.array(providerAvailabilitySchema),
   executionConnected: z.boolean(),
   fakeHarness: z.boolean().optional(),
 })
@@ -26,7 +28,7 @@ const probeResponseSchema = z.object({
 })
 
 export interface ProviderList {
-  readonly providers: Provider[]
+  readonly providers: ProviderAvailability[]
   readonly executionConnected: boolean
   readonly fakeHarness: boolean
 }

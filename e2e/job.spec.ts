@@ -46,7 +46,9 @@ test('a garden job can be approved through the fake harness to an artifact', asy
   await expect(page.getByTestId('artifact-shelf')).toContainText('調査メモ', {
     timeout: 15_000,
   })
-  await expect(page.getByText('調査が完了しました')).toBeVisible()
+  await expect(
+    page.getByTestId('world-stage').getByText('調査が完了しました'),
+  ).toBeVisible({ timeout: 15_000 })
 })
 
 function createTemporaryGitRepository(): string {

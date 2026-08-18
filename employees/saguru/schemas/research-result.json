@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "properties": {
+    "title": { "type": "string" },
+    "summary": { "type": "string" },
+    "findings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "sources": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "required": ["title", "summary"],
+  "additionalProperties": false
+}

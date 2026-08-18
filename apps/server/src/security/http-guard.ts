@@ -77,6 +77,23 @@ export function createSessionCookie(token: string): string {
   return `${SESSION_COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Strict`
 }
 
+export function assertSseAllowed(
+  request: FastifyRequest,
+  config: SecurityConfig,
+): void {
+  const cookieToken = readCookie(request.headers.cookie, SESSION_COOKIE_NAME)
+  if (!cookieToken || !sameToken(cookieToken, config.sessionToken)) {
+    throw new AppError(
+      'CSRF_REJECTED',
+      'Session token is missing or invalid',
+      403,
+    )
+  }
+  if (request.headers.origin) {
+    assertAllowedOrigin(request.headers.origin, config.allowedOrigins)
+  }
+}
+
 export function createRequestGuard(config: SecurityConfig) {
   const windows = new Map<string, { windowStart: number; count: number }>()
 

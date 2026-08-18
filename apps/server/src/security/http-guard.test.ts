@@ -6,6 +6,7 @@ import {
   assertAllowedHost,
   assertAllowedOrigin,
   assertCsrfToken,
+  assertSseAllowed,
   createSessionCookie,
   createSessionToken,
   defaultAllowedHosts,
@@ -96,5 +97,35 @@ describe('http guard primitives', () => {
     expect(isWriteMethod('POST')).toBe(true)
     expect(isWriteMethod('GET')).toBe(false)
     expect(CSRF_HEADER_NAME).toBe('x-csrf-token')
+  })
+
+  it('requires a session cookie for SSE and rejects a foreign Origin', () => {
+    const token = createSessionToken()
+    const config = resolveSecurityConfig({ sessionToken: token })
+    expect(() =>
+      assertSseAllowed(
+        {
+          headers: {
+            cookie: `${SESSION_COOKIE_NAME}=${token}`,
+            origin: 'http://127.0.0.1:5184',
+          },
+        } as never,
+        config,
+      ),
+    ).not.toThrow()
+    expect(() => assertSseAllowed({ headers: {} } as never, config)).toThrow(
+      AppError,
+    )
+    expect(() =>
+      assertSseAllowed(
+        {
+          headers: {
+            cookie: `${SESSION_COOKIE_NAME}=${token}`,
+            origin: 'http://evil.example',
+          },
+        } as never,
+        config,
+      ),
+    ).toThrow(AppError)
   })
 })

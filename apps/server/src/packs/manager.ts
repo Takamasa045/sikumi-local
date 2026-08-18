@@ -298,7 +298,11 @@ export function uninstallPack(input: {
 
 export function uninstallBackupPath(
   dataDirectory: string,
-  pack: { readonly kind: PackKind; readonly packId: string; readonly id: string },
+  pack: {
+    readonly kind: PackKind
+    readonly packId: string
+    readonly id: string
+  },
 ): string {
   return join(
     dataDirectory,

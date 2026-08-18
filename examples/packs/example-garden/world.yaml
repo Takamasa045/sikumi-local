@@ -1,0 +1,6 @@
+schemaVersion: 1
+id: example-garden
+name: 見本の庭
+version: 1.0.0
+kind: world
+description: Pack導入の見本Worldです。CoreやGardenの改修なしでフォルダimportできます。

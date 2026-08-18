@@ -1,0 +1,32 @@
+states:
+  idle:
+    station: rest
+    pose: idle
+    summary: まだ仕事は始まっていません
+  reading_repository:
+    station: archive
+    pose: reading
+    summary: この工房の資料を読んでいます
+  delivering:
+    station: delivery
+    pose: delivering
+    summary: 気づきを納品台へ運んでいます
+  completed:
+    station: delivery
+    pose: completed
+    summary: 見守りが完了しました
+  failed:
+    station: rest
+    pose: failed
+    summary: 見守りを完了できませんでした
+  cancelled:
+    station: rest
+    pose: cancelled
+    summary: 仕事を中止しました
+
+eventBindings:
+  repository.read: reading_repository
+  artifact.created: delivering
+  run.completed: completed
+  run.failed: failed
+  run.cancelled: cancelled

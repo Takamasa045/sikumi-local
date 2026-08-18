@@ -182,7 +182,7 @@ function readLocalFile(
   } else {
     throw packError('Unsupported zip compression method')
   }
-  if ((crc32(output) >>> 0) !== expected.crc) {
+  if (crc32(output) >>> 0 !== expected.crc) {
     throw packError('Zip CRC mismatch')
   }
   return output

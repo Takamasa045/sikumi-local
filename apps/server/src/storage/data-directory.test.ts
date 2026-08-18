@@ -1,7 +1,14 @@
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { databaseFilePath, resolveDataDirectory } from './data-directory.js'
+import {
+  backupsDirectory,
+  DATA_LAYOUT_MARKER,
+  databaseFilePath,
+  exportsDirectory,
+  layoutMarkerPath,
+  resolveDataDirectory,
+} from './data-directory.js'
 
 describe('resolveDataDirectory', () => {
   it('prefers the explicit environment override', () => {
@@ -17,6 +24,15 @@ describe('resolveDataDirectory', () => {
   it('places the sqlite file inside the data directory', () => {
     expect(databaseFilePath('/tmp/sikumi-test')).toBe(
       '/tmp/sikumi-test/database.sqlite',
+    )
+    expect(layoutMarkerPath('/tmp/sikumi-test')).toBe(
+      `/tmp/sikumi-test/${DATA_LAYOUT_MARKER}`,
+    )
+    expect(backupsDirectory('/tmp/sikumi-test')).toBe(
+      '/tmp/sikumi-test/backups',
+    )
+    expect(exportsDirectory('/tmp/sikumi-test')).toBe(
+      '/tmp/sikumi-test/exports',
     )
   })
 })

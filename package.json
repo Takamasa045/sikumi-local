@@ -21,7 +21,13 @@
     "test:smoke": "node scripts/smoke-compiled-server.mjs",
     "audit": "node scripts/audit.mjs",
     "setup": "node scripts/setup.mjs",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "reset": "node scripts/reset.mjs",
+    "export": "node scripts/export.mjs",
+    "import": "node scripts/import.mjs",
+    "data:export": "node scripts/export.mjs",
+    "data:import": "node scripts/import.mjs",
+    "data:reset": "node scripts/reset.mjs"
   },
   "devDependencies": {
     "@eslint/js": "latest",

@@ -150,7 +150,9 @@ describe('real git worktree isolation', () => {
       createdAt: 't',
     })
     writeFileSync(join(dataDirectory, 'note.txt'), 'note\n')
-    expect(() => manager.applyArtifact(report.id, true)).toThrow(/適用できません/)
+    expect(() => manager.applyArtifact(report.id, true)).toThrow(
+      /適用できません/,
+    )
   })
 
   it('refuses apply and discard while the write job is still running', async () => {
@@ -444,7 +446,10 @@ describe('real git worktree isolation', () => {
     ).toBe(false)
 
     rmSync(join(worktreeAbs, '.env'))
-    writeFileSync(join(worktreeAbs, 'notes.txt'), 'TOKEN=sk-live-secret-value\n')
+    writeFileSync(
+      join(worktreeAbs, 'notes.txt'),
+      'TOKEN=sk-live-secret-value\n',
+    )
     expect(() =>
       collectWorktreeDiff({
         repositoryPath: repoPath,
@@ -533,9 +538,9 @@ describe('real git worktree isolation', () => {
       storagePath: reportPath,
       createdAt: 't',
     })
-    expect(() =>
-      manager.exportArtifact('missing-artifact', true),
-    ).toThrow(/成果/)
+    expect(() => manager.exportArtifact('missing-artifact', true)).toThrow(
+      /成果/,
+    )
     expect(() => manager.exportArtifact('art-report', true)).toThrow(
       /書き出せません/,
     )

@@ -78,6 +78,20 @@ export interface AppStore {
   getWorkspace(id: string): Workspace | undefined
   findRepositoryByAbsolutePath(absolutePath: string): Repository | undefined
   createWorkspace(inspection: GitInspection): Workspace
+  importDetachedWorkspace(input: {
+    readonly id: string
+    readonly name: string
+    readonly worldPackId: string
+    readonly defaultProviderId: Workspace['defaultProviderId']
+    readonly createdAt: string
+    readonly updatedAt: string
+    readonly repository: {
+      readonly displayName: string
+      readonly currentBranch: string | null
+      readonly remoteName: string | null
+      readonly readable: boolean
+    }
+  }): Workspace
   updateWorkspace(
     id: string,
     patch: Partial<Pick<Workspace, 'defaultProviderId'>>,
@@ -248,6 +262,40 @@ export function createStore(db: AppDatabase): AppStore {
       const created = this.getWorkspace(workspaceId)
       if (!created) {
         throw new Error('Workspace was not persisted')
+      }
+      return created
+    },
+
+    importDetachedWorkspace(input) {
+      db.transaction((tx) => {
+        tx.insert(workspaces)
+          .values({
+            id: input.id,
+            name: input.name,
+            defaultProviderId: input.defaultProviderId,
+            worldPackId: input.worldPackId,
+            createdAt: input.createdAt,
+            updatedAt: input.updatedAt,
+          })
+          .run()
+        tx.insert(repositories)
+          .values({
+            id: randomUUID(),
+            workspaceId: input.id,
+            absolutePath: `unlinked:${input.id}`,
+            displayName: input.repository.displayName,
+            currentBranch: input.repository.currentBranch,
+            remoteName: input.repository.remoteName,
+            remoteUrl: null,
+            readable: false,
+            createdAt: input.createdAt,
+            updatedAt: input.updatedAt,
+          })
+          .run()
+      })
+      const created = this.getWorkspace(input.id)
+      if (!created) {
+        throw new Error('Workspace snapshot was not persisted')
       }
       return created
     },
@@ -1280,6 +1328,7 @@ function isGrowthApplicationConflict(error: unknown): boolean {
   const message = 'message' in error ? String(error.message) : String(error)
   return (
     message.includes('growth_applications') &&
-    (/SQLITE_CONSTRAINT/i.test(code) || /unique constraint failed/i.test(message))
+    (/SQLITE_CONSTRAINT/i.test(code) ||
+      /unique constraint failed/i.test(message))
   )
 }

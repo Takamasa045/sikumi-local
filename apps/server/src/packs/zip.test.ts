@@ -136,10 +136,9 @@ describe('safe zip extraction', () => {
 
     expect(() =>
       extractZipSafely(
-        buildZip(
-          [{ name: 'world.yaml', content: 'id: night\n' }],
-          { centralOffset: 0xffff },
-        ),
+        buildZip([{ name: 'world.yaml', content: 'id: night\n' }], {
+          centralOffset: 0xffff,
+        }),
         dest,
       ),
     ).toThrow(/central|bounds|invalid/)
@@ -170,7 +169,10 @@ describe('safe zip extraction', () => {
       extractZipSafely(buildZip([{ name: '.env', content: 'SECRET=1' }]), dest),
     ).toThrow(/data-only|forbidden/)
     expect(() =>
-      extractZipSafely(buildZip([{ name: '.npmrc', content: '//token' }]), dest),
+      extractZipSafely(
+        buildZip([{ name: '.npmrc', content: '//token' }]),
+        dest,
+      ),
     ).toThrow(/data-only|forbidden/)
   })
 
@@ -249,7 +251,10 @@ describe('safe zip extraction', () => {
       extractZipSafely(buildZip([{ name: 'C:abs.yaml', content: 'x' }]), dest),
     ).toThrow(/not safe/)
     expect(() =>
-      extractZipSafely(buildZip([{ name: 'foo//bar.yaml', content: 'x' }]), dest),
+      extractZipSafely(
+        buildZip([{ name: 'foo//bar.yaml', content: 'x' }]),
+        dest,
+      ),
     ).toThrow(/not safe/)
     expect(() =>
       extractZipSafely(buildZip([{ name: 'secret.pem', content: 'k' }]), dest),

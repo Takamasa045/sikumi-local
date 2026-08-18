@@ -1,0 +1,40 @@
+schemaVersion: 1
+
+id: example-observer
+name: ミルの見本
+role: 見守り担当
+version: 1.0.0
+
+description: >
+  Pack導入の見本Employeeです。
+  CoreやGardenを改修せず、フォルダimportだけで追加できます。
+
+compatibility:
+  core: '>=1'
+
+capabilities:
+  - repository.read
+  - report.create
+
+requiredProviderCapabilities:
+  - streaming
+
+permissionProfile: observe
+
+supportedJobTypes:
+  - watch
+  - repository-analysis
+
+defaultProviderOrder:
+  - codex
+  - grok-build
+  - claude-code
+
+prompts:
+  system: prompts/system.md
+  job: prompts/job.md
+
+resultSchema: schemas/watch-result.json
+stateMap: states/state-map.yaml
+growth: growth/growth.yaml
+character: example-observer-default

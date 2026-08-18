@@ -536,11 +536,7 @@ export function createJobManager(
     applyArtifact(id, confirm) {
       const artifact = this.getArtifact(id)
       if (artifact.type !== 'patch' && artifact.type !== 'code_diff') {
-        throw new AppError(
-          'VALIDATION_FAILED',
-          'この成果は適用できません',
-          400,
-        )
+        throw new AppError('VALIDATION_FAILED', 'この成果は適用できません', 400)
       }
       const job = this.getJob(artifact.jobId)
       assertTerminalWorktreeJob(job)

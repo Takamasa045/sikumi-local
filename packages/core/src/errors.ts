@@ -38,6 +38,12 @@ export const errorCodes = [
   'PACK_DUPLICATE',
   'PACK_BUILTIN_PROTECTED',
   'PACK_CREDENTIALS_FORBIDDEN',
+  'DATA_DIRECTORY_UNSAFE',
+  'RESET_REFUSED',
+  'PORTABLE_INVALID',
+  'BACKUP_FAILED',
+  'IMPORT_CONFLICT',
+  'OUTPUT_TOO_LARGE',
 ] as const
 
 export type ErrorCode = (typeof errorCodes)[number]

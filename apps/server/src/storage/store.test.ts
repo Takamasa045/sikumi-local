@@ -305,13 +305,15 @@ describe('AppStore persistence boundary', () => {
     })
     expect(firstOnce.applied).toBe(true)
     expect(racedOnce.applied).toBe(false)
-    expect(
-      store.listGrowthApplications({ jobId: 'job_atomic' }),
-    ).toHaveLength(1)
+    expect(store.listGrowthApplications({ jobId: 'job_atomic' })).toHaveLength(
+      1,
+    )
     expect(
       store
         .listGrowthRecords({ employeeId: employee.id, workspaceId: null })
-        .filter((item) => item.id === 'gr_atomic_1' || item.id === 'gr_atomic_2'),
+        .filter(
+          (item) => item.id === 'gr_atomic_1' || item.id === 'gr_atomic_2',
+        ),
     ).toHaveLength(1)
 
     expect(() =>

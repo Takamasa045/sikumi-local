@@ -72,6 +72,9 @@ function createMemoryStore(): AppStore {
         `unexpected updateWorkspace ${id} ${JSON.stringify(patch)}`,
       )
     },
+    importDetachedWorkspace: (input) => {
+      throw new Error(`unexpected importDetachedWorkspace ${input.id}`)
+    },
     createWorkspace: (inspection) => {
       const workspace: Workspace = {
         id: `ws_${workspaces.length + 1}`,

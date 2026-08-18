@@ -2,41 +2,109 @@
 
 自分の Git Repository に AI 社員が住み、仕事を頼むとローカルの AI 実行エンジンが働く、小さな庭・工房の Web アプリです。
 
-Git clone して、この README だけで起動・診断・backup/restore できます。
+## できること
 
-## 必要環境
+- 自分の Git プロジェクトを工房として登録する
+- Codex / Grok Build / Claude Code を道具としてつなぐ
+- AI 社員に日本語で仕事を頼む
+- 確認が必要な操作だけ承認する
+- 調査レポート、差分、テスト結果などを成果棚で受け取る
+- 別作業場の変更を適用する、残す、破棄する
+
+ブラウザから CLI や Git を直接操作しません。すべてはこのパソコン上の Local Server 経由です。
+
+## 必要なもの
 
 - Node.js 22以上
 - pnpm 11.9.0
 - Git
+- 使いたい AI 実行エンジンの CLI（Codex、Grok Build、Claude Code のどれか1つで足ります）
 
-## 起動
+契約、利用上限、API 課金は、各 CLI にログインしているあなた自身のアカウントに属します。Shikumi Local は認証情報を保存せず、利用料を肩代わりしません。
+
+## 最短起動
+
+この Repository は private です。clone するには GitHub へのアクセス権が必要です。
 
 ```bash
-git clone <sikumi-local-repository-url>
+git clone https://github.com/Takamasa045/sikumi-local.git
 cd sikumi-local
 pnpm install
 pnpm setup
+pnpm doctor
 pnpm start
 ```
 
-ブラウザで <http://127.0.0.1:5184> を開きます。Local Server は `127.0.0.1:4321` にのみ bind します。LAN やインターネットへは公開しません。
+ブラウザで <http://127.0.0.1:5184> を開きます。
+
+Local Server は `127.0.0.1:4321` にのみ bind します。同じパソコンのブラウザだけが使えます。LAN やスマートフォンからの遠隔操作はしません。
+
+## 初回設定
+
+1. 工房にする Git プロジェクトのフォルダを登録する。Shikumi Local 自身のフォルダではありません。
+2. 使いたい実行エンジンの CLI を入れ、ターミナルで一度ログインする。
+3. 画面の「再確認」で接続を確かめてから、AI 社員に仕事を頼む。
+
+くわしい手順は [docs/user-guide.md](docs/user-guide.md) を見てください。
+
+## 普段の起動
+
+```bash
+pnpm start
+```
 
 開発時は `pnpm dev` を使います。
 
 データは `~/.shikumi-local` に保存します。`SIKUMI_LOCAL_DATA_DIR` で場所を変えられます。必ず絶対 path を指定します。symlink は使いません。
 
-## 診断
+## AI実行エンジンの接続
+
+対応している道具は次の3つです。
+
+- Codex
+- Grok Build
+- Claude Code
+
+使いたい CLI だけ入れれば十分です。自分のアカウントでログインします。Shikumi Local は token や API key をコピーしません。
+
+まだ adapter を実装していないため、次は道具として選べません。
+
+- 任意の CLI
+- Gemini CLI
+- OpenCode
+- Cursor Cloud Agent
+- Grok Bot
+
+これは「その AI がソースを編集できない」という意味ではありません。Shikumi Local 側の接続口がない、という意味です。
+
+自動で別の道具へ切り替えることはしません。道具を変えるときは、画面で明示的に確認します。
+
+開発用ハーネス（Fake Provider）を明示的に有効にする場合:
 
 ```bash
-pnpm doctor
+SIKUMI_LOCAL_ENABLE_FAKE_PROVIDER=1 pnpm dev
 ```
 
-doctor は read-only です。秘密、token、絶対 path は表示しません。
-Node.js / pnpm / Git / SQLite / Application Data / 127.0.0.1 bind / Codex / Grok Build / Claude Code を見ます。
-通常の `pnpm test` は fixture だけで、外部 AI を呼びません。
+このとき画面には「開発用ハーネス」と「テスト実行」と出ます。実エンジンには見せません。
 
-## backup / restore
+## 基本的な使い方
+
+1. 工房（対象の Git Repository）を登録する
+2. AI 社員を選ぶ
+3. 道具を選ぶ。標準が未設定なら依頼ごとに選びます
+4. 日本語で依頼する
+5. 必要な確認だけ承認する
+6. 成果棚で結果を見る
+
+## 成果の受け取り方
+
+成果棚にはレポート、Markdown、差分、テスト結果などが並びます。
+
+- 「内容を見る」で本文を読む。HTML としては描画しません
+- Patch は現在の branch へ適用、書き出し、別作業場の保持 / 破棄ができます
+- 1 MiB を超える本文は一部だけ表示します
+
+## バックアップ
 
 ```bash
 pnpm data:export --preview
@@ -54,26 +122,32 @@ import は既定が preview です。`--confirm IMPORT` が完全一致したと
 既存データは自動 backup し、失敗したら rollback します。
 `--from` は絶対 path の通常ファイル（またはそのディレクトリ）です。symlink 祖先は拒否します。
 
-## reset
-
 ```bash
 pnpm data:reset
 pnpm data:reset --confirm RESET
 ```
 
 既定は preview です。`--confirm RESET` が完全一致しないと消しません。
-対象データディレクトリを検証し、symlink と repository 本体は拒否します。
-先に backup してから、所有エントリだけを消して layout を作り直します。
 
-## 見本 Pack
+## 困ったとき
 
-`examples/packs/example-observer` と `examples/packs/example-garden` は data-only です。
-Core / Garden を改修せず、Pack のフォルダ import で導入できます。
+```bash
+pnpm doctor
+```
 
-## 確認
+doctor は read-only です。秘密、token、絶対 path は表示しません。
+Node.js / pnpm / Git / SQLite / Application Data / 127.0.0.1 bind は必須です。
+Codex / Grok Build / Claude Code は任意です。未インストールでも doctor 全体は失敗しません。
+
+通常の `pnpm test` は fixture だけで、外部 AI を呼びません。
+
+困ったときは [docs/troubleshooting.md](docs/troubleshooting.md) を見てください。
+
+## 開発者向け確認コマンド
 
 ```bash
 pnpm lint
+pnpm format:check
 pnpm typecheck
 pnpm test
 pnpm test:coverage
@@ -81,11 +155,10 @@ pnpm build
 pnpm test:smoke
 pnpm test:e2e
 pnpm run audit
+pnpm doctor
 ```
 
-困ったときは [docs/troubleshooting.md](docs/troubleshooting.md) を見てください。
-
-## 構成
+## 内部構成
 
 ```text
 apps/web                 庭UI
@@ -98,22 +171,18 @@ packages/provider-grok   Grok ACP / streaming-json
 packages/provider-claude Claude stream-json と permission broker
 packages/provider-fake   決定的なテスト/開発用ハーネス
 examples/packs           導入見本の data-only Employee / World
-docs                     計画書、出典、troubleshooting
+docs                     計画書、出典、troubleshooting、利用者向け案内
 scripts                  setup / doctor / reset / export / import
 e2e                      Playwright受け入れテスト
 ```
 
 Process Runtime は登録済み Git Repository だけを cwd に許可します。
-Browser から CLI や Git を直接操作せず、すべて Local Server を経由します。
 再起動時に残っていた running Job は process を推測せず orphan / failed にします。
 
-開発用ハーネス（Fake Provider）を明示的に有効にする場合:
+## 見本 Pack
 
-```bash
-SIKUMI_LOCAL_ENABLE_FAKE_PROVIDER=1 pnpm dev
-```
-
-このとき画面には「開発用ハーネス / テスト実行（実エンジン未接続）」と出ます。
+`examples/packs/example-observer` と `examples/packs/example-garden` は data-only です。
+Core / Garden を改修せず、Pack のフォルダ import で導入できます。
 
 ## 初期 World Pack
 

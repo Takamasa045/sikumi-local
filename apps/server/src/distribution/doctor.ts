@@ -83,27 +83,35 @@ export async function runDoctor(
     },
     repositoryCheck(dataDirectory),
     commandCheck('Codex installed', ['--version'], false, 'codex'),
-    providerAuthCheck('Codex auth', 'codex', ['login', 'status']),
+    providerAuthCheck('Codex auth', 'codex', ['login', 'status'], 'codex'),
     protocolHelpCheck(
       'Codex protocol',
       'codex',
       ['app-server', '--help'],
       ['app-server', 'stdio'],
+      ['exec', '--help'],
     ),
-    commandCheck('Grok Build installed', ['--version'], false, 'grok'),
-    providerAuthCheck('Grok auth', 'grok', [
-      '--no-auto-update',
-      'version',
-      '--json',
-    ]),
+    commandCheck(
+      'Grok Build installed',
+      ['--no-auto-update', 'version', '--json'],
+      false,
+      'grok',
+    ),
+    providerAuthCheck('Grok auth', 'grok', ['models'], 'grok'),
     protocolHelpCheck(
       'Grok protocol',
       'grok',
       ['--no-auto-update', 'agent', 'stdio', '--help'],
       ['agent', 'stdio'],
+      ['--help'],
     ),
     commandCheck('Claude Code installed', ['--version'], false, 'claude'),
-    providerAuthCheck('Claude auth', 'claude', ['auth', 'status']),
+    providerAuthCheck(
+      'Claude auth',
+      'claude',
+      ['auth', 'status', '--json'],
+      'claude',
+    ),
     protocolHelpCheck(
       'Claude protocol',
       'claude',
@@ -239,6 +247,43 @@ function readCommandFull(
     })
   } catch {
     return null
+  }
+}
+
+function readCommandResult(
+  command: string,
+  args: readonly string[],
+): {
+  readonly found: boolean
+  readonly timedOut: boolean
+  readonly exitCode: number | null
+  readonly stdout: string
+  readonly stderr: string
+} {
+  try {
+    const stdout = doctorRuntime.execFileSync(command, [...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 4_000,
+    })
+    return {
+      found: true,
+      timedOut: false,
+      exitCode: 0,
+      stdout: String(stdout ?? ''),
+      stderr: '',
+    }
+  } catch (error) {
+    const err = error && typeof error === 'object' ? error : {}
+    const code = 'code' in err ? String(err.code) : ''
+    return {
+      found: code !== 'ENOENT',
+      timedOut: code === 'ETIMEDOUT',
+      exitCode:
+        'status' in err && typeof err.status === 'number' ? err.status : null,
+      stdout: 'stdout' in err ? String(err.stdout ?? '') : '',
+      stderr: 'stderr' in err ? String(err.stderr ?? '') : '',
+    }
   }
 }
 
@@ -378,14 +423,33 @@ function providerAuthCheck(
   label: string,
   command: string,
   args: readonly string[],
+  kind: 'codex' | 'grok' | 'claude' = 'codex',
 ): DoctorCheck {
-  const output = readCommand(command, args)
-  return {
-    label,
-    status: output ? 'ok' : 'warn',
-    detail: output ?? 'not found',
-    required: false,
+  const captured = readCommandResult(command, args)
+  if (!captured.found) {
+    return { label, status: 'warn', detail: 'not found', required: false }
   }
+  if (captured.timedOut) {
+    return { label, status: 'warn', detail: 'unavailable', required: false }
+  }
+  const text = `${captured.stdout}\n${captured.stderr}`
+  if (kind === 'grok') {
+    return captured.exitCode === 0
+      ? { label, status: 'ok', detail: 'authenticated', required: false }
+      : { label, status: 'warn', detail: 'login required', required: false }
+  }
+  if (kind === 'claude') {
+    if (/"loggedIn"\s*:\s*true/i.test(text)) {
+      return { label, status: 'ok', detail: 'authenticated', required: false }
+    }
+    return { label, status: 'warn', detail: 'login required', required: false }
+  }
+  const authenticated = /logged in|chatgpt|api key/i.test(text)
+  const unauthenticated = /not logged in|logged out|unauth/i.test(text)
+  if (authenticated && !unauthenticated) {
+    return { label, status: 'ok', detail: 'authenticated', required: false }
+  }
+  return { label, status: 'warn', detail: 'login required', required: false }
 }
 
 function protocolHelpCheck(
@@ -393,6 +457,7 @@ function protocolHelpCheck(
   command: string,
   args: readonly string[],
   needles: readonly string[],
+  extra?: readonly string[],
 ): DoctorCheck {
   const output = readCommandFull(command, args)
   if (!output) {
@@ -400,10 +465,29 @@ function protocolHelpCheck(
   }
   const lower = output.toLowerCase()
   const matched = needles.some((needle) => lower.includes(needle.toLowerCase()))
+  if (!matched) {
+    return {
+      label,
+      status: 'warn',
+      detail: 'help missing expected flags',
+      required: false,
+    }
+  }
+  if (extra) {
+    const extraOutput = readCommandFull(command, extra)
+    if (!extraOutput) {
+      return {
+        label,
+        status: 'warn',
+        detail: 'protocol unsupported',
+        required: false,
+      }
+    }
+  }
   return {
     label,
-    status: matched ? 'ok' : 'warn',
-    detail: matched ? 'help available' : 'help missing expected flags',
+    status: 'ok',
+    detail: 'help available',
     required: false,
   }
 }

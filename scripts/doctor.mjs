@@ -6,6 +6,10 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { assertSafeDataDirectoryInput } from './lib/data-directory-policy.mjs'
+import {
+  diagnoseProvider,
+  formatProviderDoctorLines,
+} from './lib/provider-diagnostics.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -192,35 +196,9 @@ const checks = [
     repositoryDetail === 'none registered' ? null : repositoryDetail,
     false,
   ],
-  ['Codex installed', command('codex'), false],
-  ['Codex auth', command('codex', ['login', 'status']), false],
-  [
-    'Codex protocol',
-    helpAvailable('codex', ['app-server', '--help'], ['app-server', 'stdio']),
-    false,
-  ],
-  ['Grok Build installed', command('grok'), false],
-  [
-    'Grok auth',
-    command('grok', ['--no-auto-update', 'version', '--json']),
-    false,
-  ],
-  [
-    'Grok protocol',
-    helpAvailable(
-      'grok',
-      ['--no-auto-update', 'agent', 'stdio', '--help'],
-      ['agent', 'stdio'],
-    ),
-    false,
-  ],
-  ['Claude Code installed', command('claude'), false],
-  ['Claude auth', command('claude', ['auth', 'status']), false],
-  [
-    'Claude protocol',
-    helpAvailable('claude', ['--help'], ['stream-json', 'output-format']),
-    false,
-  ],
+  ...formatProviderDoctorLines(await diagnoseProvider('codex')),
+  ...formatProviderDoctorLines(await diagnoseProvider('grok')),
+  ...formatProviderDoctorLines(await diagnoseProvider('claude')),
   [
     'Codex sandbox',
     helpAvailable('codex', ['exec', '--help'], ['sandbox']),
@@ -255,7 +233,12 @@ console.log('')
 let requiredMissing = false
 for (const [label, value, required] of checks) {
   const warnZero = String(label).endsWith('packs') && value === '0'
-  const ok = value !== null && !warnZero
+  const warnDetail =
+    value === 'unavailable' ||
+    value === 'login required' ||
+    value === 'protocol unsupported' ||
+    value === 'not found'
+  const ok = value !== null && !warnZero && !warnDetail
   console.log(
     `${ok ? '✓' : required ? '×' : '△'} ${label}: ${value ?? 'not found'}`,
   )

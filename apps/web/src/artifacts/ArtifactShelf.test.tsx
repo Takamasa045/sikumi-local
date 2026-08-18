@@ -1,7 +1,11 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Artifact } from '@sikumi-local/core'
 import { ArtifactShelf } from './ArtifactShelf'
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
 
 describe('ArtifactShelf', () => {
   it('labels saved metadata without inventing missing body text', () => {
@@ -73,7 +77,156 @@ describe('ArtifactShelf', () => {
     expect(onKeep).toHaveBeenCalled()
     expect(onDiscard).toHaveBeenCalled()
   })
+
+  it('opens a content viewer, copies text, and closes on Escape', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    vi.stubGlobal('navigator', {
+      ...navigator,
+      clipboard: { writeText },
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          artifactId: 'report',
+          title: '調査レポート',
+          type: 'report',
+          format: 'json',
+          content: '{"summary":"完了","extra":{"ok":true}}',
+          sizeBytes: 40,
+          truncated: false,
+        }),
+      ),
+    )
+    render(
+      <ArtifactShelf artifacts={[sample('report', '調査レポート', 'x')]} />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: '内容を見る' }))
+    expect(await screen.findByTestId('artifact-viewer')).toHaveAttribute(
+      'role',
+      'dialog',
+    )
+    expect(screen.getByTestId('artifact-viewer')).toHaveAttribute(
+      'aria-modal',
+      'true',
+    )
+    expect(await screen.findByTestId('artifact-viewer-body')).toHaveTextContent(
+      '完了',
+    )
+    expect(screen.getByText('extra')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'コピー' }))
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        '{"summary":"完了","extra":{"ok":true}}',
+      )
+    })
+    expect(screen.getByText('コピーしました')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByTestId('artifact-viewer')).not.toBeInTheDocument()
+  })
+
+  it('falls back to raw text for invalid JSON and shows API errors and truncation', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.includes('broken')) {
+          return jsonResponse({
+            artifactId: 'broken',
+            title: '壊れたJSON',
+            type: 'report',
+            format: 'json',
+            content: '{not-json',
+            sizeBytes: 9,
+            truncated: false,
+          })
+        }
+        if (url.includes('missing')) {
+          return jsonResponse(
+            { error: { code: 'NOT_FOUND', message: '成果が見つかりません' } },
+            404,
+          )
+        }
+        return jsonResponse({
+          artifactId: 'huge',
+          title: '大きなメモ',
+          type: 'markdown',
+          format: 'markdown',
+          content: '# 一部',
+          sizeBytes: 2_000_000,
+          truncated: true,
+        })
+      }),
+    )
+
+    const { rerender } = render(
+      <ArtifactShelf
+        artifacts={[{ ...sample('report', '壊れたJSON', 'x'), id: 'broken' }]}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: '内容を見る' }))
+    expect(await screen.findByText('{not-json')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+
+    rerender(
+      <ArtifactShelf
+        artifacts={[{ ...sample('report', '欠落', 'x'), id: 'missing' }]}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: '内容を見る' }))
+    expect(
+      await screen.findByTestId('artifact-viewer-error'),
+    ).toHaveTextContent('成果が見つかりません')
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+
+    rerender(
+      <ArtifactShelf
+        artifacts={[{ ...sample('markdown', '大きなメモ', 'x'), id: 'huge' }]}
+      />,
+    )
+    await userEvent.click(screen.getByRole('button', { name: '内容を見る' }))
+    expect(await screen.findByText('一部のみ表示')).toBeVisible()
+    expect(await screen.findByText('# 一部')).toBeVisible()
+  })
+
+  it('shows a loading state while content is fetching', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    let resolveFetch: ((value: Response) => void) | undefined
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve
+          }),
+      ),
+    )
+    render(<ArtifactShelf artifacts={[sample('markdown', 'Markdown', 'x')]} />)
+    await userEvent.click(screen.getByRole('button', { name: '内容を見る' }))
+    expect(screen.getByTestId('artifact-viewer-loading')).toBeVisible()
+    resolveFetch?.(
+      jsonResponse({
+        artifactId: 'markdown',
+        title: 'Markdown',
+        type: 'markdown',
+        format: 'markdown',
+        content: '本文',
+        sizeBytes: 2,
+        truncated: false,
+      }),
+    )
+    expect(await screen.findByText('本文')).toBeVisible()
+  })
 })
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
 
 function sample(
   type: Artifact['type'],

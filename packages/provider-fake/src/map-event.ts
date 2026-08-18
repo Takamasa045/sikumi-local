@@ -91,6 +91,7 @@ export function mapFakeProcessEvent(
         summary,
         artifactType: asArtifactType(raw.artifactType),
         title: typeof raw.title === 'string' ? raw.title : '成果',
+        ...(typeof raw.content === 'string' ? { content: raw.content } : {}),
       }
     default:
       return {

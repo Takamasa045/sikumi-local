@@ -7,6 +7,7 @@ import {
   requiresDedicatedWorktree,
   type ApprovalRequest,
   type Artifact,
+  type ArtifactContent,
   type DirtyWorktreePolicy,
   type Job,
   type PermissionProfileId,
@@ -41,6 +42,7 @@ import {
 } from '../providers/runtime.js'
 import type { ProviderRegistry } from '../providers/registry.js'
 import { persistJobArtifactFile } from '../artifacts/persist.js'
+import { readArtifactContent } from '../artifacts/read-content.js'
 import {
   applyAcceptedArtifactGrowth,
   applyJobGrowth,
@@ -88,6 +90,7 @@ export interface JobManager {
   ): Promise<ApprovalRequest>
   listArtifacts(jobId?: string): Artifact[]
   getArtifact(id: string): Artifact
+  getArtifactContent(id: string): ArtifactContent
   describeWorktree(jobId: string): ReturnType<typeof describeJobWorktree>
   applyArtifact(id: string, confirm: true): Artifact
   exportArtifact(id: string, confirm: true): { exportRelPath: string }
@@ -513,6 +516,17 @@ export function createJobManager(
         throw new AppError('NOT_FOUND', '成果が見つかりません', 404)
       }
       return artifact
+    },
+
+    getArtifactContent(id) {
+      const artifact = this.getArtifact(id)
+      if (!options.dataDirectory) {
+        throw new AppError('NOT_FOUND', '成果の本文が見つかりません', 404)
+      }
+      return readArtifactContent({
+        artifact,
+        dataDirectory: options.dataDirectory,
+      })
     },
 
     describeWorktree(jobId) {

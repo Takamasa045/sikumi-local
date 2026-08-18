@@ -26,9 +26,11 @@ test('a garden job can be approved through the fake harness to an artifact', asy
     basename(repositoryPath),
   )
 
-  await expect(page.getByTestId('workspace-line')).toContainText(
-    'テスト実行（実エンジン未接続）',
+  await expect(page.getByTestId('workspace-line')).toContainText('テスト実行')
+  await expect(page.getByTestId('connection-badge')).toContainText(
+    '開発用ハーネス',
   )
+  await expect(page.getByTestId('first-run-guide')).toBeVisible()
 
   const request = page.getByPlaceholder(
     '例：このRepositoryの構成と改善点を調べて',
@@ -49,6 +51,20 @@ test('a garden job can be approved through the fake harness to an artifact', asy
   await expect(
     page.getByTestId('world-stage').getByText('調査が完了しました'),
   ).toBeVisible({ timeout: 15_000 })
+
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.getByRole('button', { name: '内容を見る' }).click()
+  await expect(page.getByTestId('artifact-viewer')).toBeVisible()
+  await expect(page.getByTestId('artifact-viewer-body')).toContainText(
+    'このRepositoryの構成を整理しました',
+  )
+  await page.getByRole('button', { name: 'コピー' }).click()
+  await expect(page.getByText('コピーしました')).toBeAttached()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('artifact-viewer')).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: '現在のbranchへ適用' }),
+  ).toHaveCount(0)
 })
 
 function createTemporaryGitRepository(): string {

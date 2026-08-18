@@ -24,6 +24,15 @@ describe('RepositoryPanel', () => {
     )
 
     expect(onRegister).toHaveBeenCalledWith('/Users/example/project')
+    expect(
+      screen.getByText(
+        'AI社員に作業してもらいたいGitプロジェクトのフォルダを指定してください。Shikumi Local自身のフォルダではありません。',
+      ),
+    ).toBeVisible()
+    expect(screen.getByLabelText('Repositoryの場所')).toHaveAttribute(
+      'placeholder',
+      '/Users/example/Projects/my-website',
+    )
   })
 
   it('shows inspection details after registration', () => {

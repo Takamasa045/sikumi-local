@@ -10,6 +10,7 @@ import {
 import {
   confirmWriteRequestSchema,
   createJobRequestSchema,
+  artifactContentSchema,
   healthResponseSchema,
   installPackRequestSchema,
   jobSchema,
@@ -71,6 +72,38 @@ describe('workspaceSchema', () => {
     })
 
     expect(workspace.repository.displayName).toBe('project')
+  })
+})
+
+describe('artifactContentSchema', () => {
+  it('accepts a truncated viewer payload without a storage path', () => {
+    const parsed = artifactContentSchema.parse({
+      artifactId: 'art_1',
+      title: '調査メモ',
+      type: 'report',
+      format: 'json',
+      content: '{"summary":"完了"}',
+      sizeBytes: 1_048_577,
+      truncated: true,
+    })
+    expect(parsed.format).toBe('json')
+    expect(parsed.truncated).toBe(true)
+    expect(parsed).not.toHaveProperty('storagePath')
+    expect(parsed).not.toHaveProperty('path')
+  })
+
+  it('rejects an unknown content format', () => {
+    expect(() =>
+      artifactContentSchema.parse({
+        artifactId: 'art_1',
+        title: 'notes',
+        type: 'markdown',
+        format: 'html',
+        content: '# hi',
+        sizeBytes: 4,
+        truncated: false,
+      }),
+    ).toThrow()
   })
 })
 

@@ -1,5 +1,6 @@
 import {
   AppError,
+  artifactContentSchema,
   artifactSchema,
   confirmWriteRequestSchema,
 } from '@sikumi-local/core'
@@ -30,6 +31,15 @@ export function registerArtifactRoutes(
       artifact: artifactSchema.parse(jobs.getArtifact(request.params.id)),
     }
   })
+
+  app.get<{ Params: { id: string } }>(
+    '/api/artifacts/:id/content',
+    async (request) => {
+      return artifactContentSchema.parse(
+        jobs.getArtifactContent(request.params.id),
+      )
+    },
+  )
 
   app.post<{ Params: { id: string } }>(
     '/api/artifacts/:id/apply',

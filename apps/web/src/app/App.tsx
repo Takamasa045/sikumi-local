@@ -38,7 +38,11 @@ import {
   uninstallPack,
 } from '../api/packs'
 import { openEventStream } from '../api/live'
-import { listProviders, type ProviderAvailability } from '../api/providers'
+import {
+  listProviders,
+  probeProvider,
+  type ProviderAvailability,
+} from '../api/providers'
 import {
   listWorkspaces,
   registerWorkspace,
@@ -54,6 +58,11 @@ import { CurrentJob } from '../jobs/CurrentJob'
 import { JobComposer } from '../jobs/JobComposer'
 import { SettingsPanel } from '../settings/SettingsPanel'
 import { RepositoryPanel } from '../workspace/RepositoryPanel'
+import { FirstRunGuide } from '../workspace/FirstRunGuide'
+import {
+  deriveProviderConnectionSummary,
+  type ProviderLoadState,
+} from '../providers/connection-summary'
 import './app.css'
 
 type Screen = 'garden' | 'artifacts' | 'employees' | 'settings'
@@ -64,6 +73,25 @@ export function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [fakeHarness, setFakeHarness] = useState(false)
   const [providers, setProviders] = useState<ProviderAvailability[]>([])
+  const [providerLoadState, setProviderLoadState] =
+    useState<ProviderLoadState>('loading')
+  const [providerProbeError, setProviderProbeError] = useState<string | null>(
+    null,
+  )
+  const [providerProbes, setProviderProbes] = useState<
+    Partial<
+      Record<
+        ProviderId,
+        {
+          readonly version?: string
+          readonly transport?: string
+          readonly warnings?: readonly string[]
+          readonly errors?: readonly string[]
+        }
+      >
+    >
+  >({})
+  const [hasJobs, setHasJobs] = useState(false)
   const [employees, setEmployees] = useState<EmployeeSummary[]>([])
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
   const [selectedProvider, setSelectedProvider] = useState<ProviderId | 'auto'>(
@@ -117,6 +145,15 @@ export function App() {
   const jobEnabled =
     workspace !== null &&
     (fakeHarness || providers.some((provider) => provider.executionConnected))
+  const connection = deriveProviderConnectionSummary({
+    loadState: providerLoadState,
+    providers,
+    fakeHarness,
+    defaultProviderId: workspace?.defaultProviderId ?? null,
+  })
+  const hasConnectedProvider = providers.some(
+    (provider) => provider.executionConnected,
+  )
   const presence = resolveGardenPresence({
     job,
     events,
@@ -162,12 +199,19 @@ export function App() {
       })
     void listProviders()
       .then((listed) => {
-        if (!cancelled) {
-          setProviders(listed.providers)
+        if (cancelled) {
+          return
         }
+        setProviders(listed.providers)
+        if (listed.fakeHarness) {
+          setFakeHarness(true)
+        }
+        setProviderLoadState('ready')
       })
       .catch(() => {
-        // Provider catalog can arrive after the garden is already usable.
+        if (!cancelled) {
+          setProviderLoadState('error')
+        }
       })
     void listEmployees()
       .then((listed) => {
@@ -211,7 +255,11 @@ export function App() {
     let cancelled = false
     void listJobs(workspace.id)
       .then((jobs) => {
-        if (!cancelled && jobs[0]) {
+        if (cancelled) {
+          return
+        }
+        setHasJobs(jobs.length > 0)
+        if (jobs[0]) {
           setJob(jobs[0])
         }
       })
@@ -348,6 +396,50 @@ export function App() {
     }
   }, [job?.id])
 
+  async function refreshProviders() {
+    setProviderLoadState('loading')
+    setProviderProbeError(null)
+    try {
+      const listed = await listProviders()
+      setProviders(listed.providers)
+      if (listed.fakeHarness) {
+        setFakeHarness(true)
+      }
+      setProviderLoadState('ready')
+      return listed
+    } catch (caught) {
+      setProviderLoadState('error')
+      setProviderProbeError(
+        caught instanceof Error ? caught.message : '接続状態を確認できません',
+      )
+      throw caught
+    }
+  }
+
+  async function handleRecheckProvider(id: ProviderId) {
+    setBusy(true)
+    setProviderProbeError(null)
+    try {
+      const probed = await probeProvider(id)
+      setProviderProbes((current) => ({
+        ...current,
+        [id]: {
+          ...(probed.probe.version ? { version: probed.probe.version } : {}),
+          transport: probed.probe.transport,
+          warnings: probed.probe.warnings,
+          errors: probed.probe.errors,
+        },
+      }))
+      await refreshProviders()
+    } catch (caught) {
+      setProviderProbeError(
+        caught instanceof Error ? caught.message : '再確認に失敗しました',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleRegister(path: string) {
     setBusy(true)
     setError(null)
@@ -383,6 +475,7 @@ export function App() {
         ...jobCreateFields(),
       })
       setJob(created)
+      setHasJobs(true)
       setEvents([])
       setApprovals([])
       setArtifacts([])
@@ -482,6 +575,7 @@ export function App() {
         ...jobCreateFields(),
       })
       setJob(created)
+      setHasJobs(true)
       setEvents([])
       setApprovals([])
       setArtifacts([])
@@ -511,6 +605,7 @@ export function App() {
         selectedProvider: providerId,
       })
       setJob(created)
+      setHasJobs(true)
       setEvents([])
       setApprovals([])
       setArtifacts([])
@@ -639,9 +734,15 @@ export function App() {
             設定
           </a>
         </nav>
-        <div className="connection-badge">
+        <div
+          className="connection-badge"
+          data-testid="connection-badge"
+          data-status={connection.status}
+          title={connection.badgeDetail}
+          aria-live="polite"
+        >
           <span aria-hidden="true" />
-          {fakeHarness ? '開発用ハーネス' : '実行エンジン未接続'}
+          {connection.badgeLabel}
         </div>
       </header>
 
@@ -661,13 +762,7 @@ export function App() {
             </div>
             <div>
               <span className="eyebrow">標準の道具</span>
-              <strong>
-                {fakeHarness
-                  ? 'テスト実行（実エンジン未接続）'
-                  : workspace?.defaultProviderId
-                    ? workspace.defaultProviderId
-                    : '実行エンジン未接続'}
-              </strong>
+              <strong data-testid="default-tool">{connection.toolLabel}</strong>
             </div>
           </div>
 
@@ -696,6 +791,11 @@ export function App() {
               />
 
               <section className="garden-controls" aria-label="庭の操作">
+                <FirstRunGuide
+                  hasWorkspace={workspace !== null}
+                  hasConnectedProvider={hasConnectedProvider}
+                  hasJobs={hasJobs}
+                />
                 <div className="world-selector">
                   <div>
                     <p className="section-kicker">庭の見立て</p>
@@ -916,6 +1016,12 @@ export function App() {
                     void listPacks().then(setPacks)
                     void listEmployees().then(setEmployees)
                   })
+                }}
+                providerLoadState={providerLoadState}
+                providerProbeError={providerProbeError}
+                providerProbes={providerProbes}
+                onRecheckProvider={(id) => {
+                  void handleRecheckProvider(id)
                 }}
               />
             </section>

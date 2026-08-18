@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import type { Artifact } from '@sikumi-local/core'
+import { ArtifactViewer } from './ArtifactViewer'
 
 interface ArtifactShelfProps {
   readonly artifacts: readonly Artifact[]
@@ -26,6 +28,20 @@ export function ArtifactShelf({
   onKeep,
   onDiscard,
 }: ArtifactShelfProps) {
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [restoreFocus, setRestoreFocus] = useState<HTMLElement | null>(null)
+  const openArtifact = artifacts.find((artifact) => artifact.id === openId)
+
+  function openViewer(artifactId: string, trigger: HTMLElement | null) {
+    setRestoreFocus(trigger)
+    setOpenId(artifactId)
+  }
+
+  function closeViewer() {
+    setOpenId(null)
+    restoreFocus?.focus()
+  }
+
   return (
     <section
       className="artifact-shelf"
@@ -48,6 +64,16 @@ export function ArtifactShelf({
                   ? ' · 保存済み'
                   : ' · 本文はまだありません'}
               </small>
+              <div className="artifact-shelf__actions">
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    openViewer(artifact.id, event.currentTarget)
+                  }}
+                >
+                  内容を見る
+                </button>
+              </div>
               {artifact.type === 'patch' || artifact.type === 'code_diff' ? (
                 <div className="artifact-shelf__actions">
                   {onApply ? (
@@ -106,6 +132,9 @@ export function ArtifactShelf({
             ) : null}
           </div>
         </div>
+      ) : null}
+      {openArtifact ? (
+        <ArtifactViewer artifact={openArtifact} onClose={closeViewer} />
       ) : null}
     </section>
   )

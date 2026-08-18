@@ -129,7 +129,7 @@ describe('job execution API', () => {
 
     expect(artifact.title).toBe('調査メモ')
     expect(artifact).not.toHaveProperty('content')
-    expect(artifact.storagePath).toBeNull()
+    expect(typeof artifact.storagePath === 'string').toBe(true)
     expect(completed.status).toBe('completed')
     expect(eventTypes).toContain('repository.read')
     expect(eventTypes).toContain('web.search')

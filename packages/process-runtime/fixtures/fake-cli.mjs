@@ -139,6 +139,10 @@ write({
   artifactType: 'report',
   title: '調査メモ',
   summary: '調査結果を整理しています',
+  content: JSON.stringify({
+    title: '調査メモ',
+    summary: 'このRepositoryの構成を整理しました',
+  }),
 })
 write({
   type: 'run.state_changed',

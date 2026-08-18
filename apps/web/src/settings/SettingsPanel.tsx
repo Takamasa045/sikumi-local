@@ -1,6 +1,8 @@
 import type { InstalledPack, ProviderId, Workspace } from '@sikumi-local/core'
 import type { ProviderAvailability } from '../api/providers'
+import type { ProviderLoadState } from '../providers/connection-summary'
 import { RepositoryPanel } from '../workspace/RepositoryPanel'
+import { ProviderStatusPanel } from './ProviderStatusPanel'
 
 interface PackPreview {
   readonly id: string
@@ -30,6 +32,20 @@ interface SettingsPanelProps {
   }) => void
   readonly onInstallPack?: () => void
   readonly onUninstallPack?: (id: string) => void
+  readonly providerLoadState?: ProviderLoadState
+  readonly providerProbeError?: string | null
+  readonly providerProbes?: Partial<
+    Record<
+      ProviderId,
+      {
+        readonly version?: string
+        readonly transport?: string
+        readonly warnings?: readonly string[]
+        readonly errors?: readonly string[]
+      }
+    >
+  >
+  readonly onRecheckProvider?: (id: ProviderId) => void
 }
 
 export function SettingsPanel({
@@ -44,6 +60,10 @@ export function SettingsPanel({
   onPreviewPack,
   onInstallPack,
   onUninstallPack,
+  providerLoadState = 'idle',
+  providerProbeError = null,
+  providerProbes,
+  onRecheckProvider,
 }: SettingsPanelProps) {
   return (
     <section className="settings-panel" id="settings" aria-label="設定">
@@ -77,6 +97,16 @@ export function SettingsPanel({
             ))}
           </select>
         </label>
+      ) : null}
+      {onRecheckProvider ? (
+        <ProviderStatusPanel
+          providers={providers}
+          loadState={providerLoadState}
+          busy={busy}
+          probeError={providerProbeError}
+          {...(providerProbes ? { probes: providerProbes } : {})}
+          onRecheck={onRecheckProvider}
+        />
       ) : null}
       {onPreviewPack ? (
         <form

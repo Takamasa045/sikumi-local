@@ -150,6 +150,26 @@ export const artifactSchema = z.object({
   createdAt: z.string().min(1),
 })
 
+export const artifactContentFormats = [
+  'json',
+  'markdown',
+  'patch',
+  'text',
+] as const
+export type ArtifactContentFormat = (typeof artifactContentFormats)[number]
+
+export const artifactContentSchema = z.object({
+  artifactId: z.string().min(1),
+  title: z.string().min(1),
+  type: z.enum(artifactTypes),
+  format: z.enum(artifactContentFormats),
+  content: z.string(),
+  sizeBytes: z.number().int().min(0),
+  truncated: z.boolean(),
+})
+
+export type ArtifactContent = z.infer<typeof artifactContentSchema>
+
 export const growthRecordSchema = z.object({
   id: z.string().min(1),
   employeeId: z.string().min(1),

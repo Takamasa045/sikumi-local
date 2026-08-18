@@ -218,6 +218,40 @@ describe('spawnManagedProcess', () => {
     ).toThrow(AppError)
   })
 
+  it('refuses to spawn a shell even when the binary exists', () => {
+    const cwd = createTempCwd()
+    expect(() =>
+      spawnManagedProcess({
+        executable: '/bin/sh',
+        args: ['-c', 'echo pwned'],
+        cwd,
+        allowedCwdRoots: [cwd],
+      }),
+    ).toThrow(AppError)
+    expect(() =>
+      spawnManagedProcess({
+        executable: '/bin/bash',
+        args: ['-c', 'rm -rf /'],
+        cwd,
+        allowedCwdRoots: [cwd],
+      }),
+    ).toThrow(AppError)
+  })
+
+  it('keeps a concatenated injection string as a single argv element', async () => {
+    const cwd = createTempCwd()
+    const injection = 'ok; $(reboot) && echo pwned | cat'
+    const child = spawnManagedProcess({
+      executable: process.execPath,
+      args: [fakeCli, '--scenario', 'echo-arg', '--value', injection],
+      cwd,
+      allowedCwdRoots: [cwd],
+    })
+    const events = await collect(child.jsonl)
+    await child.wait()
+    expect(events).toEqual([{ type: 'arg.echo', value: injection }])
+  })
+
   it('completes an approval handshake over stdin', async () => {
     const cwd = createTempCwd()
     const child = spawnManagedProcess({

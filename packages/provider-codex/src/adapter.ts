@@ -34,6 +34,11 @@ import {
   structuredFromAgentMessage,
 } from './map-event.js'
 import {
+  assertSupportedCodexProtocol,
+  assertWorkspaceCodexProtocol,
+  type CodexProtocolVariant,
+} from './protocol.js'
+import {
   buildCodexApprovalResult,
   isCodexPermissionsMethod,
   isSupportedCodexServerRequest,
@@ -214,6 +219,7 @@ export function createCodexProvider(
     specification: ProviderRunSpecification,
     resume: boolean,
   ): Promise<ProviderRunHandle> {
+    assertWorkspaceCodexProtocol(specification.cwd)
     const sandbox = mapCodexSandbox(specification.permissionProfile)
     const probe = cachedProbe ?? (await adapter.probe())
     if (!probe.installed || !probe.commandPath) {
@@ -316,9 +322,19 @@ export function createCodexProvider(
     })
 
     try {
-      await rpc.request('initialize', {
-        clientInfo: { name: 'shikumi-local', version: '0.1.0' },
-      })
+      let initialized: unknown
+      try {
+        initialized = await rpc.request('initialize', {
+          clientInfo: { name: 'shikumi-local', version: '0.1.0' },
+        })
+      } catch {
+        throw new AppError(
+          'PROVIDER_CAPABILITY_MISMATCH',
+          'Codex protocol response is malformed',
+          409,
+        )
+      }
+      assertSupportedCodexProtocol(initialized)
       rpc.notify('initialized')
       await rpc.request('account/read', {})
       const thread = resume
@@ -756,11 +772,12 @@ export function createCodexProvider(
   }
 }
 
-export function resolveFakeCodexPath(): string {
-  return join(
-    dirname(fileURLToPath(import.meta.url)),
-    '../fixtures/fake-codex.mjs',
-  )
+export function resolveFakeCodexPath(
+  variant: CodexProtocolVariant = 'supported',
+): string {
+  const fileName =
+    variant === 'supported' ? 'fake-codex.mjs' : `fake-codex-${variant}.mjs`
+  return join(dirname(fileURLToPath(import.meta.url)), '../fixtures', fileName)
 }
 
 function writeSchemaFile(schema: Record<string, unknown>): string {

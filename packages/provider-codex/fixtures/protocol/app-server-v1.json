@@ -1,0 +1,43 @@
+{
+  "id": "codex-app-server",
+  "protocolVersion": 1,
+  "transport": "app-server",
+  "supported": true,
+  "initializeResult": {
+    "protocolVersion": 1,
+    "userAgent": "codex-fixture"
+  },
+  "notifications": [
+    {
+      "method": "thread/started",
+      "params": {}
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning",
+          "text": "INTERNAL_REASONING_MUST_NOT_PERSIST"
+        }
+      }
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning_v2",
+          "text": "sk-protocol-secret"
+        }
+      }
+    },
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "commandExecution"
+        }
+      }
+    }
+  ],
+  "expectedEventTypes": ["run.started", "command.started"]
+}

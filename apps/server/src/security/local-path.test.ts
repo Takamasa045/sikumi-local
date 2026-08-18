@@ -31,6 +31,16 @@ describe('resolveRegisteredPath', () => {
     }
   })
 
+  it('rejects double-encoded and backslash traversal', () => {
+    expect(() => resolveRegisteredPath(`/tmp/${'%252e%252e'}/passwd`)).toThrow(
+      AppError,
+    )
+    expect(() => resolveRegisteredPath('/tmp/foo\\..\\secret')).toThrow(
+      AppError,
+    )
+    expect(() => resolveRegisteredPath(`/tmp/repo${'%00'}x`)).toThrow(AppError)
+  })
+
   it('rejects a null byte', () => {
     try {
       resolveRegisteredPath('/tmp/repo\0hidden')
@@ -53,5 +63,25 @@ describe('resolveRegisteredPath', () => {
 
   it('rejects an empty path', () => {
     expect(() => resolveRegisteredPath('   ')).toThrow(AppError)
+  })
+
+  it('rejects percent-encoded, double-encoded, and unicode traversal', () => {
+    const rejected = [
+      '/tmp/%2e%2e/%2e%2e/etc/passwd',
+      '/tmp/%2e%2e%2fetc%2fpasswd',
+      '/tmp/%252e%252e/etc/passwd',
+      '/tmp/foo%00/bar',
+      `/tmp/${'\uFF0E'.repeat(2)}/secret`,
+      '/tmp/..%2fsecret',
+    ]
+    for (const input of rejected) {
+      try {
+        resolveRegisteredPath(input)
+        throw new Error(`expected PATH_TRAVERSAL for ${input}`)
+      } catch (error) {
+        expect(error).toBeInstanceOf(AppError)
+        expect((error as AppError).code).toBe('PATH_TRAVERSAL')
+      }
+    }
   })
 })

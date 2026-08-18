@@ -24,6 +24,12 @@ describe('http guard primitives', () => {
     expect(() => assertAllowedHost('evil.example', allowedHosts)).toThrow(
       AppError,
     )
+    expect(() => assertAllowedHost('127.0.0.1%3A4321', allowedHosts)).toThrow(
+      AppError,
+    )
+    expect(() =>
+      assertAllowedHost('127.0.0.1.attacker.test', allowedHosts),
+    ).toThrow(AppError)
     try {
       assertAllowedHost('localhost:4321', allowedHosts)
     } catch (error) {
@@ -125,6 +131,50 @@ describe('http guard primitives', () => {
           },
         } as never,
         config,
+      ),
+    ).toThrow(AppError)
+  })
+
+  it('rejects percent-encoded, injected, and lookalike Host headers', () => {
+    const { allowedHosts } = resolveSecurityConfig()
+    const rejected = [
+      '127.0.0.1%3A4321',
+      '127.0.0.1%0d%0aX-Injected: 1',
+      '127.0.0.1%00.evil.example',
+      '127.0.0.1:4321@evil.example',
+      '[::1]:4321',
+      'localhost:4321',
+      '127.0.0.1.evil.example',
+    ]
+    for (const host of rejected) {
+      expect(() => assertAllowedHost(host, allowedHosts)).toThrow(AppError)
+    }
+    expect(() => assertAllowedHost(undefined, allowedHosts)).toThrow(AppError)
+  })
+
+  it('rejects Origin values with credentials, paths, or encoding', () => {
+    const { allowedOrigins } = resolveSecurityConfig()
+    const rejected = [
+      'http://evil@127.0.0.1:5184',
+      'http://127.0.0.1:5184/admin',
+      'http://127.0.0.1:5184%2fadmin',
+      'http://127.0.0.1.evil.example',
+      'null',
+    ]
+    for (const origin of rejected) {
+      expect(() => assertAllowedOrigin(origin, allowedOrigins)).toThrow(
+        AppError,
+      )
+    }
+  })
+
+  it('rejects a CSRF header that only prefixes the session token', () => {
+    const token = createSessionToken()
+    expect(() =>
+      assertCsrfToken(
+        `${SESSION_COOKIE_NAME}=${token}`,
+        token.slice(0, 8),
+        token,
       ),
     ).toThrow(AppError)
   })

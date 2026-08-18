@@ -43,6 +43,12 @@ describe('assertSafeExecutable', () => {
     expect(assertSafeExecutable(process.execPath)).toBeTruthy()
   })
 
+  it('rejects shell binaries so arbitrary shell is never spawned', () => {
+    expect(() => assertSafeExecutable('/bin/sh')).toThrow(AppError)
+    expect(() => assertSafeExecutable('/bin/bash')).toThrow(AppError)
+    expect(() => assertSafeExecutable('/bin/zsh')).toThrow(AppError)
+  })
+
   it('rejects a regular file that is not executable', () => {
     const root = trackTemp()
     const file = join(root, 'not-exec.txt')
@@ -72,6 +78,20 @@ describe('assertSafeCwd', () => {
     const metacharacterDirectory = `${root};evil`
     mkdirSync(metacharacterDirectory)
     expect(() => assertSafeCwd(metacharacterDirectory)).toThrow(AppError)
+  })
+
+  it('rejects percent-encoded and unicode traversal in cwd and executables', () => {
+    const root = trackTemp()
+    expect(() => assertSafeCwd(`${root}/%2e%2e/secret`, [root])).toThrow(
+      AppError,
+    )
+    expect(() => assertSafeExecutable(`${root}/%2e%2e/bin/evil`)).toThrow(
+      AppError,
+    )
+    expect(() => assertSafeCwd(`${root}/%00hidden`, [root])).toThrow(AppError)
+    expect(() =>
+      assertSafeCwd(`${root}/${'\uFF0E'.repeat(2)}/secret`, [root]),
+    ).toThrow(AppError)
   })
 })
 

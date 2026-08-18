@@ -26,12 +26,17 @@ import {
   extractJsonObject,
   validateJsonSchema,
 } from '@sikumi-local/provider-sdk'
+import { mapGrokSessionUpdate, permissionOptionId } from './map-event.js'
+import {
+  assertSupportedGrokProtocol,
+  assertWorkspaceGrokProtocol,
+  type GrokProtocolVariant,
+} from './protocol.js'
 import {
   assertGrokArgsSafe,
   grokCommonArgs,
   mapGrokSandbox,
 } from './sandbox.js'
-import { mapGrokSessionUpdate, permissionOptionId } from './map-event.js'
 
 const ACP_CAPABILITIES: ProviderCapabilities = {
   streaming: true,
@@ -211,6 +216,7 @@ export function createGrokProvider(
     specification: ProviderRunSpecification,
     resume: boolean,
   ): Promise<ProviderRunHandle> {
+    assertWorkspaceGrokProtocol(specification.cwd)
     const mapping = mapGrokSandbox(specification.permissionProfile)
     const probe = cachedProbe ?? (await adapter.probe())
     if (!probe.installed || !probe.commandPath) {
@@ -317,15 +323,24 @@ export function createGrokProvider(
     })
 
     try {
-      const initialized = asObject(
-        await rpc.request('initialize', {
+      let initializedRaw: unknown
+      try {
+        initializedRaw = await rpc.request('initialize', {
           protocolVersion: 1,
           clientInfo: { name: 'shikumi-local', version: '0.1.0' },
           clientCapabilities: {
             fs: { readTextFile: false, writeTextFile: false },
           },
-        }),
-      )
+        })
+      } catch {
+        throw new AppError(
+          'PROVIDER_CAPABILITY_MISMATCH',
+          'Grok protocol handshake failed',
+          409,
+        )
+      }
+      const initialized = asObject(initializedRaw)
+      assertSupportedGrokProtocol(initialized)
       const authMethods = Array.isArray(initialized.authMethods)
         ? initialized.authMethods
         : []
@@ -727,11 +742,12 @@ export function createGrokProvider(
   }
 }
 
-export function resolveFakeGrokPath(): string {
-  return join(
-    dirname(fileURLToPath(import.meta.url)),
-    '../fixtures/fake-grok.mjs',
-  )
+export function resolveFakeGrokPath(
+  variant: GrokProtocolVariant = 'supported',
+): string {
+  const fileName =
+    variant === 'supported' ? 'fake-grok.mjs' : `fake-grok-${variant}.mjs`
+  return join(dirname(fileURLToPath(import.meta.url)), '../fixtures', fileName)
 }
 
 function extractChunkText(params: unknown): string {

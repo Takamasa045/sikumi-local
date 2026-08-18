@@ -285,7 +285,7 @@ export function createJobManager(
         id: randomUUID(),
         workspaceId: workspace.id,
         employeeId: definition.id,
-        request: input.request,
+        request: redactSensitiveText(input.request),
         jobType,
         selectedProvider: selection.providerId,
         selectedModel: input.selectedModel ?? null,

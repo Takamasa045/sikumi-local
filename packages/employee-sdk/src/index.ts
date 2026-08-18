@@ -9,11 +9,16 @@ export {
   type EmployeeStateMap,
 } from './manifest.js'
 export {
+  assertPromptIsolation,
   compileJobPrompt,
   compilePackPrompts,
+  isolateUntrustedRequest,
   JOB_BOUNDARY,
+  neutralizeUntrustedText,
   REQUEST_BOUNDARY,
+  sanitizeProviderPrompt,
   SYSTEM_BOUNDARY,
+  UNTRUSTED_CONTENT_POLICY,
   type CompiledEmployeePrompts,
 } from './prompts.js'
 export {

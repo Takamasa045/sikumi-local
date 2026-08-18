@@ -1,0 +1,23 @@
+{
+  "id": "claude-stream-json",
+  "protocolVersion": 1,
+  "transport": "stream-json",
+  "supported": true,
+  "initializeEvent": {
+    "type": "system",
+    "subtype": "init",
+    "protocol_version": 1,
+    "session_id": "claude-sess-1"
+  },
+  "events": [
+    {
+      "type": "thinking",
+      "thinking": "INTERNAL_REASONING_MUST_NOT_PERSIST"
+    },
+    {
+      "type": "assistant",
+      "message": { "content": [{ "type": "text", "text": "調査中" }] }
+    }
+  ],
+  "expectedEventTypes": ["run.started", "run.state_changed"]
+}

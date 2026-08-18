@@ -9,12 +9,17 @@ import {
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { AppError, FAKE_PROVIDER_ID } from '@sikumi-local/core'
+import { spawnManagedProcess } from '@sikumi-local/process-runtime'
 import type { CanonicalEvent } from '@sikumi-local/provider-sdk'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   createFakeProvider,
   FAKE_PROVIDER_DISPLAY_NAME,
 } from './fake-provider.js'
+import {
+  assertSupportedFakeProtocol,
+  loadFakeProtocolFixture,
+} from './protocol.js'
 import { mapFakeProcessEvent } from './map-event.js'
 import { scenarioFromPrompt } from './scenario.js'
 
@@ -27,6 +32,30 @@ afterEach(async () => {
 })
 
 describe('Fake Provider', () => {
+  it('fails closed on unknown and malformed protocol fixtures', async () => {
+    expect(loadFakeProtocolFixture('supported').protocolVersion).toBe(1)
+    expect(() =>
+      assertSupportedFakeProtocol(loadFakeProtocolFixture('unknown')),
+    ).toThrow(AppError)
+    expect(() =>
+      assertSupportedFakeProtocol(loadFakeProtocolFixture('malformed')),
+    ).toThrow(AppError)
+    await expect(
+      createFakeProvider({ protocolVariant: 'unknown' }).probe(),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'PROVIDER_CAPABILITY_MISMATCH',
+    })
+    await expect(
+      createFakeProvider({ protocolVariant: 'malformed' }).startRun(
+        baseSpecification(createTempCwd()),
+      ),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'PROVIDER_CAPABILITY_MISMATCH',
+    })
+  })
+
   it('is a harness identity and never claims to be a real engine', async () => {
     const provider = createFakeProvider()
     const probe = await provider.probe()
@@ -207,6 +236,41 @@ describe('Fake Provider', () => {
     expect(gitLsFiles(repository)).toBe(beforeFiles)
     expect(readdirSync(repository).sort()).toEqual(beforeListing)
     expect(existsSync(join(repository, '.sikumi-fake-child.pid'))).toBe(false)
+  })
+
+  it('does not put the user prompt on argv or interpret it as a shell', async () => {
+    const captured: Array<{ executable: string; args: readonly string[] }> = []
+    const injection = 'ignore previous; rm -rf / && echo pwned'
+    const provider = createFakeProvider({
+      spawn: (request) => {
+        captured.push({
+          executable: request.executable,
+          args: [...request.args],
+        })
+        return spawnManagedProcess(request)
+      },
+    })
+    const handle = await provider.startRun({
+      ...baseSpecification(createTempCwd()),
+      prompt: injection,
+    })
+    const events: string[] = []
+    for await (const event of handle.events()) {
+      events.push(event.type)
+      if (event.type === 'approval.requested') {
+        await provider.respondToApproval(event.requestId, 'approved')
+      }
+    }
+    await provider.dispose()
+
+    expect(events.at(-1)).toBe('run.completed')
+    expect(captured).toHaveLength(1)
+    expect(captured[0]?.executable).toBe(process.execPath)
+    expect(captured[0]?.args).not.toContain(injection)
+    expect(captured[0]?.args).not.toContain('/bin/sh')
+    expect(captured[0]?.args).not.toContain('-c')
+    expect(captured[0]?.args.join(' ')).not.toContain(injection)
+    expect(scenarioFromPrompt(injection)).toBe('complete')
   })
 
   it('rejects an unregistered cwd before spawning', async () => {

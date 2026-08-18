@@ -39,7 +39,7 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
         this.waiters.push(resolve)
       })
       if (next.done) {
-        return
+        continue
       }
       yield next.value
     }

@@ -1,7 +1,11 @@
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const argv = process.argv.slice(2)
+const rawArgv = process.argv.slice(2)
+const protocolVariant = readProtocolVariant(rawArgv)
+const protocol = loadProtocolFixture(protocolVariant)
+const argv = stripProtocolVariant(rawArgv)
 
 if (argv.includes('bypassPermissions')) {
   process.stderr.write('bypassPermissions is forbidden in fixture\n')
@@ -9,7 +13,7 @@ if (argv.includes('bypassPermissions')) {
 }
 
 if (argv.includes('--version') || argv.includes('-v')) {
-  process.stdout.write('2.1.220-fixture (Claude Code)\n')
+  writeVersion()
   process.exit(0)
 }
 
@@ -38,7 +42,12 @@ if (jsonSchema && resume) {
 }
 
 if (prompt.includes('[hang]')) {
-  write({ type: 'system', subtype: 'init', session_id: 'claude-sess-1' })
+  write({
+    type: 'system',
+    subtype: 'init',
+    session_id: 'claude-sess-1',
+    protocolVersion: protocol.protocolVersion,
+  })
   await hang()
 }
 
@@ -74,11 +83,46 @@ if (outputFormat === 'json') {
   process.exit(0)
 }
 
+if (protocolVariant === 'malformed') {
+  write({
+    type: 'system',
+    subtype: 'init',
+    session_id: resume ?? 'claude-sess-1',
+    protocolVersion: protocol.protocolVersion,
+  })
+  writeMalformedFrame()
+  process.exit(1)
+}
+
 write({
   type: 'system',
   subtype: 'init',
   session_id: resume ?? 'claude-sess-1',
+  protocolVersion:
+    protocolVariant === 'unknown'
+      ? 99
+      : protocolVariant === 'malformed'
+        ? 'not-a-version'
+        : (protocol.protocolVersion ?? 1),
 })
+if (protocolVariant === 'future-unknown') {
+  write({
+    type: 'thinking_v2',
+    thinking: 'FUTURE_REASONING_MUST_NOT_PERSIST',
+    token: 'FUTURE_SECRET_TOKEN',
+  })
+  write({
+    type: 'permission_mode',
+    mode: 'bypassPermissions',
+    reasoning: 'FUTURE_REASONING_MUST_NOT_PERSIST',
+  })
+  write({
+    type: 'future_event',
+    reasoning: 'FUTURE_REASONING_MUST_NOT_PERSIST',
+    token: 'FUTURE_SECRET_TOKEN',
+    secret: 'FUTURE_SECRET_TOKEN',
+  })
+}
 if (prompt.includes('[malformed]')) {
   process.stdout.write('not-json\n')
 }
@@ -199,4 +243,78 @@ function hang() {
   return new Promise(() => {
     setInterval(() => {}, 1000)
   })
+}
+
+function writeVersion() {
+  if (protocolVariant === 'malformed') {
+    writeMalformedFrame()
+    return
+  }
+  if (protocolVariant === 'future' || protocolVariant === 'future-unknown') {
+    process.stdout.write('99.0.0-future (Claude Code)\n')
+    return
+  }
+  process.stdout.write('2.1.220-fixture (Claude Code)\n')
+}
+
+function writeMalformedFrame() {
+  process.stdout.write('not-a-protocol-frame\n{broken\n')
+}
+
+function readProtocolVariant(args) {
+  return (
+    normalizeProtocolVariant(readArg(args, '--protocol-variant')) ||
+    normalizeProtocolVariant(readArg(args, '--sikumi-protocol')) ||
+    normalizeProtocolVariant(process.env.SIKUMI_FAKE_CLAUDE_PROTOCOL) ||
+    normalizeProtocolVariant(process.env.SHIKUMI_FIXTURE_PROTOCOL) ||
+    'supported'
+  )
+}
+
+function normalizeProtocolVariant(value) {
+  if (value === 'malformed') {
+    return 'malformed'
+  }
+  if (value === 'unknown') {
+    return 'unknown'
+  }
+  if (value === 'future-unknown' || value === 'future') {
+    return 'future-unknown'
+  }
+  if (value === 'supported') {
+    return 'supported'
+  }
+  return undefined
+}
+
+function stripProtocolVariant(args) {
+  const flags = ['--protocol-variant', '--sikumi-protocol']
+  const stripped = []
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (flags.includes(arg)) {
+      index += 1
+      continue
+    }
+    if (flags.some((flag) => arg.startsWith(`${flag}=`))) {
+      continue
+    }
+    stripped.push(arg)
+  }
+  return stripped
+}
+
+function loadProtocolFixture(variant) {
+  const fileName =
+    variant === 'future-unknown' ? 'future.json' : `${variant}.json`
+  try {
+    return JSON.parse(
+      readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), 'protocol', fileName),
+        'utf8',
+      ),
+    )
+  } catch {
+    return { protocolVersion: variant === 'malformed' ? 'not-a-version' : 1 }
+  }
 }

@@ -11,7 +11,7 @@ export function mapCodexNotification(
   const item = isPlainObject(body.item) ? body.item : undefined
   const itemType = typeof item?.type === 'string' ? item.type : undefined
 
-  if (itemType === 'reasoning') {
+  if (isReasoningLike(itemType)) {
     return null
   }
 
@@ -206,6 +206,18 @@ function state(
     summary,
     state: stateName,
   }
+}
+
+function isReasoningLike(itemType: string | undefined): boolean {
+  if (!itemType) {
+    return false
+  }
+  const lower = itemType.toLowerCase()
+  return (
+    lower.includes('reasoning') ||
+    lower.includes('thought') ||
+    lower.includes('thinking')
+  )
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -29,6 +29,7 @@ export {
 } from './jsonrpc.js'
 export { AsyncQueue } from './queue.js'
 export {
+  assertNoPathTraversal,
   assertSafeArgs,
   assertSafeCwd,
   assertSafeExecutable,

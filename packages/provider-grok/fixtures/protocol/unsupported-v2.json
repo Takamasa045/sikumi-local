@@ -1,0 +1,16 @@
+{
+  "id": "grok-acp",
+  "protocolVersion": 2,
+  "transport": "acp",
+  "supported": false,
+  "initializeResult": {
+    "protocolVersion": 2
+  },
+  "sessionUpdates": [
+    {
+      "sessionUpdate": "reasoning_v2",
+      "content": { "type": "text", "text": "sk-protocol-secret" }
+    }
+  ],
+  "expectedEventTypes": []
+}

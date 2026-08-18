@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
 import { isAbsolute, resolve } from 'node:path'
 import { AppError } from '@sikumi-local/core'
+import { assertNoPathTraversal } from '@sikumi-local/process-runtime'
 
 const MAX_PATH_LENGTH = 4096
 
@@ -16,16 +17,10 @@ export function resolveRegisteredPath(input: string): string {
   if (trimmed.length > MAX_PATH_LENGTH) {
     throw new AppError('VALIDATION_FAILED', 'Repository path is too long', 400)
   }
-  if (trimmed.includes('\0')) {
-    throw new AppError('PATH_TRAVERSAL', 'このパスは安全に扱えません', 400)
-  }
 
-  const segments = trimmed.split(/[/\\]/)
-  if (segments.includes('..')) {
-    throw new AppError('PATH_TRAVERSAL', 'このパスは安全に扱えません', 400)
-  }
-
-  const expanded = expandHomeDirectory(trimmed)
+  const decoded = decodeRegisteredPath(trimmed)
+  const expanded = expandHomeDirectory(decoded)
+  decodeRegisteredPath(expanded.normalize('NFKC'))
   if (!isAbsolute(expanded)) {
     throw new AppError(
       'REPOSITORY_NOT_FOUND',
@@ -35,11 +30,38 @@ export function resolveRegisteredPath(input: string): string {
   }
 
   const resolved = resolve(expanded)
-  if (resolved.split(/[/\\]/).includes('..')) {
+  decodeRegisteredPath(resolved)
+  return resolved
+}
+
+function decodeRegisteredPath(input: string): string {
+  if (hasUnicodeParentTraversal(input)) {
     throw new AppError('PATH_TRAVERSAL', 'このパスは安全に扱えません', 400)
   }
+  try {
+    return assertNoPathTraversal(input)
+  } catch (error) {
+    if (error instanceof AppError && error.code === 'PATH_TRAVERSAL') {
+      throw new AppError('PATH_TRAVERSAL', 'このパスは安全に扱えません', 400)
+    }
+    throw error
+  }
+}
 
-  return resolved
+function hasUnicodeParentTraversal(input: string): boolean {
+  const forms = [input, input.normalize('NFKC'), input.normalize('NFKD')]
+  return forms.some((form) =>
+    form.split(/[/\\]/).some((segment) => {
+      const normalized = segment.normalize('NFKC')
+      return (
+        normalized === '..' ||
+        normalized.replace(
+          /[\u00B7\u2024\u2025\u2026\u2219\u22C5\uFE52\uFF0E]/g,
+          '.',
+        ) === '..'
+      )
+    }),
+  )
 }
 
 function expandHomeDirectory(input: string): string {

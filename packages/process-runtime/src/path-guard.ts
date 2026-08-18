@@ -1,9 +1,60 @@
 import { accessSync, constants, realpathSync, statSync } from 'node:fs'
-import { isAbsolute, resolve, sep } from 'node:path'
+import { basename, isAbsolute, resolve, sep } from 'node:path'
 import { AppError } from '@sikumi-local/core'
 
 const MAX_PATH_LENGTH = 4096
+const MAX_DECODE_ROUNDS = 4
 const SHELL_METACHARACTERS = /[|&;<>()$`\\"'\n\r*?[\]{}!#~]/
+const FORBIDDEN_SHELL_NAMES = new Set([
+  'sh',
+  'bash',
+  'zsh',
+  'dash',
+  'csh',
+  'tcsh',
+  'ksh',
+  'fish',
+  'cmd',
+  'cmd.exe',
+  'powershell',
+  'powershell.exe',
+  'pwsh',
+  'pwsh.exe',
+])
+
+export function assertNoPathTraversal(input: string, label = 'path'): string {
+  if (input.includes('\0')) {
+    throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
+  }
+
+  let current = input
+  for (let round = 0; round <= MAX_DECODE_ROUNDS; round += 1) {
+    if (current.includes('\0')) {
+      throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
+    }
+    if (containsParentTraversal(current)) {
+      throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
+    }
+    if (!current.includes('%')) {
+      return current
+    }
+    if (round === MAX_DECODE_ROUNDS) {
+      throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
+    }
+    let decoded: string
+    try {
+      decoded = decodeURIComponent(current)
+    } catch {
+      throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
+    }
+    if (decoded === current) {
+      throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
+    }
+    current = decoded
+  }
+
+  throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
+}
 
 export function assertSafeExecutable(input: string): string {
   const resolved = assertSafeAbsolutePath(input, 'executable')
@@ -51,6 +102,22 @@ export function assertSafeExecutable(input: string): string {
     throw new AppError(
       'PROCESS_SPAWN_REJECTED',
       'Executable is not executable',
+      400,
+    )
+  }
+
+  const executableName = basename(realPath).toLowerCase()
+  if (executableName.startsWith('-')) {
+    throw new AppError(
+      'PROCESS_SPAWN_REJECTED',
+      'Executable name must not start with a dash',
+      400,
+    )
+  }
+  if (FORBIDDEN_SHELL_NAMES.has(executableName)) {
+    throw new AppError(
+      'PROCESS_SPAWN_REJECTED',
+      'Arbitrary shells are forbidden',
       400,
     )
   }
@@ -160,13 +227,8 @@ function assertSafeAbsolutePath(input: string, label: string): string {
   if (trimmed.length > MAX_PATH_LENGTH) {
     throw new AppError('PROCESS_SPAWN_REJECTED', `${label} is too long`, 400)
   }
-  if (trimmed.includes('\0')) {
-    throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
-  }
-  if (trimmed.split(/[/\\]/).includes('..')) {
-    throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
-  }
-  if (!isAbsolute(trimmed)) {
+  const decoded = assertNoPathTraversal(trimmed, label)
+  if (!isAbsolute(decoded)) {
     throw new AppError(
       'PROCESS_SPAWN_REJECTED',
       `${label} must be an absolute path`,
@@ -174,9 +236,31 @@ function assertSafeAbsolutePath(input: string, label: string): string {
     )
   }
 
-  const resolved = resolve(trimmed)
-  if (resolved.split(/[/\\]/).includes('..')) {
+  const resolved = resolve(decoded)
+  if (containsParentTraversal(resolved)) {
     throw new AppError('PATH_TRAVERSAL', `${label} is not safe`, 400)
   }
   return resolved
+}
+
+function containsParentTraversal(value: string): boolean {
+  const candidates = [value, value.normalize('NFKC'), value.normalize('NFKD')]
+  for (const candidate of candidates) {
+    if (candidate.split(/[/\\]/).some((segment) => isParentSegment(segment))) {
+      return true
+    }
+  }
+  return false
+}
+
+function isParentSegment(segment: string): boolean {
+  const normalized = segment.normalize('NFKC')
+  if (normalized === '..') {
+    return true
+  }
+  const asDots = normalized.replace(
+    /[\u00B7\u2024\u2025\u2026\u2219\u22C5\uFE52\uFF0E]/g,
+    '.',
+  )
+  return asDots === '..'
 }

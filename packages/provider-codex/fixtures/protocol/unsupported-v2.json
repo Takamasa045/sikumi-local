@@ -1,0 +1,22 @@
+{
+  "id": "codex-app-server",
+  "protocolVersion": 2,
+  "transport": "app-server",
+  "supported": false,
+  "initializeResult": {
+    "protocolVersion": 2,
+    "userAgent": "codex-fixture-v2"
+  },
+  "notifications": [
+    {
+      "method": "item/started",
+      "params": {
+        "item": {
+          "type": "reasoning_v2",
+          "text": "INTERNAL_REASONING_MUST_NOT_PERSIST"
+        }
+      }
+    }
+  ],
+  "expectedEventTypes": []
+}

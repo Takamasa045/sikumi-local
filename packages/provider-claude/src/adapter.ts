@@ -40,6 +40,11 @@ import {
   claudeSessionId,
   mapClaudeStreamEvent,
 } from './map-event.js'
+import {
+  assertSupportedClaudeProtocol,
+  assertWorkspaceClaudeProtocol,
+  type ClaudeProtocolVariant,
+} from './protocol.js'
 
 const CAPABILITIES: ProviderCapabilities = {
   streaming: true,
@@ -194,6 +199,7 @@ export function createClaudeProvider(
     specification: ProviderRunSpecification,
     resume: boolean,
   ): Promise<ProviderRunHandle> {
+    assertWorkspaceClaudeProtocol(specification.cwd)
     const mapping = mapClaudePermissions(specification.permissionProfile)
     const probe = cachedProbe ?? (await adapter.probe())
     if (!probe.installed || !probe.commandPath) {
@@ -295,7 +301,37 @@ export function createClaudeProvider(
     poller: NodeJS.Timeout,
   ): Promise<void> {
     try {
+      try {
+        assertWorkspaceClaudeProtocol(active.specification.cwd)
+      } catch (error) {
+        finishRun(active, {
+          type: 'run.failed',
+          runId: active.specification.runId,
+          occurredAt: now(),
+          summary: isAppError(error)
+            ? error.message
+            : 'Claude protocol version is unsupported',
+        })
+        await active.process.cancel()
+        return
+      }
       for await (const raw of active.process.jsonl) {
+        if (raw.type === 'system' && raw.subtype === 'init') {
+          try {
+            assertSupportedClaudeProtocol(raw)
+          } catch (error) {
+            finishRun(active, {
+              type: 'run.failed',
+              runId: active.specification.runId,
+              occurredAt: now(),
+              summary: isAppError(error)
+                ? error.message
+                : 'Claude protocol version is unsupported',
+            })
+            await active.process.cancel()
+            return
+          }
+        }
         const sessionId = claudeSessionId(raw)
         if (sessionId) {
           active.sessionId = sessionId
@@ -570,11 +606,12 @@ export function createClaudeProvider(
   }
 }
 
-export function resolveFakeClaudePath(): string {
-  return join(
-    dirname(fileURLToPath(import.meta.url)),
-    '../fixtures/fake-claude.mjs',
-  )
+export function resolveFakeClaudePath(
+  variant: ClaudeProtocolVariant = 'supported',
+): string {
+  const fileName =
+    variant === 'supported' ? 'fake-claude.mjs' : `fake-claude-${variant}.mjs`
+  return join(dirname(fileURLToPath(import.meta.url)), '../fixtures', fileName)
 }
 
 export function resolvePermissionBrokerPath(): string {

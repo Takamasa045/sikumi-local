@@ -1,14 +1,18 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { createInterface } from 'node:readline'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const argv = process.argv.slice(2)
+const rawArgv = process.argv.slice(2)
+const protocolVariant = readProtocolVariant(rawArgv)
+const protocol = loadProtocolFixture(protocolVariant)
+const argv = stripProtocolVariant(rawArgv)
 const authEnabled = process.env.SIKUMI_FAKE_CODEX_AUTH !== '0'
 const disableAppServer = process.env.SIKUMI_FAKE_CODEX_NO_APP_SERVER === '1'
 const disableExec = process.env.SIKUMI_FAKE_CODEX_NO_EXEC === '1'
 
 if (argv.includes('--version') || argv[0] === '-V') {
-  process.stdout.write('codex-cli 0.144.6-fixture\n')
+  writeVersion()
   process.exit(0)
 }
 
@@ -107,7 +111,13 @@ async function runAppServer() {
       continue
     }
     if (message.method === 'initialize') {
+      if (protocolVariant === 'malformed') {
+        writeMalformedFrame()
+        process.exit(1)
+      }
       reply(message.id, {
+        protocolVersion:
+          protocolVariant === 'unknown' ? 99 : (protocol.protocolVersion ?? 1),
         userAgent: 'codex-fixture',
         platformOs: 'macos',
         platformFamily: 'unix',
@@ -167,6 +177,12 @@ async function runAppServer() {
           },
         },
       })
+      if (
+        protocolVariant === 'future' ||
+        protocolVariant === 'future-unknown'
+      ) {
+        emitFutureEvents()
+      }
       if (prompt.includes('[unknown-request]')) {
         emitRequest('u1', {
           method: 'item/tool/requestUserInput',
@@ -335,4 +351,127 @@ function hang() {
   return new Promise(() => {
     setInterval(() => {}, 1000)
   })
+}
+
+function emitFutureEvents() {
+  emit({
+    method: 'item/started',
+    params: {
+      item: {
+        type: 'reasoning_v2',
+        text: 'FUTURE_REASONING_MUST_NOT_PERSIST',
+        token: 'FUTURE_SECRET_TOKEN',
+      },
+    },
+  })
+  emit({
+    method: 'future/unknownEvent',
+    params: {
+      reasoning: 'FUTURE_REASONING_MUST_NOT_PERSIST',
+      token: 'FUTURE_SECRET_TOKEN',
+      secret: 'FUTURE_SECRET_TOKEN',
+    },
+  })
+  emitRequest('future-sudo', {
+    method: 'item/sudo/requestAlways',
+    params: {
+      approvalId: 'future-sudo',
+      command: 'sudo rm -rf /',
+      permissions: { bypass: true },
+    },
+  })
+}
+
+function writeVersion() {
+  if (protocolVariant === 'malformed') {
+    writeMalformedFrame()
+    return
+  }
+  if (protocolVariant === 'future-unknown') {
+    process.stdout.write('codex-cli 99.0.0-future\n')
+    return
+  }
+  process.stdout.write('codex-cli 0.144.6-fixture\n')
+}
+
+function writeMalformedFrame() {
+  process.stdout.write('not-a-protocol-frame\n{broken\n')
+}
+
+function readProtocolVariant(args) {
+  return (
+    normalizeProtocolVariant(readFlag(args, '--protocol-variant')) ||
+    normalizeProtocolVariant(readFlag(args, '--sikumi-protocol')) ||
+    normalizeProtocolVariant(process.env.SIKUMI_FAKE_CODEX_PROTOCOL) ||
+    normalizeProtocolVariant(process.env.SHIKUMI_FIXTURE_PROTOCOL) ||
+    'supported'
+  )
+}
+
+function normalizeProtocolVariant(value) {
+  if (value === 'malformed') {
+    return 'malformed'
+  }
+  if (value === 'unknown') {
+    return 'unknown'
+  }
+  if (value === 'future') {
+    return 'future'
+  }
+  if (value === 'future-unknown') {
+    return 'future-unknown'
+  }
+  if (value === 'supported') {
+    return 'supported'
+  }
+  return undefined
+}
+
+function readFlag(args, name) {
+  const exact = args.indexOf(name)
+  if (exact >= 0 && args[exact + 1]) {
+    return args[exact + 1]
+  }
+  const prefix = `${name}=`
+  const matched = args.find((arg) => arg.startsWith(prefix))
+  return matched ? matched.slice(prefix.length) : undefined
+}
+
+function stripProtocolVariant(args) {
+  const flags = ['--protocol-variant', '--sikumi-protocol']
+  const stripped = []
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (flags.includes(arg)) {
+      index += 1
+      continue
+    }
+    if (flags.some((flag) => arg.startsWith(`${flag}=`))) {
+      continue
+    }
+    stripped.push(arg)
+  }
+  return stripped
+}
+
+function loadProtocolFixture(variant) {
+  const fileName =
+    variant === 'future-unknown' ? 'future.json' : `${variant}.json`
+  try {
+    return JSON.parse(
+      readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), 'protocol', fileName),
+        'utf8',
+      ),
+    )
+  } catch {
+    return {
+      protocolVersion:
+        variant === 'malformed'
+          ? 'not-a-version'
+          : variant === 'unknown'
+            ? 99
+            : 1,
+    }
+  }
 }

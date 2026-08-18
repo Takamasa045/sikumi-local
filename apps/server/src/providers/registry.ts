@@ -12,6 +12,7 @@ import type {
   ProviderProbeResult,
 } from '@sikumi-local/provider-sdk'
 import { DISCONNECTED_CAPABILITIES } from '@sikumi-local/provider-sdk'
+import { sanitizeProviderPrompt } from '../security/prompt-guard.js'
 
 export interface ProviderRegistry {
   get(id: RuntimeProviderId): AgentProviderAdapter | undefined
@@ -41,7 +42,10 @@ export function createProviderRegistry(options: {
   ]
 
   for (const adapter of created) {
-    adapters.set(adapter.id, wrapLiveRuns(adapter, options.liveProviderRuns))
+    adapters.set(
+      adapter.id,
+      isolateProviderPrompt(wrapLiveRuns(adapter, options.liveProviderRuns)),
+    )
   }
 
   return {
@@ -120,6 +124,26 @@ export function createProviderRegistry(options: {
       await Promise.all(
         [...adapters.values()].map((adapter) => adapter.dispose()),
       )
+    },
+  }
+}
+
+function isolateProviderPrompt(
+  adapter: AgentProviderAdapter,
+): AgentProviderAdapter {
+  return {
+    ...adapter,
+    startRun(specification) {
+      return adapter.startRun({
+        ...specification,
+        prompt: sanitizeProviderPrompt(specification.prompt),
+      })
+    },
+    resumeRun(specification) {
+      return adapter.resumeRun({
+        ...specification,
+        prompt: sanitizeProviderPrompt(specification.prompt),
+      })
     },
   }
 }

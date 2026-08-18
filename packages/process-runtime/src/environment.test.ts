@@ -60,4 +60,26 @@ describe('filterProcessEnvironment', () => {
   it('ignores empty secret lookups', () => {
     expect(environmentContainsSecretValue({ PATH: '/bin' }, '')).toBe(false)
   })
+
+  it('does not inherit process-injection environment from the parent', () => {
+    const filtered = filterProcessEnvironment({
+      PATH: '/usr/bin',
+      NODE_OPTIONS: '--require ./evil.js',
+      BASH_ENV: '/tmp/evil.sh',
+      ENV: '/tmp/evil.sh',
+      SHELLOPTS: 'xtrace',
+      PS4: '$(id)',
+      LD_PRELOAD: '/tmp/evil.so',
+      DYLD_INSERT_LIBRARIES: '/tmp/evil.dylib',
+      GITHUB_TOKEN: 'ghp-parent',
+    })
+
+    expect(filtered).toEqual({ PATH: '/usr/bin' })
+    expect(filtered.NODE_OPTIONS).toBeUndefined()
+    expect(filtered.BASH_ENV).toBeUndefined()
+    expect(filtered.LD_PRELOAD).toBeUndefined()
+    expect(() =>
+      filterProcessEnvironment({ PATH: '/usr/bin' }, { NODE_OPTIONS: '--x' }),
+    ).toThrow(AppError)
+  })
 })

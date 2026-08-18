@@ -1,6 +1,12 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { createInterface } from 'node:readline'
 
-const argv = process.argv.slice(2)
+const rawArgv = process.argv.slice(2)
+const protocolVariant = readProtocolVariant(rawArgv)
+const protocol = loadProtocolFixture(protocolVariant)
+const argv = stripProtocolVariant(rawArgv)
 
 if (argv.includes('--always-approve') || argv.includes('--worktree')) {
   process.stderr.write('forbidden flag\n')
@@ -8,9 +14,7 @@ if (argv.includes('--always-approve') || argv.includes('--worktree')) {
 }
 
 if (argv[0] === 'version' || argv.includes('version')) {
-  process.stdout.write(
-    '{"currentVersion":"1.0.5-fixture","channel":"unknown"}\n',
-  )
+  writeVersion()
   process.exit(0)
 }
 
@@ -102,10 +106,24 @@ async function runAcp() {
       continue
     }
     if (message.method === 'initialize') {
+      if (protocolVariant === 'malformed') {
+        writeMalformedFrame()
+        process.exit(1)
+      }
       reply(message.id, {
-        protocolVersion: 1,
-        agentCapabilities: { loadSession: true },
-        agentInfo: { name: 'grok-fixture', version: '1.0.5' },
+        protocolVersion:
+          protocolVariant === 'unknown' ? 99 : (protocol.protocolVersion ?? 1),
+        agentCapabilities: {
+          loadSession: true,
+          ...(protocolVariant === 'future-unknown'
+            ? { alwaysApprove: true, bypassPermissions: true }
+            : {}),
+        },
+        agentInfo: {
+          name: 'grok-fixture',
+          version:
+            protocolVariant === 'future-unknown' ? '99.0.0-future' : '1.0.5',
+        },
         authMethods: [],
       })
       continue
@@ -136,6 +154,12 @@ async function runAcp() {
           },
         },
       })
+      if (
+        protocolVariant === 'future' ||
+        protocolVariant === 'future-unknown'
+      ) {
+        emitFutureEvents(sessionId)
+      }
       if (text.includes('[hang]')) {
         continue
       }
@@ -261,4 +285,131 @@ function hang() {
   return new Promise(() => {
     setInterval(() => {}, 1000)
   })
+}
+
+function emitFutureEvents(sessionId) {
+  emit({
+    method: 'session/update',
+    params: {
+      sessionId,
+      update: {
+        sessionUpdate: 'future_unknown_chunk',
+        reasoning: 'FUTURE_REASONING_MUST_NOT_PERSIST',
+        token: 'FUTURE_SECRET_TOKEN',
+        content: { type: 'text', text: 'FUTURE_SECRET_TOKEN' },
+      },
+    },
+  })
+  emit({
+    method: 'session/update',
+    params: {
+      sessionId,
+      update: {
+        sessionUpdate: 'agent_thought_chunk',
+        content: {
+          type: 'text',
+          text: 'FUTURE_REASONING_MUST_NOT_PERSIST',
+        },
+      },
+    },
+  })
+  emitRequest('future-sudo', {
+    method: 'session/request_always_allow',
+    params: {
+      sessionId,
+      privilege: 'unrestricted',
+      reasoning: 'FUTURE_REASONING_MUST_NOT_PERSIST',
+    },
+  })
+}
+
+function writeVersion() {
+  if (protocolVariant === 'malformed') {
+    writeMalformedFrame()
+    return
+  }
+  if (protocolVariant === 'future-unknown') {
+    process.stdout.write(
+      '{"currentVersion":"99.0.0-future","channel":"canary","protocolVersion":99}\n',
+    )
+    return
+  }
+  process.stdout.write(
+    '{"currentVersion":"1.0.5-fixture","channel":"unknown"}\n',
+  )
+}
+
+function writeMalformedFrame() {
+  process.stdout.write('not-a-protocol-frame\n{broken\n')
+}
+
+function readProtocolVariant(args) {
+  return (
+    normalizeProtocolVariant(readFlag(args, '--protocol-variant')) ||
+    normalizeProtocolVariant(readFlag(args, '--sikumi-protocol')) ||
+    normalizeProtocolVariant(process.env.SIKUMI_FAKE_GROK_PROTOCOL) ||
+    normalizeProtocolVariant(process.env.SHIKUMI_FIXTURE_PROTOCOL) ||
+    'supported'
+  )
+}
+
+function normalizeProtocolVariant(value) {
+  if (value === 'malformed') {
+    return 'malformed'
+  }
+  if (value === 'future') {
+    return 'future'
+  }
+  if (value === 'unknown') {
+    return 'unknown'
+  }
+  if (value === 'future-unknown') {
+    return 'future-unknown'
+  }
+  if (value === 'supported') {
+    return 'supported'
+  }
+  return undefined
+}
+
+function readFlag(args, name) {
+  const exact = args.indexOf(name)
+  if (exact >= 0 && args[exact + 1]) {
+    return args[exact + 1]
+  }
+  const prefix = `${name}=`
+  const matched = args.find((arg) => arg.startsWith(prefix))
+  return matched ? matched.slice(prefix.length) : undefined
+}
+
+function stripProtocolVariant(args) {
+  const flags = ['--protocol-variant', '--sikumi-protocol']
+  const stripped = []
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index]
+    if (flags.includes(arg)) {
+      index += 1
+      continue
+    }
+    if (flags.some((flag) => arg.startsWith(`${flag}=`))) {
+      continue
+    }
+    stripped.push(arg)
+  }
+  return stripped
+}
+
+function loadProtocolFixture(variant) {
+  const fileName =
+    variant === 'future-unknown' ? 'future.json' : `${variant}.json`
+  try {
+    return JSON.parse(
+      readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), 'protocol', fileName),
+        'utf8',
+      ),
+    )
+  } catch {
+    return { protocolVersion: variant === 'malformed' ? 'not-a-version' : 1 }
+  }
 }

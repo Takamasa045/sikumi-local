@@ -14,6 +14,7 @@ export const PROCESS_ENV_ALLOWLIST = [
   'OPENAI_API_KEY',
   'ANTHROPIC_API_KEY',
   'XAI_API_KEY',
+  'SHIKUMI_FIXTURE_PROTOCOL',
 ] as const
 
 export type ProcessEnvAllowlistKey = (typeof PROCESS_ENV_ALLOWLIST)[number]

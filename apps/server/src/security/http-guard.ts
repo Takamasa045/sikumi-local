@@ -128,7 +128,12 @@ export function assertAllowedOrigin(
   originHeader: string | undefined,
   allowedOrigins: ReadonlySet<string>,
 ): void {
-  if (!originHeader || !allowedOrigins.has(originHeader)) {
+  if (
+    !originHeader ||
+    originHeader === 'null' ||
+    /[\s\r\n\t%@\\]/.test(originHeader) ||
+    !allowedOrigins.has(originHeader)
+  ) {
     throw new AppError('FORBIDDEN_ORIGIN', 'Origin is not allowed', 403)
   }
 }
@@ -182,7 +187,14 @@ function consumeWriteRateLimit(
 }
 
 function normalizeHost(hostHeader: string | undefined): string | undefined {
-  return hostHeader?.trim().toLowerCase().split('%')[0]
+  if (!hostHeader) {
+    return undefined
+  }
+  const host = hostHeader.trim().toLowerCase()
+  if (host.length === 0 || /[^a-z0-9.:[\]-]/.test(host)) {
+    return undefined
+  }
+  return host
 }
 
 function readCookie(
@@ -193,14 +205,21 @@ function readCookie(
     return undefined
   }
 
+  const values: string[] = []
   for (const part of cookieHeader.split(';')) {
     const [rawName, ...rawValue] = part.trim().split('=')
     if (rawName === name) {
-      return rawValue.join('=')
+      values.push(rawValue.join('='))
     }
   }
-
-  return undefined
+  if (values.length === 0) {
+    return undefined
+  }
+  const [first] = values
+  if (values.some((value) => value !== first)) {
+    return undefined
+  }
+  return first
 }
 
 function firstHeader(value: string | string[] | undefined): string | undefined {

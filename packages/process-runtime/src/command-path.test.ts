@@ -10,5 +10,7 @@ describe('resolveCommandOnPath', () => {
     expect(resolveCommandOnPath(process.execPath)).toBe(process.execPath)
     const fromPath = resolveCommandOnPath('node')
     expect(fromPath === undefined || fromPath.includes('node')).toBe(true)
+    expect(resolveCommandOnPath('sh')).toBeUndefined()
+    expect(resolveCommandOnPath('bash')).toBeUndefined()
   })
 })

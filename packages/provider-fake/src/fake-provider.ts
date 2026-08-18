@@ -18,6 +18,11 @@ import type {
 } from '@sikumi-local/provider-sdk'
 import { isTerminalEventType } from '@sikumi-local/provider-sdk'
 import { mapFakeProcessEvent } from './map-event.js'
+import {
+  assertSupportedFakeProtocol,
+  loadFakeProtocolFixture,
+  type FakeProtocolVariant,
+} from './protocol.js'
 import { scenarioFromPrompt, type FakeScenario } from './scenario.js'
 
 export const FAKE_PROVIDER_DISPLAY_NAME = '開発用ハーネス'
@@ -43,6 +48,7 @@ export interface FakeProviderOptions {
   readonly executable?: string
   readonly cliPath?: string
   readonly now?: () => string
+  readonly protocolVariant?: FakeProtocolVariant
 }
 
 interface ActiveRun {
@@ -60,6 +66,7 @@ export function createFakeProvider(
   const executable = options.executable ?? process.execPath
   const cliPath = options.cliPath ?? resolveFakeCliPath()
   const now = options.now ?? (() => new Date().toISOString())
+  const protocolVariant = options.protocolVariant ?? 'supported'
   const runs = new Map<string, ActiveRun>()
   const approvalBindings = new Map<string, string>()
 
@@ -69,6 +76,7 @@ export function createFakeProvider(
     advertisedAsRealProvider: false,
 
     async probe() {
+      assertSupportedFakeProtocol(loadFakeProtocolFixture(protocolVariant))
       return {
         installed: true,
         commandPath: cliPath,
@@ -98,6 +106,7 @@ export function createFakeProvider(
     },
 
     async startRun(specification) {
+      assertSupportedFakeProtocol(loadFakeProtocolFixture(protocolVariant))
       const scenario = scenarioFromPrompt(specification.prompt)
       const approvalRequestId = `${specification.runId}:web-search`
       let pidDirectory: string | undefined

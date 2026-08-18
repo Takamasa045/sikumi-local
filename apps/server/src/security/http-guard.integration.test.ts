@@ -91,6 +91,64 @@ describe('local server security contract', () => {
     expect(response.json().error.code).toBe('PAYLOAD_TOO_LARGE')
   })
 
+  it('rejects a percent-encoded Host that would collapse to the allowlist', async () => {
+    const app = createApp()
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/health',
+      headers: { host: '127.0.0.1%3A4321' },
+    })
+
+    expect(response.statusCode).toBe(403)
+    expect(response.json().error.code).toBe('FORBIDDEN_HOST')
+  })
+
+  it('rejects a write whose Origin includes a path or credentials', async () => {
+    const app = createApp()
+    const session = await obtainSession(app)
+    const encoded = await app.inject({
+      method: 'POST',
+      url: '/api/workspaces',
+      headers: {
+        ...session.headers,
+        origin: 'http://127.0.0.1:5184/admin',
+      },
+      payload: { path: '/tmp/repo' },
+    })
+    const credentialed = await app.inject({
+      method: 'POST',
+      url: '/api/workspaces',
+      headers: {
+        ...session.headers,
+        origin: 'http://evil@127.0.0.1:5184',
+      },
+      payload: { path: '/tmp/repo' },
+    })
+
+    expect(encoded.statusCode).toBe(403)
+    expect(encoded.json().error.code).toBe('FORBIDDEN_ORIGIN')
+    expect(credentialed.statusCode).toBe(403)
+    expect(credentialed.json().error.code).toBe('FORBIDDEN_ORIGIN')
+  })
+
+  it('rejects a write that has a session cookie but no CSRF header', async () => {
+    const app = createApp()
+    const session = await obtainSession(app)
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/workspaces',
+      headers: {
+        host: TEST_HOST,
+        origin: TEST_ORIGIN,
+        cookie: `${SESSION_COOKIE_NAME}=${session.token}`,
+      },
+      payload: { path: '/tmp/repo' },
+    })
+
+    expect(response.statusCode).toBe(403)
+    expect(response.json().error.code).toBe('CSRF_REJECTED')
+  })
+
   it('rejects writes that exceed the rate limit', async () => {
     const app = createApp({ writeRateLimit: { max: 2, windowMs: 60_000 } })
 

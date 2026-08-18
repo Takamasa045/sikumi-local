@@ -1,0 +1,22 @@
+{
+  "id": "fake-harness",
+  "protocolVersion": 0,
+  "transport": "fake",
+  "supported": true,
+  "probe": {
+    "version": "fake-0",
+    "advertisedAsRealProvider": false
+  },
+  "events": [
+    {
+      "type": "reasoning",
+      "summary": "INTERNAL_REASONING_MUST_NOT_PERSIST",
+      "token": "FAKE_SECRET_TOKEN"
+    },
+    {
+      "type": "run.started",
+      "summary": "仕事を始めます"
+    }
+  ],
+  "expectedEventTypes": ["run.started"]
+}

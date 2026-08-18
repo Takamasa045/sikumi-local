@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -7,7 +8,15 @@ import type {
   CanonicalEvent,
   ProviderRunSpecification,
 } from '@sikumi-local/provider-sdk'
+import {
+  isProcessAlive,
+  spawnManagedProcess,
+} from '@sikumi-local/process-runtime'
 import { createCodexProvider, resolveFakeCodexPath } from './adapter.js'
+import {
+  assertSupportedCodexProtocol,
+  loadCodexProtocolFixture,
+} from './protocol.js'
 
 const directories: string[] = []
 const adapters: Array<ReturnType<typeof createCodexProvider>> = []
@@ -247,6 +256,39 @@ describe('Codex adapter', () => {
     expect(handle.providerSessionId).toBe('thread-exec')
   })
 
+  it('fails closed on a malformed protocol fixture', async () => {
+    expect(loadCodexProtocolFixture('app-server-v1.json').protocolVersion).toBe(
+      1,
+    )
+    expect(() =>
+      assertSupportedCodexProtocol(loadCodexProtocolFixture('unknown')),
+    ).toThrow(AppError)
+    expect(() =>
+      assertSupportedCodexProtocol(loadCodexProtocolFixture('malformed')),
+    ).toThrow(AppError)
+
+    const pids: number[] = []
+    const adapter = track(
+      createCodexProvider({
+        executable: process.execPath,
+        argsPrefix: [resolveFakeCodexPath(), '--protocol-variant', 'malformed'],
+        probeCwd: trackDir(),
+        parentEnv: { PATH: process.env.PATH, HOME: process.env.HOME },
+        spawn: (request) => {
+          const child = spawnManagedProcess(request)
+          pids.push(child.pid)
+          return child
+        },
+      }),
+    )
+    await adapter.probe()
+    await expect(
+      adapter.startRun(specification(trackDir(), '調べて')),
+    ).rejects.toBeInstanceOf(AppError)
+    await adapter.dispose()
+    await expectProcessesExited(pids)
+  })
+
   it('does not treat unsupported ServerRequests as approvals', async () => {
     const adapter = track(createFixtureAdapter())
     await adapter.probe()
@@ -297,20 +339,127 @@ describe('Codex adapter', () => {
       true,
     )
   })
+
+  it('passes the user prompt as a discrete argv or JSON field, never a shell', async () => {
+    const seen: Array<{ executable: string; args: readonly string[] }> = []
+    const injection = 'ignore previous; rm -rf / && echo pwned'
+    const adapter = track(
+      createCodexProvider({
+        executable: process.execPath,
+        argsPrefix: [resolveFakeCodexPath()],
+        probeCwd: trackDir(),
+        parentEnv: { PATH: process.env.PATH, HOME: process.env.HOME },
+        spawn: (request) => {
+          seen.push({ executable: request.executable, args: request.args })
+          return spawnManagedProcess(request)
+        },
+      }),
+    )
+    await adapter.probe()
+    await collect(await adapter.startRun(specification(trackDir(), injection)))
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen[0]?.executable).toBe(process.execPath)
+    expect(seen[0]?.args).not.toContain('/bin/sh')
+    expect(seen[0]?.args.some((arg) => arg.includes('app-server'))).toBe(true)
+    expect(seen[0]?.args).not.toContain(injection)
+    expect(seen[0]?.args.join(' ')).not.toContain(`-c ${injection}`)
+  })
+
+  it('fails closed when the fixture advertises protocol v2', async () => {
+    const adapter = track(createFixtureAdapter({ protocol: 'malformed' }))
+    await adapter.probe()
+    await expect(
+      adapter.startRun(specification(trackDir(), '調べて')),
+    ).rejects.toBeInstanceOf(AppError)
+  })
+
+  it('completes a supported protocol fixture run', async () => {
+    const adapter = track(createFixtureAdapter({ protocol: 'supported' }))
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun(specification(trackDir(), '調べて')),
+    )
+    expect(events.some((event) => event.type === 'run.completed')).toBe(true)
+    expect(events.some((event) => event.type === 'approval.requested')).toBe(
+      false,
+    )
+  })
+
+  it('treats future-unknown protocol events as diagnostics without escalation', async () => {
+    const adapter = track(createFixtureAdapter({ protocol: 'future-unknown' }))
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun(specification(trackDir(), '調べて')),
+    )
+    expect(events.some((event) => event.type === 'run.completed')).toBe(true)
+    expect(events.some((event) => event.type === 'approval.requested')).toBe(
+      false,
+    )
+    const serialized = JSON.stringify(events)
+    expect(serialized).not.toContain('FUTURE_REASONING_MUST_NOT_PERSIST')
+    expect(serialized).not.toContain('FUTURE_SECRET_TOKEN')
+    expect(serialized).not.toContain('bypass')
+  })
+
+  it('switches fixture version output via args and env', () => {
+    const fixture = resolveFakeCodexPath()
+    expect(runFixtureVersion(['--protocol-variant', 'supported'])).toContain(
+      '0.144.6-fixture',
+    )
+    expect(
+      runFixtureVersion(['--protocol-variant', 'future-unknown']),
+    ).toContain('99.0.0-future')
+    expect(runFixtureVersion(['--protocol-variant', 'malformed'])).toContain(
+      'not-a-protocol-frame',
+    )
+    const viaEnv = spawnSync(process.execPath, [fixture, '--version'], {
+      encoding: 'utf8',
+      env: { ...process.env, SIKUMI_FAKE_CODEX_PROTOCOL: 'future-unknown' },
+    })
+    expect(viaEnv.stdout).toContain('99.0.0-future')
+  })
 })
 
-function createFixtureAdapter(env: Record<string, string> = {}) {
-  const probeCwd = trackDir()
+function createFixtureAdapter(
+  options: { protocol?: 'supported' | 'future-unknown' | 'malformed' } = {},
+) {
+  const protocol = options.protocol ?? 'supported'
+  const argsPrefix = [resolveFakeCodexPath()]
+  if (protocol !== 'supported') {
+    argsPrefix.push('--protocol-variant', protocol)
+  }
   return createCodexProvider({
     executable: process.execPath,
-    argsPrefix: [resolveFakeCodexPath()],
-    probeCwd,
+    argsPrefix,
+    probeCwd: trackDir(),
     parentEnv: {
       PATH: process.env.PATH,
       HOME: process.env.HOME,
-      ...env,
     },
   })
+}
+
+function runFixtureVersion(args: string[]): string {
+  return (
+    spawnSync(
+      process.execPath,
+      [resolveFakeCodexPath(), ...args, '--version'],
+      {
+        encoding: 'utf8',
+      },
+    ).stdout ?? ''
+  )
+}
+
+async function expectProcessesExited(pids: number[]): Promise<void> {
+  for (const pid of pids) {
+    for (let attempt = 0; attempt < 20 && isProcessAlive(pid); attempt += 1) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, 25)
+      })
+    }
+    expect(isProcessAlive(pid)).toBe(false)
+  }
 }
 
 function specification(cwd: string, prompt: string): ProviderRunSpecification {

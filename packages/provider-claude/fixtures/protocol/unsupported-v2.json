@@ -1,0 +1,19 @@
+{
+  "id": "claude-stream-json",
+  "protocolVersion": 2,
+  "transport": "stream-json",
+  "supported": false,
+  "initializeEvent": {
+    "type": "system",
+    "subtype": "init",
+    "protocol_version": 2,
+    "session_id": "claude-sess-1"
+  },
+  "events": [
+    {
+      "type": "thinking_v2",
+      "thinking": "sk-protocol-secret"
+    }
+  ],
+  "expectedEventTypes": []
+}

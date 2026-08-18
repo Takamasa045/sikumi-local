@@ -1,0 +1,24 @@
+{
+  "id": "grok-acp",
+  "protocolVersion": 1,
+  "transport": "acp",
+  "supported": true,
+  "initializeResult": {
+    "protocolVersion": 1,
+    "agentInfo": { "name": "grok-fixture", "version": "1.0.5" }
+  },
+  "sessionUpdates": [
+    {
+      "sessionUpdate": "agent_thought_chunk",
+      "content": {
+        "type": "text",
+        "text": "INTERNAL_REASONING_MUST_NOT_PERSIST"
+      }
+    },
+    {
+      "sessionUpdate": "tool_call",
+      "title": "Read README"
+    }
+  ],
+  "expectedEventTypes": ["repository.read"]
+}

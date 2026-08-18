@@ -66,6 +66,16 @@ describe('cwd policy', () => {
       assertJobCwd(store, track(createTemporaryDirectory()), worktree),
     ).toThrow(/専用Worktree以外/)
   })
+
+  it('rejects an encoded traversal that would leave the worktree', () => {
+    const opened = openDatabase(track(createTemporaryDirectory()))
+    databases.push(opened)
+    const store = createStore(opened.db)
+    const worktree = track(createTemporaryDirectory())
+    expect(() =>
+      assertJobCwd(store, `${worktree}/%2e%2e/secret`, worktree),
+    ).toThrow()
+  })
 })
 
 describe('fake harness flag', () => {

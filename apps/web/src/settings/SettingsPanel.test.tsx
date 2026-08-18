@@ -49,6 +49,36 @@ describe('SettingsPanel', () => {
     expect(onChange).toHaveBeenCalledWith('codex')
   })
 
+  it('shows the provider status panel and forwards recheck', async () => {
+    const onRecheck = vi.fn()
+    render(
+      <SettingsPanel
+        workspace={null}
+        providers={[
+          {
+            id: 'codex',
+            displayName: 'Codex',
+            executionConnected: true,
+            installed: true,
+            authenticated: true,
+            status: 'ready',
+            capabilities: [],
+          },
+        ]}
+        busy={false}
+        error={null}
+        onRegister={vi.fn()}
+        providerLoadState="ready"
+        onRecheckProvider={onRecheck}
+      />,
+    )
+    expect(screen.getByTestId('provider-status-panel')).toHaveTextContent(
+      '使えます',
+    )
+    await userEvent.click(screen.getAllByRole('button', { name: '再確認' })[0]!)
+    expect(onRecheck).toHaveBeenCalledWith('codex')
+  })
+
   it('shows a pack trust screen before install', async () => {
     const onPreview = vi.fn()
     const onInstall = vi.fn()

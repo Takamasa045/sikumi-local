@@ -48,10 +48,21 @@ describe('Shikumi Local garden', () => {
     expect(
       screen.getByRole('heading', { name: '犬たちの里山アトリエ' }),
     ).toBeVisible()
+    expect(screen.getByTestId('connection-badge')).toHaveAttribute(
+      'data-status',
+      'loading',
+    )
+    expect(screen.getByTestId('connection-badge')).toHaveTextContent(
+      '実行エンジンを確認中',
+    )
     expect(screen.getByText('サグル')).toBeVisible()
     expect(screen.getByText('まだ仕事は始まっていません')).toBeVisible()
     expect(screen.queryByText('作業中')).not.toBeInTheDocument()
     expect(await screen.findByText('Repository未登録')).toBeVisible()
+    expect(await screen.findByTestId('connection-badge')).toHaveAttribute(
+      'data-status',
+      'disconnected',
+    )
   })
 
   it('opens the four main screens and the employee drawer from the garden', async () => {
@@ -88,7 +99,7 @@ describe('Shikumi Local garden', () => {
     )
   })
 
-  it('keeps job submission disabled while provider execution is disconnected', () => {
+  it('keeps job submission disabled while provider execution is disconnected', async () => {
     render(<App />)
 
     expect(screen.getByRole('button', { name: '仕事を頼む' })).toBeDisabled()
@@ -97,7 +108,12 @@ describe('Shikumi Local garden', () => {
         '道具を選び、ログイン済みの実行エンジンだけで仕事を始めます。自動切替はしません',
       ),
     ).toBeVisible()
-    expect(screen.getAllByText('実行エンジン未接続').length).toBeGreaterThan(0)
+    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
+      '実行エンジン未接続',
+    )
+    expect(screen.getByTestId('default-tool')).toHaveTextContent(
+      '実行エンジン未接続',
+    )
   })
 
   it('registers a repository through the local server without leaving the garden', async () => {
@@ -623,7 +639,11 @@ describe('Shikumi Local garden', () => {
     render(<App />)
 
     expect(await screen.findByText('開発用ハーネス')).toBeVisible()
-    expect(screen.getByText('テスト実行（実エンジン未接続）')).toBeVisible()
+    expect(screen.getByTestId('connection-badge')).toHaveAttribute(
+      'data-status',
+      'harness',
+    )
+    expect(screen.getByTestId('default-tool')).toHaveTextContent('テスト実行')
     expect(screen.getByLabelText('道具')).toBeVisible()
 
     await userEvent.type(
@@ -1044,7 +1064,243 @@ describe('Shikumi Local garden', () => {
       '2',
     )
   })
+
+  it('shows Codex as connected by display name, not id', async () => {
+    mockGarden({
+      providers: [
+        connectedProvider('codex', 'Codex'),
+        catalogProviders()[1]!,
+        catalogProviders()[2]!,
+      ],
+      executionConnected: true,
+      workspace: { ...sampleWorkspace(), defaultProviderId: 'codex' },
+    })
+    render(<App />)
+    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
+      'Codex 接続済み',
+    )
+    expect(screen.getByTestId('connection-badge')).toHaveAttribute(
+      'data-status',
+      'connected',
+    )
+    expect(screen.getByTestId('default-tool')).toHaveTextContent('Codex')
+    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
+      'codex',
+    )
+    expect(screen.getByTestId('default-tool')).not.toHaveTextContent('codex')
+  })
+
+  it('shows Claude Code as the only connected engine', async () => {
+    mockGarden({
+      providers: [
+        catalogProviders()[0]!,
+        catalogProviders()[1]!,
+        connectedProvider('claude-code', 'Claude Code'),
+      ],
+      executionConnected: true,
+      workspace: { ...sampleWorkspace(), defaultProviderId: 'claude-code' },
+    })
+    render(<App />)
+    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
+      'Claude Code 接続済み',
+    )
+    expect(screen.getByTestId('default-tool')).toHaveTextContent('Claude Code')
+    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
+      'claude-code',
+    )
+  })
+
+  it('summarizes multiple connected engines', async () => {
+    mockGarden({
+      providers: [
+        connectedProvider('codex', 'Codex'),
+        connectedProvider('grok-build', 'Grok Build'),
+        catalogProviders()[2]!,
+      ],
+      executionConnected: true,
+      workspace: sampleWorkspace(),
+    })
+    render(<App />)
+    const badge = await screen.findByTestId('connection-badge')
+    expect(badge).toHaveTextContent('Codex · Grok Build 接続済み')
+    expect(badge).toHaveAttribute('title', expect.stringContaining('Codex'))
+    expect(screen.getByTestId('default-tool')).toHaveTextContent(
+      '依頼ごとに選択',
+    )
+    expect(screen.getByTestId('default-tool')).not.toHaveTextContent(
+      '実行エンジン未接続',
+    )
+  })
+
+  it('reports a provider catalog fetch error', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return jsonResponse({ token: 'test-session' })
+      }
+      if (url.endsWith('/api/health')) {
+        return jsonResponse(disconnectedHealth())
+      }
+      if (url.endsWith('/api/providers')) {
+        return jsonResponse(
+          { error: { code: 'VALIDATION_FAILED', message: 'failed' } },
+          500,
+        )
+      }
+      if (url.includes('/api/employees')) {
+        return employeePayload()
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return jsonResponse({ workspaces: [] })
+      }
+      return jsonResponse(
+        { error: { code: 'NOT_FOUND', message: 'not found' } },
+        404,
+      )
+    })
+    render(<App />)
+    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
+      '接続状態を確認できません',
+    )
+    expect(screen.getByTestId('connection-badge')).toHaveAttribute(
+      'data-status',
+      'error',
+    )
+  })
+
+  it('shows the first-run guide until the three setup steps are done', async () => {
+    render(<App />)
+    expect(await screen.findByTestId('first-run-guide')).toHaveTextContent(
+      '開始までの3段階',
+    )
+    expect(screen.getByText('次に行う')).toBeVisible()
+  })
+
+  it('rechecks a provider and refreshes the catalog', async () => {
+    let listed = 0
+    let probed = 0
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method ?? 'GET'
+        if (url.endsWith('/api/session')) {
+          return jsonResponse({ token: 'test-session' })
+        }
+        if (url.endsWith('/api/health')) {
+          return jsonResponse(disconnectedHealth())
+        }
+        if (url.endsWith('/api/providers') && method !== 'POST') {
+          listed += 1
+          return jsonResponse({
+            providers: catalogProviders().map((provider) => ({
+              ...provider,
+              installed: false,
+              authenticated: false,
+              status: 'not_installed',
+              capabilities: [],
+            })),
+            executionConnected: false,
+            fakeHarness: false,
+          })
+        }
+        if (url.endsWith('/api/providers/codex/probe') && method === 'POST') {
+          probed += 1
+          return jsonResponse({
+            id: 'codex',
+            probe: {
+              installed: false,
+              authenticated: false,
+              transport: 'disconnected',
+              warnings: [],
+              errors: ['codex コマンドが見つかりません'],
+            },
+          })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
+        }
+        if (url.endsWith('/api/workspaces')) {
+          return jsonResponse({ workspaces: [] })
+        }
+        return jsonResponse(
+          { error: { code: 'NOT_FOUND', message: 'not found' } },
+          404,
+        )
+      },
+    )
+    render(<App />)
+    await userEvent.click(
+      within(
+        await screen.findByRole('navigation', { name: '主要画面' }),
+      ).getByRole('link', { name: '設定' }),
+    )
+    expect(await screen.findByTestId('provider-status-panel')).toBeVisible()
+    await userEvent.click(screen.getAllByRole('button', { name: '再確認' })[0]!)
+    await waitFor(() => {
+      expect(probed).toBe(1)
+      expect(listed).toBeGreaterThan(1)
+    })
+  })
 })
+
+function mockGarden(input: {
+  readonly providers: unknown[]
+  readonly executionConnected: boolean
+  readonly workspace: {
+    readonly id: string
+    readonly name: string
+    readonly defaultProviderId: 'codex' | 'grok-build' | 'claude-code' | null
+    readonly worldPackId: string
+    readonly createdAt: string
+    readonly updatedAt: string
+    readonly repository: ReturnType<typeof sampleWorkspace>['repository']
+  }
+}) {
+  fetchMock.mockImplementation(async (inputUrl: RequestInfo | URL) => {
+    const url = String(inputUrl)
+    if (url.endsWith('/api/session')) {
+      return jsonResponse({ token: 'test-session' })
+    }
+    if (url.endsWith('/api/health')) {
+      return jsonResponse({ ...disconnectedHealth(), liveProviderRuns: true })
+    }
+    if (url.endsWith('/api/providers')) {
+      return jsonResponse({
+        providers: input.providers,
+        executionConnected: input.executionConnected,
+        fakeHarness: false,
+      })
+    }
+    if (url.includes('/api/employees')) {
+      return employeePayload()
+    }
+    if (url.endsWith('/api/workspaces')) {
+      return jsonResponse({ workspaces: [input.workspace] })
+    }
+    if (url.includes('/api/jobs')) {
+      return jsonResponse({ jobs: [] })
+    }
+    return jsonResponse(
+      { error: { code: 'NOT_FOUND', message: 'not found' } },
+      404,
+    )
+  })
+}
+
+function connectedProvider(
+  id: 'codex' | 'grok-build' | 'claude-code',
+  displayName: string,
+) {
+  return {
+    id,
+    displayName,
+    executionConnected: true,
+    installed: true,
+    authenticated: true,
+    status: 'ready',
+    capabilities: [],
+  }
+}
 
 function disconnectedHealth() {
   return {

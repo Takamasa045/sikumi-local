@@ -23,6 +23,12 @@ test('the garden remains usable on a phone viewport', async ({ page }) => {
   await expect(page.getByRole('button', { name: '仕事を頼む' })).toBeDisabled()
   await expect(page.getByRole('navigation', { name: '主要画面' })).toBeVisible()
   await expect(page.getByTestId('world-stage')).toBeInViewport()
+  await expect(page.getByTestId('connection-badge')).toBeVisible()
+  const overflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }))
+  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1)
 })
 
 test('narrow gardens keep 資料棚 and 納品台 plaques off the heading', async ({

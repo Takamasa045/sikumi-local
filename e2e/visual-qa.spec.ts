@@ -17,6 +17,7 @@ test.describe('garden visual QA', () => {
       'サグル',
     )
     await expect(page.getByTestId('world-stage')).toBeVisible()
+    await expect(page.getByTestId('first-run-guide')).toBeVisible()
     await expect(page.getByTestId('world-stage')).toHaveAttribute(
       'data-employee-id',
       /.+/,
@@ -45,6 +46,7 @@ test.describe('garden visual QA', () => {
     await expect(
       page.getByRole('heading', { name: '工房の整え方' }),
     ).toBeVisible()
+    await expect(page.getByTestId('provider-status-panel')).toBeVisible()
     await page.screenshot({
       path: `${outputDir}/${suffix}-settings.png`,
       fullPage: true,

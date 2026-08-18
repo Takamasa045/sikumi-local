@@ -1,0 +1,41 @@
+schemaVersion: 1
+
+id: kakikae
+name: カキカエ
+role: 書き込み検証担当
+version: 1.0.0
+
+description: >
+  Phase 10のWorktree検証専用Employee。
+  本番の権限昇格穴には使わない。
+
+compatibility:
+  core: '>=1'
+
+capabilities:
+  - repository.read
+  - repository.write
+  - report.create
+
+requiredProviderCapabilities:
+  - streaming
+
+permissionProfile: edit-worktree
+
+supportedJobTypes:
+  - edit
+  - research
+
+defaultProviderOrder:
+  - codex
+  - grok-build
+  - claude-code
+
+prompts:
+  system: prompts/system.md
+  job: prompts/job.md
+
+resultSchema: schemas/edit-result.json
+stateMap: states/state-map.yaml
+growth: growth/growth.yaml
+character: kakikae-default

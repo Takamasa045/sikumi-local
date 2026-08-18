@@ -5,6 +5,7 @@ import {
   redactRemoteUrl,
   redactSensitiveText,
   sanitizeEventPayload,
+  textContainsSecrets,
 } from './redact.js'
 
 describe('redactSensitiveText', () => {
@@ -33,6 +34,15 @@ describe('redactSensitiveText', () => {
     const redacted = redactSensitiveText(huge)
     expect(redacted.length).toBeLessThanOrEqual(8_192)
     expect(redacted).not.toContain(secret)
+  })
+})
+
+describe('textContainsSecrets', () => {
+  it('finds secret-like values even after the first window', () => {
+    expect(textContainsSecrets('TOKEN=sk-live-secret-value')).toBe(true)
+    expect(textContainsSecrets('普通の差分です')).toBe(false)
+    const late = `${'x'.repeat(9_000)}TOKEN=sk-live-secret-value`
+    expect(textContainsSecrets(late)).toBe(true)
   })
 })
 

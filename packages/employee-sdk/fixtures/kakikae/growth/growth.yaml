@@ -1,0 +1,8 @@
+metrics:
+  - id: edits_completed
+    label: 編集完了
+    incrementOn: job.completed
+
+levels:
+  - level: 1
+    threshold: 0

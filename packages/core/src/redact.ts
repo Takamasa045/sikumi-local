@@ -64,6 +64,21 @@ export function payloadContainsSecrets(payload: unknown): boolean {
   return containsSecrets(payload, 0, new WeakSet())
 }
 
+export function textContainsSecrets(value: string): boolean {
+  if (value.length === 0) {
+    return false
+  }
+  const windowSize = MAX_REDACT_INPUT
+  const step = Math.max(1, windowSize - 256)
+  for (let index = 0; index < value.length; index += step) {
+    const slice = value.slice(index, index + windowSize)
+    if (redactSensitiveText(slice) !== slice) {
+      return true
+    }
+  }
+  return false
+}
+
 function sanitizeValue(
   value: unknown,
   depth: number,

@@ -24,6 +24,44 @@ const employee: EmployeeSummary = {
 }
 
 describe('JobComposer', () => {
+  it('offers explicit dirty-repo worktree choices', async () => {
+    const onDirty = vi.fn()
+    render(
+      <JobComposer
+        enabled
+        busy={false}
+        request="直して"
+        notice="notice"
+        employees={[employee]}
+        selectedEmployeeId="saguru"
+        providers={[provider('codex', 'ready')]}
+        selectedProvider="codex"
+        dirtyRepo={{
+          message: '現在の作業ディレクトリに未commitの変更があります',
+        }}
+        onRequestChange={vi.fn()}
+        onEmployeeChange={vi.fn()}
+        onProviderChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onConfirmFallback={vi.fn()}
+        onCancelConfirmation={vi.fn()}
+        onDirtyPolicy={onDirty}
+      />,
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'HEADから新しいWorktreeを作る' }),
+    )
+    await userEvent.click(
+      screen.getByRole('button', {
+        name: '現在の差分を一時Patchとして含める',
+      }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: '中止' }))
+    expect(onDirty).toHaveBeenCalledWith('from-head')
+    expect(onDirty).toHaveBeenCalledWith('include-dirty-patch')
+    expect(onDirty).toHaveBeenCalledWith('cancel')
+  })
+
   it('describes provider status and confirms a fallback tool', async () => {
     const onConfirm = vi.fn()
     render(
@@ -40,6 +78,9 @@ describe('JobComposer', () => {
           provider('claude-code', 'not_installed'),
         ]}
         selectedProvider="codex"
+        dirtyRepo={{
+          message: '現在の作業ディレクトリに未commitの変更があります',
+        }}
         confirmation={{
           message: 'Codexを起動できませんでした。別の道具で始めますか？',
           alternatives: ['grok-build'],
@@ -50,8 +91,12 @@ describe('JobComposer', () => {
         onSubmit={vi.fn()}
         onConfirmFallback={onConfirm}
         onCancelConfirmation={vi.fn()}
+        onDirtyPolicy={vi.fn()}
       />,
     )
+    expect(
+      screen.getByText('現在の作業ディレクトリに未commitの変更があります'),
+    ).toBeVisible()
     expect(screen.getByText(/使用できます/)).toBeVisible()
     await userEvent.click(
       screen.getByRole('button', { name: 'Grok Buildで始める' }),

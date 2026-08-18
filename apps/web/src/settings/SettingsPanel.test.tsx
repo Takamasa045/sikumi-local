@@ -48,4 +48,107 @@ describe('SettingsPanel', () => {
     )
     expect(onChange).toHaveBeenCalledWith('codex')
   })
+
+  it('shows a pack trust screen before install', async () => {
+    const onPreview = vi.fn()
+    const onInstall = vi.fn()
+    render(
+      <SettingsPanel
+        workspace={null}
+        providers={[]}
+        busy={false}
+        error={null}
+        onRegister={vi.fn()}
+        onPreviewPack={onPreview}
+        onInstallPack={onInstall}
+        packPreview={{
+          id: 'prev_1',
+          packId: 'miru',
+          version: '1.0.0',
+          sourceKind: 'folder',
+          sourceDisplay: 'miru',
+          validation: { ok: true, errors: [] },
+          fileSummary: { files: 4, names: ['employee.yaml'] },
+          gitCommit: null,
+          gitChanges: null,
+        }}
+      />,
+    )
+    expect(screen.getByTestId('pack-trust')).toHaveTextContent('miru')
+    await userEvent.click(
+      screen.getByRole('button', { name: 'このPackを導入する' }),
+    )
+    expect(onInstall).toHaveBeenCalled()
+  })
+
+  it('previews a local pack and uninstalls an installed one', async () => {
+    const onPreview = vi.fn()
+    const onUninstall = vi.fn()
+    render(
+      <SettingsPanel
+        workspace={null}
+        providers={[]}
+        busy={false}
+        error={null}
+        onRegister={vi.fn()}
+        onPreviewPack={onPreview}
+        onUninstallPack={onUninstall}
+        packs={[
+          {
+            id: 'p1',
+            kind: 'employee',
+            packId: 'miru',
+            version: '1.0.0',
+            sourcePath: null,
+            sourceKind: 'folder',
+            sourceDisplay: 'miru',
+            commitHash: null,
+            builtin: false,
+            installedAt: 't',
+          },
+          {
+            id: 'p2',
+            kind: 'employee',
+            packId: 'saguru',
+            version: '1.0.0',
+            sourcePath: null,
+            sourceKind: 'builtin',
+            sourceDisplay: 'builtin',
+            commitHash: null,
+            builtin: true,
+            installedAt: 't',
+          },
+        ]}
+        packPreview={{
+          id: 'prev_1',
+          packId: 'night-garden',
+          version: '1.0.0',
+          sourceKind: 'git',
+          sourceDisplay: 'local git repository',
+          validation: { ok: false, errors: ['too old'] },
+          fileSummary: { files: 1, names: ['world.yaml'] },
+          gitCommit: 'abcdef123456',
+          gitChanges: 'add world',
+        }}
+      />,
+    )
+    await userEvent.selectOptions(screen.getByLabelText('Packの入手元'), 'git')
+    await userEvent.type(screen.getByLabelText('Packの場所'), '/tmp/pack')
+    await userEvent.type(
+      screen.getByLabelText('PackのGit URL'),
+      'file:///tmp/pack.git',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: '確認画面を開く' }),
+    )
+    expect(onPreview).toHaveBeenCalledWith({
+      sourceType: 'git',
+      path: '/tmp/pack',
+      gitUrl: 'file:///tmp/pack.git',
+    })
+    expect(screen.getByTestId('pack-trust')).toHaveTextContent('too old')
+    expect(screen.getByTestId('pack-trust')).toHaveTextContent('abcdef123456')
+    await userEvent.click(screen.getByRole('button', { name: '削除' }))
+    expect(onUninstall).toHaveBeenCalledWith('p1')
+  })
 })

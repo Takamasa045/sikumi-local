@@ -144,9 +144,31 @@ function createMemoryStore(): AppStore {
       throw new Error('unexpected ensureDefaultEmployee')
     },
     insertGrowthRecord: (record) => record,
+    listGrowthRecords: () => [],
+    tryInsertGrowthApplication: () => true,
+    recordGrowthOnce: () => ({ applied: true }),
+    listGrowthApplications: () => [],
     insertWorldUnlock: (unlock) => unlock,
+    listWorldUnlocks: () => [],
+    insertWorldFeatureUnlock: (unlock) => unlock,
+    listWorldFeatureUnlocks: () => [],
     insertAuditEntry: (entry) => entry,
     insertPack: (pack) => pack,
+    updatePack: (id) => {
+      throw new Error(`unexpected updatePack ${id}`)
+    },
+    deletePack: () => undefined,
+    getPack: () => undefined,
+    findPack: () => undefined,
     listPacks: () => [],
+    insertJobWorktree: (record) => record,
+    getJobWorktreeByJobId: () => undefined,
+    listActiveWriteWorktrees: () => [],
+    updateJobWorktree: (id) => {
+      throw new Error(`unexpected updateJobWorktree ${id}`)
+    },
+    insertPackPreview: (record) => record,
+    getPackPreview: () => undefined,
+    deletePackPreview: () => undefined,
   }
 }

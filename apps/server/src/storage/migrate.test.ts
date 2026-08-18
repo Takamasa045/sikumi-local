@@ -66,7 +66,7 @@ describe('applyMigrations', () => {
       .get() as { count: number }
 
     expect(workspace.name).toBe('keep-me')
-    expect(migrations.count).toBe(1)
+    expect(migrations.count).toBe(2)
     second.close()
   })
 

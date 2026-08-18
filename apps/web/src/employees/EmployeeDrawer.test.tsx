@@ -58,9 +58,18 @@ describe('EmployeeDrawer', () => {
         busy={false}
         onClose={onClose}
         onDefaultProviderChange={onChange}
+        growth={{
+          level: 2,
+          permissionProfile: 'research',
+          metrics: [{ id: 'completed_jobs', label: '完了した仕事', value: 5 }],
+        }}
       />,
     )
     expect(screen.getByText('構成を調べて')).toBeVisible()
+    expect(screen.getByTestId('employee-growth')).toHaveTextContent('Lv.2')
+    expect(screen.getByTestId('employee-growth')).toHaveTextContent(
+      '権限は research のままです',
+    )
     await userEvent.selectOptions(screen.getByLabelText('標準の道具'), 'codex')
     expect(onChange).toHaveBeenCalledWith('codex')
     await userEvent.click(screen.getByRole('button', { name: '閉じる' }))

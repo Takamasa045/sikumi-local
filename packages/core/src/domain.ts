@@ -70,6 +70,53 @@ export type ArtifactType = (typeof artifactTypes)[number]
 export const packKinds = ['employee', 'character', 'world'] as const
 export type PackKind = (typeof packKinds)[number]
 
+export const packSourceKinds = ['builtin', 'folder', 'zip', 'git'] as const
+export type PackSourceKind = (typeof packSourceKinds)[number]
+
+export const dirtyWorktreePolicies = [
+  'from-head',
+  'include-dirty-patch',
+  'cancel',
+] as const
+export type DirtyWorktreePolicy = (typeof dirtyWorktreePolicies)[number]
+
+export const jobWorktreeStatuses = [
+  'prepared',
+  'active',
+  'completed',
+  'applied',
+  'discarded',
+  'kept',
+] as const
+export type JobWorktreeStatus = (typeof jobWorktreeStatuses)[number]
+
+export function requiresDedicatedWorktree(
+  profile: PermissionProfileId,
+): boolean {
+  return profile === 'edit-worktree' || profile === 'test-worktree'
+}
+
+const permissionProfileRanks: Record<PermissionProfileId, number> = {
+  observe: 0,
+  plan: 1,
+  research: 2,
+  'edit-worktree': 3,
+  'test-worktree': 4,
+  publish: 5,
+  unrestricted: 6,
+}
+
+export function permissionProfileRank(profile: PermissionProfileId): number {
+  return permissionProfileRanks[profile]
+}
+
+export function isPermissionEscalation(
+  requested: PermissionProfileId,
+  allowed: PermissionProfileId,
+): boolean {
+  return permissionProfileRank(requested) > permissionProfileRank(allowed)
+}
+
 export const employeeSources = ['builtin', 'installed'] as const
 export type EmployeeSource = (typeof employeeSources)[number]
 
@@ -310,7 +357,58 @@ export interface InstalledPack {
   readonly packId: string
   readonly version: string
   readonly sourcePath: string | null
+  readonly sourceKind: PackSourceKind | null
+  readonly sourceDisplay: string | null
+  readonly commitHash: string | null
+  readonly builtin: boolean
   readonly installedAt: string
+}
+
+export interface JobWorktree {
+  readonly id: string
+  readonly jobId: string
+  readonly repositoryId: string
+  readonly worktreeRelPath: string
+  readonly branchName: string
+  readonly baseCommit: string
+  readonly includeDirtyPatch: boolean
+  readonly status: JobWorktreeStatus
+  readonly createdAt: string
+  readonly updatedAt: string
+}
+
+export interface GrowthApplication {
+  readonly id: string
+  readonly jobId: string
+  readonly employeeId: string
+  readonly scopeKey: string
+  readonly metric: string
+  readonly value: number
+  readonly createdAt: string
+}
+
+export interface WorldFeatureUnlock {
+  readonly id: string
+  readonly workspaceId: string
+  readonly worldPackId: string
+  readonly unlockId: string
+  readonly unlockedAt: string
+}
+
+export interface PackPreviewRecord {
+  readonly id: string
+  readonly kind: PackKind
+  readonly packId: string
+  readonly version: string
+  readonly sourceKind: Exclude<PackSourceKind, 'builtin'>
+  readonly sourceDisplay: string
+  readonly validation: Record<string, unknown>
+  readonly fileSummary: Record<string, unknown>
+  readonly gitCommit: string | null
+  readonly gitChanges: string | null
+  readonly stagingRelPath: string
+  readonly createdAt: string
+  readonly expiresAt: string
 }
 
 export const defaultProviders: readonly Provider[] = [

@@ -1,4 +1,8 @@
-import { artifactSchema } from '@sikumi-local/core'
+import {
+  AppError,
+  artifactSchema,
+  confirmWriteRequestSchema,
+} from '@sikumi-local/core'
 import type { FastifyInstance } from 'fastify'
 import type { JobManager } from '../jobs/job-manager.js'
 
@@ -26,4 +30,38 @@ export function registerArtifactRoutes(
       artifact: artifactSchema.parse(jobs.getArtifact(request.params.id)),
     }
   })
+
+  app.post<{ Params: { id: string } }>(
+    '/api/artifacts/:id/apply',
+    async (request) => {
+      const parsed = confirmWriteRequestSchema.safeParse(request.body)
+      if (!parsed.success) {
+        throw new AppError(
+          'VALIDATION_FAILED',
+          'Apply requires an explicit confirm',
+          400,
+        )
+      }
+      return {
+        artifact: artifactSchema.parse(
+          jobs.applyArtifact(request.params.id, parsed.data.confirm),
+        ),
+      }
+    },
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/api/artifacts/:id/export',
+    async (request) => {
+      const parsed = confirmWriteRequestSchema.safeParse(request.body)
+      if (!parsed.success) {
+        throw new AppError(
+          'VALIDATION_FAILED',
+          'Export requires an explicit confirm',
+          400,
+        )
+      }
+      return jobs.exportArtifact(request.params.id, parsed.data.confirm)
+    },
+  )
 }

@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Artifact } from '@sikumi-local/core'
 import { ArtifactShelf } from './ArtifactShelf'
 
@@ -32,6 +32,46 @@ describe('ArtifactShelf', () => {
     expect(screen.getByText(/引き継ぎメモ/)).toBeVisible()
     expect(screen.getByText(/ファイル/)).toBeVisible()
     expect(screen.getByText(/URL/)).toBeVisible()
+  })
+
+  it('offers explicit apply and discard for a worktree patch', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    const onApply = vi.fn()
+    const onDiscard = vi.fn()
+    const onExport = vi.fn()
+    const onKeep = vi.fn()
+    render(
+      <ArtifactShelf
+        artifacts={[sample('patch', '変更パッチ', '/tmp/a.patch')]}
+        worktree={{
+          branchName: 'shikumi/tsukuru/a8f3d2aa',
+          baseCommit: 'abc12345',
+          status: 'completed',
+          summary: '1 file changed',
+          files: ['from-worktree.txt'],
+          patch: 'diff --git a/from-worktree.txt',
+        }}
+        onApply={onApply}
+        onExport={onExport}
+        onKeep={onKeep}
+        onDiscard={onDiscard}
+      />,
+    )
+    expect(screen.getByTestId('worktree-diff')).toHaveTextContent(
+      'shikumi/tsukuru/a8f3d2aa',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: '現在のbranchへ適用' }),
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Patchを書き出す' }),
+    )
+    await userEvent.click(screen.getByRole('button', { name: 'branchを残す' }))
+    await userEvent.click(screen.getByRole('button', { name: '破棄' }))
+    expect(onApply).toHaveBeenCalled()
+    expect(onExport).toHaveBeenCalled()
+    expect(onKeep).toHaveBeenCalled()
+    expect(onDiscard).toHaveBeenCalled()
   })
 })
 

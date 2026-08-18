@@ -152,6 +152,10 @@ describe('AppStore persistence boundary', () => {
       packId: 'saguru',
       version: '1.0.0',
       sourcePath: null,
+      sourceKind: 'builtin',
+      sourceDisplay: 'builtin',
+      commitHash: null,
+      builtin: true,
       installedAt: 't',
     })
 
@@ -216,6 +220,179 @@ describe('AppStore persistence boundary', () => {
       store.updateApproval('missing', { status: 'denied' }),
     ).toThrow()
     expect(store.listPacks()[0]?.packId).toBe('saguru')
+    expect(store.getPack('pack_1')?.builtin).toBe(true)
+    expect(store.findPack('employee', 'saguru')?.id).toBe('pack_1')
+    expect(
+      store.updatePack('pack_1', { sourceDisplay: 'builtin-core' })
+        .sourceDisplay,
+    ).toBe('builtin-core')
+    expect(() => store.deletePack('pack_1')).toThrow(/組み込み/)
+    const extraPack = store.insertPack({
+      id: 'pack_2',
+      kind: 'world',
+      packId: 'night',
+      version: '1.0.0',
+      sourcePath: null,
+      sourceKind: 'folder',
+      sourceDisplay: 'night',
+      commitHash: null,
+      builtin: false,
+      installedAt: 't',
+    })
+    store.deletePack(extraPack.id)
+    expect(store.getPack(extraPack.id)).toBeUndefined()
+    expect(
+      store.tryInsertGrowthApplication({
+        id: 'ga_1',
+        jobId: 'job_1',
+        employeeId: employee.id,
+        scopeKey: 'global',
+        metric: 'completed_jobs',
+        value: 1,
+        createdAt: 't',
+      }),
+    ).toBe(true)
+    expect(
+      store.tryInsertGrowthApplication({
+        id: 'ga_2',
+        jobId: 'job_1',
+        employeeId: employee.id,
+        scopeKey: 'global',
+        metric: 'completed_jobs',
+        value: 1,
+        createdAt: 't',
+      }),
+    ).toBe(false)
+    expect(store.listGrowthApplications({ jobId: 'job_1' })).toHaveLength(1)
+
+    const firstOnce = store.recordGrowthOnce({
+      application: {
+        id: 'ga_atomic_1',
+        jobId: 'job_atomic',
+        employeeId: employee.id,
+        scopeKey: 'global',
+        metric: 'completed_jobs',
+        value: 1,
+        createdAt: 't',
+      },
+      record: {
+        id: 'gr_atomic_1',
+        employeeId: employee.id,
+        workspaceId: null,
+        metric: 'completed_jobs',
+        value: 1,
+        createdAt: 't',
+      },
+    })
+    const racedOnce = store.recordGrowthOnce({
+      application: {
+        id: 'ga_atomic_2',
+        jobId: 'job_atomic',
+        employeeId: employee.id,
+        scopeKey: 'global',
+        metric: 'completed_jobs',
+        value: 1,
+        createdAt: 't',
+      },
+      record: {
+        id: 'gr_atomic_2',
+        employeeId: employee.id,
+        workspaceId: null,
+        metric: 'completed_jobs',
+        value: 1,
+        createdAt: 't',
+      },
+    })
+    expect(firstOnce.applied).toBe(true)
+    expect(racedOnce.applied).toBe(false)
+    expect(
+      store.listGrowthApplications({ jobId: 'job_atomic' }),
+    ).toHaveLength(1)
+    expect(
+      store
+        .listGrowthRecords({ employeeId: employee.id, workspaceId: null })
+        .filter((item) => item.id === 'gr_atomic_1' || item.id === 'gr_atomic_2'),
+    ).toHaveLength(1)
+
+    expect(() =>
+      store.recordGrowthOnce({
+        application: {
+          id: 'ga_atomic_fail',
+          jobId: 'job_atomic_fail',
+          employeeId: employee.id,
+          scopeKey: 'global',
+          metric: 'failed_jobs',
+          value: 1,
+          createdAt: 't',
+        },
+        record: {
+          id: 'gr_1',
+          employeeId: employee.id,
+          workspaceId: workspace.id,
+          metric: 'failed_jobs',
+          value: 1,
+          createdAt: 't',
+        },
+      }),
+    ).toThrow()
+    expect(
+      store.listGrowthApplications({ jobId: 'job_atomic_fail' }),
+    ).toHaveLength(0)
+    expect(
+      store.listGrowthRecords({
+        employeeId: employee.id,
+        workspaceId: workspace.id,
+      }).length,
+    ).toBeGreaterThan(0)
+    const worktree = store.insertJobWorktree({
+      id: 'wt_1',
+      jobId: job.id,
+      repositoryId: workspace.repository.id,
+      worktreeRelPath: 'worktrees/repo/job',
+      branchName: 'shikumi/saguru/aaaaaaaa',
+      baseCommit: 'abc',
+      includeDirtyPatch: false,
+      status: 'active',
+      createdAt: 't',
+      updatedAt: 't',
+    })
+    expect(store.getJobWorktreeByJobId(job.id)?.id).toBe(worktree.id)
+    expect(store.listActiveWriteWorktrees()).toHaveLength(1)
+    expect(
+      store.updateJobWorktree(worktree.id, {
+        status: 'completed',
+        updatedAt: 't2',
+      }).status,
+    ).toBe('completed')
+    store.insertPackPreview({
+      id: 'prev_1',
+      kind: 'employee',
+      packId: 'miru',
+      version: '1.0.0',
+      sourceKind: 'folder',
+      sourceDisplay: 'miru',
+      validation: { ok: true, errors: [] },
+      fileSummary: { files: 1, totalBytes: 1, names: ['employee.yaml'] },
+      gitCommit: null,
+      gitChanges: null,
+      stagingRelPath: 'packs/staging/prev_1',
+      createdAt: 't',
+      expiresAt: 't2',
+    })
+    expect(store.getPackPreview('prev_1')?.packId).toBe('miru')
+    store.deletePackPreview('prev_1')
+    expect(store.getPackPreview('prev_1')).toBeUndefined()
+    store.insertWorldFeatureUnlock({
+      id: 'wfu_1',
+      workspaceId: workspace.id,
+      worldPackId: 'dog-office',
+      unlockId: 'bookshelf-small',
+      unlockedAt: 't',
+    })
+    expect(store.listWorldFeatureUnlocks(workspace.id)[0]?.unlockId).toBe(
+      'bookshelf-small',
+    )
+    expect(store.listWorldUnlocks(workspace.id)).toHaveLength(1)
     expect(store.findRepositoryByAbsolutePath('/tmp/example-repo')?.id).toBe(
       workspace.repository.id,
     )

@@ -5,7 +5,10 @@ import {
   artifactTypes,
   jobStatuses,
   gardenStationIds,
+  dirtyWorktreePolicies,
+  jobWorktreeStatuses,
   packKinds,
+  packSourceKinds,
   permissionProfileIds,
   providerCapabilityKeys,
   providerIds,
@@ -162,7 +165,116 @@ export const installedPackSchema = z.object({
   packId: z.string().min(1),
   version: z.string().min(1),
   sourcePath: z.string().min(1).nullable(),
+  sourceKind: z.enum(packSourceKinds).nullable().default(null),
+  sourceDisplay: z.string().min(1).nullable().default(null),
+  commitHash: z.string().min(1).nullable().default(null),
+  builtin: z.boolean().default(false),
   installedAt: z.string().min(1),
+})
+
+export const jobWorktreeSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  repositoryId: z.string().min(1),
+  worktreeRelPath: z.string().min(1),
+  branchName: z.string().min(1),
+  baseCommit: z.string().min(1),
+  includeDirtyPatch: z.boolean(),
+  status: z.enum(jobWorktreeStatuses),
+  createdAt: z.string().min(1),
+  updatedAt: z.string().min(1),
+})
+
+export const growthApplicationSchema = z.object({
+  id: z.string().min(1),
+  jobId: z.string().min(1),
+  employeeId: z.string().min(1),
+  scopeKey: z.string().min(1),
+  metric: z.string().min(1),
+  value: z.number().int(),
+  createdAt: z.string().min(1),
+})
+
+export const worldFeatureUnlockSchema = z.object({
+  id: z.string().min(1),
+  workspaceId: z.string().min(1),
+  worldPackId: z.string().min(1),
+  unlockId: z.string().min(1),
+  unlockedAt: z.string().min(1),
+})
+
+export const growthMetricSnapshotSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  value: z.number().int(),
+})
+
+export const growthSnapshotSchema = z.object({
+  employeeId: z.string().min(1),
+  employeeName: z.string().min(1),
+  workspaceId: z.string().min(1).nullable(),
+  level: z.number().int().min(1),
+  permissionProfile: z.enum(permissionProfileIds),
+  metrics: z.array(growthMetricSnapshotSchema),
+  unlocks: z.array(z.string().min(1)),
+})
+
+export const portableGrowthExportSchema = z.object({
+  generatedAt: z.string().min(1),
+  employees: z.array(
+    z.object({
+      employeeId: z.string().min(1),
+      employeeName: z.string().min(1),
+      level: z.number().int().min(1),
+      metrics: z.array(growthMetricSnapshotSchema),
+      workspaces: z.array(
+        z.object({
+          workspaceId: z.string().min(1),
+          workspaceName: z.string().min(1),
+          level: z.number().int().min(1),
+          metrics: z.array(growthMetricSnapshotSchema),
+          unlocks: z.array(z.string().min(1)),
+        }),
+      ),
+    }),
+  ),
+})
+
+export const packPreviewSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(packKinds),
+  packId: z.string().min(1),
+  version: z.string().min(1),
+  sourceKind: z.enum(['folder', 'zip', 'git']),
+  sourceDisplay: z.string().min(1),
+  validation: z.object({
+    ok: z.boolean(),
+    errors: z.array(z.string()),
+  }),
+  fileSummary: z.object({
+    files: z.number().int().min(0),
+    totalBytes: z.number().int().min(0),
+    names: z.array(z.string()),
+  }),
+  gitCommit: z.string().min(1).nullable(),
+  gitChanges: z.string().nullable(),
+  createdAt: z.string().min(1),
+})
+
+export const packPreviewRecordSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(packKinds),
+  packId: z.string().min(1),
+  version: z.string().min(1),
+  sourceKind: z.enum(['folder', 'zip', 'git']),
+  sourceDisplay: z.string().min(1),
+  validation: z.record(z.string(), z.unknown()),
+  fileSummary: z.record(z.string(), z.unknown()),
+  gitCommit: z.string().min(1).nullable(),
+  gitChanges: z.string().nullable(),
+  stagingRelPath: z.string().min(1),
+  createdAt: z.string().min(1),
+  expiresAt: z.string().min(1),
 })
 
 export const providerSessionSchema = z.object({
@@ -199,6 +311,22 @@ export const createJobRequestSchema = z.object({
   confirmFallbackProvider: z.enum(runtimeProviderIds).optional(),
   permissionProfile: z.enum(permissionProfileIds).optional(),
   selectedModel: z.string().trim().min(1).max(128).optional(),
+  dirtyWorktreePolicy: z.enum(dirtyWorktreePolicies).optional(),
+})
+
+export const confirmWriteRequestSchema = z.object({
+  confirm: z.literal(true),
+})
+
+export const previewPackRequestSchema = z.object({
+  sourceType: z.enum(['folder', 'zip', 'git']),
+  path: z.string().trim().min(1).max(4096).optional(),
+  gitUrl: z.string().trim().min(1).max(2048).optional(),
+})
+
+export const installPackRequestSchema = z.object({
+  previewId: z.string().trim().min(1).max(128),
+  confirm: z.literal(true),
 })
 
 export const updateWorkspaceRequestSchema = z.object({

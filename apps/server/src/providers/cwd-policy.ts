@@ -33,3 +33,35 @@ export function assertRegisteredCwd(store: AppStore, cwd: string): string {
   }
   return canonical
 }
+
+export function assertJobCwd(
+  store: AppStore,
+  cwd: string,
+  worktreePath?: string,
+): string {
+  if (worktreePath) {
+    const resolved = resolveRegisteredPath(cwd)
+    let canonical: string
+    try {
+      canonical = realpathSync(resolved)
+    } catch {
+      throw new AppError(
+        'UNREGISTERED_CWD',
+        '専用Worktree以外では実行できません',
+        400,
+      )
+    }
+    if (
+      !isInsideRoot(canonical, worktreePath) &&
+      canonical !== realpathSync(worktreePath)
+    ) {
+      throw new AppError(
+        'UNREGISTERED_CWD',
+        '専用Worktree以外では実行できません',
+        400,
+      )
+    }
+    return canonical
+  }
+  return assertRegisteredCwd(store, cwd)
+}

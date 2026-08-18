@@ -15,12 +15,18 @@ interface JobComposerProps {
     readonly message: string
     readonly alternatives: readonly ProviderId[]
   }
+  readonly dirtyRepo?: {
+    readonly message: string
+  }
   readonly onRequestChange: (value: string) => void
   readonly onEmployeeChange: (value: string) => void
   readonly onProviderChange: (value: ProviderId | 'auto') => void
   readonly onSubmit: (request: string) => void
   readonly onConfirmFallback: (providerId: ProviderId) => void
   readonly onCancelConfirmation: () => void
+  readonly onDirtyPolicy?: (
+    policy: 'from-head' | 'include-dirty-patch' | 'cancel',
+  ) => void
 }
 
 export function JobComposer({
@@ -33,12 +39,14 @@ export function JobComposer({
   providers,
   selectedProvider,
   confirmation,
+  dirtyRepo,
   onRequestChange,
   onEmployeeChange,
   onProviderChange,
   onSubmit,
   onConfirmFallback,
   onCancelConfirmation,
+  onDirtyPolicy,
 }: JobComposerProps) {
   const selected =
     employees.find((employee) => employee.id === selectedEmployeeId) ??
@@ -99,6 +107,38 @@ export function JobComposer({
           ))}
         </select>
       </label>
+      {dirtyRepo && onDirtyPolicy ? (
+        <div className="provider-confirm" role="alertdialog">
+          <p>{dirtyRepo.message}</p>
+          <div className="provider-confirm__actions">
+            <button
+              type="button"
+              onClick={() => {
+                onDirtyPolicy('from-head')
+              }}
+            >
+              HEADから新しいWorktreeを作る
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onDirtyPolicy('include-dirty-patch')
+              }}
+            >
+              現在の差分を一時Patchとして含める
+            </button>
+            <button
+              type="button"
+              className="is-quiet"
+              onClick={() => {
+                onDirtyPolicy('cancel')
+              }}
+            >
+              中止
+            </button>
+          </div>
+        </div>
+      ) : null}
       {confirmation ? (
         <div className="provider-confirm" role="alertdialog">
           <p>{confirmation.message}</p>

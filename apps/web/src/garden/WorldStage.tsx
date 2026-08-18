@@ -10,6 +10,8 @@ interface WorldStageProps {
   readonly station: GardenStationId
   readonly pose: string
   readonly activitySummary?: string
+  readonly level?: number
+  readonly unlocks?: readonly string[]
 }
 
 type StageStyle = CSSProperties & {
@@ -44,7 +46,13 @@ export function WorldStage({
   station,
   pose,
   activitySummary = 'まだ仕事は始まっていません',
+  level = 1,
+  unlocks = [],
 }: WorldStageProps) {
+  const grownRow = Math.min(
+    world.character.atlasRows - 1,
+    world.character.atlasRow + Math.max(0, level - 1),
+  )
   const columnPosition =
     world.character.atlasColumns === 1
       ? 0
@@ -52,7 +60,7 @@ export function WorldStage({
   const rowPosition =
     world.character.atlasRows === 1
       ? 0
-      : (world.character.atlasRow / (world.character.atlasRows - 1)) * 100
+      : (grownRow / (world.character.atlasRows - 1)) * 100
   const position = world.stations[station] ?? world.character.position
   const style: StageStyle = {
     '--world-background': `url(${world.backgroundUrl})`,
@@ -73,6 +81,8 @@ export function WorldStage({
       data-station={station}
       data-employee-id={employeeId ?? ''}
       data-pose={pose}
+      data-level={String(level)}
+      data-unlocks={unlocks.join(',')}
       aria-labelledby="garden-heading"
       style={style}
     >
@@ -121,6 +131,14 @@ export function WorldStage({
         <div className="employee__sprite" aria-hidden="true" />
         <div className="employee__shadow" aria-hidden="true" />
       </div>
+
+      {unlocks.length > 0 ? (
+        <ul className="world-stage__unlocks" data-testid="world-unlocks">
+          {unlocks.map((unlock) => (
+            <li key={unlock}>{unlock}</li>
+          ))}
+        </ul>
+      ) : null}
 
       <div className="world-stage__local-mark" aria-label="ローカル専用">
         <span aria-hidden="true" />

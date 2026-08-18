@@ -25,6 +25,45 @@ afterEach(async () => {
   }
 })
 
+describe('permission profile is owned by the employee pack', () => {
+  it('rejects escalating saguru from research to edit-worktree or unrestricted', async () => {
+    const { manager, workspaceId } = openManager()
+    await expect(
+      manager.createJob({
+        workspaceId,
+        request: '直して',
+        employeeId: 'saguru',
+        permissionProfile: 'edit-worktree',
+      }),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'PERMISSION_ESCALATION',
+    })
+    await expect(
+      manager.createJob({
+        workspaceId,
+        request: '直して',
+        employeeId: 'saguru',
+        permissionProfile: 'unrestricted',
+      }),
+    ).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'PERMISSION_ESCALATION',
+    })
+  })
+
+  it('keeps the pack profile when a weaker override is sent', async () => {
+    const { manager, workspaceId } = openManager()
+    const job = await manager.createJob({
+      workspaceId,
+      request: '調べて',
+      employeeId: 'saguru',
+      permissionProfile: 'observe',
+    })
+    expect(job.permissionProfile).toBe('research')
+  })
+})
+
 describe('employee registry selection', () => {
   it('creates a job for the registry employee and rejects an unsupported job type', async () => {
     const { manager, workspaceId } = openManager()

@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto'
 import {
   AppError,
   isAppError,
+  isPermissionEscalation,
   redactSensitiveText,
+  requiresDedicatedWorktree,
   type ApprovalRequest,
   type Artifact,
+  type DirtyWorktreePolicy,
   type Job,
   type PermissionProfileId,
   type PersistedEvent,
@@ -28,6 +31,7 @@ import {
   type EmployeeRegistry,
 } from '../employees/registry.js'
 import {
+  assertJobCwd,
   assertRegisteredCwd,
   registeredRepositoryRoots,
 } from '../providers/cwd-policy.js'
@@ -37,7 +41,22 @@ import {
 } from '../providers/runtime.js'
 import type { ProviderRegistry } from '../providers/registry.js'
 import { persistJobArtifactFile } from '../artifacts/persist.js'
+import {
+  applyAcceptedArtifactGrowth,
+  applyJobGrowth,
+} from '../growth/manager.js'
 import type { AppStore } from '../storage/store.js'
+import {
+  applyWorktreeToCurrentTree,
+  describeJobWorktree,
+  discardJobWorktree,
+  exportArtifactPatch,
+  inspectRepositoryGitState,
+  keepJobWorktreeBranch,
+  persistWorktreeArtifacts,
+  prepareJobWorktree,
+  releaseWorktreeLock,
+} from '../worktrees/manager.js'
 import { createEventHub, type EventHub } from './event-hub.js'
 
 export interface CreateJobInput {
@@ -49,6 +68,7 @@ export interface CreateJobInput {
   readonly confirmFallbackProvider?: RuntimeProviderId
   readonly permissionProfile?: PermissionProfileId
   readonly selectedModel?: string
+  readonly dirtyWorktreePolicy?: DirtyWorktreePolicy
 }
 
 export interface JobManager {
@@ -68,6 +88,11 @@ export interface JobManager {
   ): Promise<ApprovalRequest>
   listArtifacts(jobId?: string): Artifact[]
   getArtifact(id: string): Artifact
+  describeWorktree(jobId: string): ReturnType<typeof describeJobWorktree>
+  applyArtifact(id: string, confirm: true): Artifact
+  exportArtifact(id: string, confirm: true): { exportRelPath: string }
+  discardWorktree(jobId: string, confirm: true): Job
+  keepWorktree(jobId: string, confirm: true): Job
   subscribe(
     jobId: string,
     listener: (event: PersistedEvent) => void,
@@ -206,14 +231,55 @@ export function createJobManager(
         )
       }
 
-      const cwd = assertRegisteredCwd(store, workspace.repository.absolutePath)
-      const permissionProfile =
-        input.permissionProfile ?? definition.permissionProfile
+      const permissionProfile = definition.permissionProfile
+      if (
+        input.permissionProfile &&
+        isPermissionEscalation(input.permissionProfile, permissionProfile)
+      ) {
+        throw new AppError(
+          'PERMISSION_ESCALATION',
+          'この社員の権限を上げることはできません',
+          403,
+          {
+            requested: input.permissionProfile,
+            allowed: permissionProfile,
+          },
+        )
+      }
+      const needsWorktree = requiresDedicatedWorktree(permissionProfile)
+      let cwd = workspace.repository.absolutePath
+      let worktreeRelPath: string | undefined
+      if (!needsWorktree) {
+        cwd = assertRegisteredCwd(store, workspace.repository.absolutePath)
+      }
       await assertProviderCapabilities(
         adapter,
         definition.requiredProviderCapabilities,
         selection.providerId,
       )
+      if (needsWorktree) {
+        const state = inspectRepositoryGitState(
+          workspace.repository.absolutePath,
+        )
+        if (state.dirty && !input.dirtyWorktreePolicy) {
+          throw new AppError(
+            'WORKTREE_DIRTY_REPO',
+            '現在の作業ディレクトリに未commitの変更があります',
+            409,
+            {
+              dirty: true,
+              options: ['from-head', 'include-dirty-patch', 'cancel'],
+            },
+          )
+        }
+        if (input.dirtyWorktreePolicy === 'cancel') {
+          throw new AppError(
+            'WORKTREE_CANCELLED',
+            'Worktree作成を中止しました',
+            409,
+          )
+        }
+      }
       const now = new Date().toISOString()
       const job = store.insertJob({
         id: randomUUID(),
@@ -242,6 +308,28 @@ export function createJobManager(
       store.updateJob(job.id, { status: 'running' })
 
       try {
+        if (needsWorktree) {
+          if (!options.dataDirectory) {
+            throw new AppError(
+              'WORKTREE_CREATE_FAILED',
+              'Worktreeを作成する場所がありません',
+              500,
+            )
+          }
+          const prepared = prepareJobWorktree({
+            store,
+            dataDirectory: options.dataDirectory,
+            jobId: job.id,
+            employeeId: definition.id,
+            repositoryId: workspace.repository.id,
+            repositoryPath: workspace.repository.absolutePath,
+            ...(input.dirtyWorktreePolicy
+              ? { policy: input.dirtyWorktreePolicy }
+              : {}),
+          })
+          cwd = assertJobCwd(store, prepared.cwd, prepared.cwd)
+          worktreeRelPath = prepared.record.worktreeRelPath
+        }
         await startProviderRun({
           adapter,
           store,
@@ -256,15 +344,24 @@ export function createJobManager(
           permissionProfile,
           outputSchema: pack.resultSchema,
           environment: providerApiKeyEnvironment(selection.providerId),
+          employees,
           ...(options.dataDirectory
             ? { dataDirectory: options.dataDirectory }
             : {}),
           ...(input.selectedModel
             ? { selectedModel: input.selectedModel }
             : {}),
+          ...(worktreeRelPath ? { worktreeRelPath } : {}),
         })
       } catch (error) {
-        finishJob(store, job.id, run.id, 'failed')
+        finishJob(
+          store,
+          employees,
+          job.id,
+          run.id,
+          'failed',
+          options.dataDirectory,
+        )
         if (isAppError(error)) {
           throw error
         }
@@ -314,11 +411,25 @@ export function createJobManager(
           payload: { summary: '仕事を中止しました' },
           occurredAt: new Date().toISOString(),
         })
-        finishJob(store, id, active.runId, 'cancelled')
+        finishJob(
+          store,
+          employees,
+          id,
+          active.runId,
+          'cancelled',
+          options.dataDirectory,
+        )
       } else {
         const run = store.listRuns(id)[0]
         if (run) {
-          finishJob(store, id, run.id, 'cancelled')
+          finishJob(
+            store,
+            employees,
+            id,
+            run.id,
+            'cancelled',
+            options.dataDirectory,
+          )
         } else {
           store.updateJob(id, {
             status: 'cancelled',
@@ -402,6 +513,108 @@ export function createJobManager(
         throw new AppError('NOT_FOUND', '成果が見つかりません', 404)
       }
       return artifact
+    },
+
+    describeWorktree(jobId) {
+      const job = this.getJob(jobId)
+      const workspace = store.getWorkspace(job.workspaceId)
+      if (!workspace || !options.dataDirectory) {
+        throw new AppError(
+          'WORKTREE_NOT_FOUND',
+          'Worktreeが見つかりません',
+          404,
+        )
+      }
+      return describeJobWorktree({
+        store,
+        dataDirectory: options.dataDirectory,
+        jobId,
+        repositoryPath: workspace.repository.absolutePath,
+      })
+    },
+
+    applyArtifact(id, confirm) {
+      const artifact = this.getArtifact(id)
+      if (artifact.type !== 'patch' && artifact.type !== 'code_diff') {
+        throw new AppError(
+          'VALIDATION_FAILED',
+          'この成果は適用できません',
+          400,
+        )
+      }
+      const job = this.getJob(artifact.jobId)
+      assertTerminalWorktreeJob(job)
+      const workspace = store.getWorkspace(job.workspaceId)
+      if (!workspace || !options.dataDirectory) {
+        throw new AppError(
+          'WORKTREE_NOT_FOUND',
+          'Worktreeが見つかりません',
+          404,
+        )
+      }
+      applyWorktreeToCurrentTree({
+        store,
+        dataDirectory: options.dataDirectory,
+        jobId: job.id,
+        repositoryPath: workspace.repository.absolutePath,
+        confirm,
+      })
+      applyAcceptedArtifactGrowth({ store, job })
+      return artifact
+    },
+
+    exportArtifact(id, confirm) {
+      if (!options.dataDirectory) {
+        throw new AppError('NOT_FOUND', '成果が見つかりません', 404)
+      }
+      return exportArtifactPatch({
+        store,
+        dataDirectory: options.dataDirectory,
+        artifactId: id,
+        confirm,
+      })
+    },
+
+    discardWorktree(jobId, confirm) {
+      const job = this.getJob(jobId)
+      assertTerminalWorktreeJob(job)
+      const workspace = store.getWorkspace(job.workspaceId)
+      if (!workspace || !options.dataDirectory) {
+        throw new AppError(
+          'WORKTREE_NOT_FOUND',
+          'Worktreeが見つかりません',
+          404,
+        )
+      }
+      discardJobWorktree({
+        store,
+        dataDirectory: options.dataDirectory,
+        jobId,
+        repositoryPath: workspace.repository.absolutePath,
+        confirm,
+      })
+      return this.getJob(jobId)
+    },
+
+    keepWorktree(jobId, confirm) {
+      const job = this.getJob(jobId)
+      assertTerminalWorktreeJob(job)
+      const workspace = store.getWorkspace(job.workspaceId)
+      if (!workspace || !options.dataDirectory) {
+        throw new AppError(
+          'WORKTREE_NOT_FOUND',
+          'Worktreeが見つかりません',
+          404,
+        )
+      }
+      keepJobWorktreeBranch({
+        store,
+        dataDirectory: options.dataDirectory,
+        jobId,
+        repositoryPath: workspace.repository.absolutePath,
+        confirm,
+      })
+      return this.getJob(jobId)
     },
 
     subscribe(jobId, listener) {
@@ -503,6 +716,8 @@ async function startProviderRun(input: {
   readonly environment: Record<string, string>
   readonly selectedModel?: string
   readonly dataDirectory?: string
+  readonly worktreeRelPath?: string
+  readonly employees: EmployeeRegistry
   readonly outputSchema?: Record<string, unknown>
 }): Promise<void> {
   const handle = await input.adapter.startRun({
@@ -513,7 +728,9 @@ async function startProviderRun(input: {
     prompt: input.prompt,
     permissionProfile: input.permissionProfile,
     environment: input.environment,
-    allowedCwdRoots: registeredRepositoryRoots(input.store),
+    allowedCwdRoots: input.worktreeRelPath
+      ? [input.cwd]
+      : registeredRepositoryRoots(input.store),
     ...(input.selectedModel ? { model: input.selectedModel } : {}),
     outputSchema: input.outputSchema ?? {
       type: 'object',
@@ -543,7 +760,9 @@ async function startProviderRun(input: {
     input.hub,
     input.activeJobs,
     active,
+    input.employees,
     input.dataDirectory,
+    input.worktreeRelPath,
   )
 }
 
@@ -552,18 +771,37 @@ async function consumeRun(
   hub: EventHub,
   activeJobs: Map<string, ActiveJob>,
   active: ActiveJob,
+  employees: EmployeeRegistry,
   dataDirectory?: string,
+  worktreeRelPath?: string,
 ): Promise<void> {
   try {
     for await (const event of active.handle.events()) {
       persistHandleSession(store, active)
-      applyCanonicalEvent(store, hub, active, event, dataDirectory)
+      applyCanonicalEvent(store, hub, active, event, employees, dataDirectory)
     }
   } catch {
-    finishJob(store, active.jobId, active.runId, 'failed')
+    finishJob(
+      store,
+      employees,
+      active.jobId,
+      active.runId,
+      'failed',
+      dataDirectory,
+    )
   } finally {
     activeJobs.delete(active.jobId)
     closeProviderSessions(store, active.jobId)
+    if (worktreeRelPath) {
+      const job = store.getJob(active.jobId)
+      if (job) {
+        const workspace = store.getWorkspace(job.workspaceId)
+        releaseWorktreeLock(
+          workspace?.repository.id ?? 'unknown',
+          worktreeRelPath,
+        )
+      }
+    }
   }
 }
 
@@ -572,6 +810,7 @@ function applyCanonicalEvent(
   hub: EventHub,
   active: ActiveJob,
   event: CanonicalEvent,
+  employees: EmployeeRegistry,
   dataDirectory?: string,
 ): void {
   if (event.type === 'approval.resolved') {
@@ -630,18 +869,34 @@ function applyCanonicalEvent(
   if (event.type === 'run.completed') {
     finishJob(
       store,
+      employees,
       active.jobId,
       active.runId,
       event.invalidResult ? 'completed_with_invalid_result' : 'completed',
+      dataDirectory,
     )
     return
   }
   if (event.type === 'run.failed') {
-    finishJob(store, active.jobId, active.runId, 'failed')
+    finishJob(
+      store,
+      employees,
+      active.jobId,
+      active.runId,
+      'failed',
+      dataDirectory,
+    )
     return
   }
   if (event.type === 'run.cancelled') {
-    finishJob(store, active.jobId, active.runId, 'cancelled')
+    finishJob(
+      store,
+      employees,
+      active.jobId,
+      active.runId,
+      'cancelled',
+      dataDirectory,
+    )
   }
 }
 
@@ -700,17 +955,30 @@ function persistHandleSession(store: AppStore, active: ActiveJob): void {
 
 function finishJob(
   store: AppStore,
+  employees: EmployeeRegistry,
   jobId: string,
   runId: string,
   status:
     'completed' | 'failed' | 'cancelled' | 'completed_with_invalid_result',
+  dataDirectory?: string,
 ): void {
   const now = new Date().toISOString()
   const current = store.getJob(jobId)
   if (!current || isTerminalJob(current.status)) {
     return
   }
-  store.updateJob(jobId, { status, completedAt: now })
+  if (status === 'completed' && dataDirectory) {
+    const workspace = store.getWorkspace(current.workspaceId)
+    if (workspace) {
+      persistWorktreeArtifacts({
+        store,
+        dataDirectory,
+        jobId,
+        repositoryPath: workspace.repository.absolutePath,
+      })
+    }
+  }
+  const finished = store.updateJob(jobId, { status, completedAt: now })
   const run = store.getRun(runId)
   if (run && !isTerminalRun(run.status)) {
     store.updateRun(runId, {
@@ -718,6 +986,7 @@ function finishJob(
       completedAt: now,
     })
   }
+  applyJobGrowth({ store, employees, job: finished })
 }
 
 function closeProviderSessions(store: AppStore, jobId: string): void {
@@ -766,6 +1035,16 @@ function isTerminalJob(status: Job['status']): boolean {
     status === 'cancelled' ||
     status === 'completed_with_invalid_result'
   )
+}
+
+function assertTerminalWorktreeJob(job: Job): void {
+  if (!isTerminalJob(job.status)) {
+    throw new AppError(
+      'WORKTREE_CONFLICT',
+      '実行中のWorktreeは操作できません',
+      409,
+    )
+  }
 }
 
 function isTerminalRun(status: string): boolean {

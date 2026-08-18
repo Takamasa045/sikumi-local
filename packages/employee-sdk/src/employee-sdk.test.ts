@@ -27,7 +27,11 @@ import {
   saguruPackDirectory,
 } from './roots.js'
 import { MAX_PACK_FILE_BYTES } from './limits.js'
-import { coreCompatibilitySatisfied, satisfiesIntegerRange } from './semver.js'
+import {
+  compareSemver,
+  coreCompatibilitySatisfied,
+  satisfiesIntegerRange,
+} from './semver.js'
 
 const tempDirectories: string[] = []
 
@@ -79,6 +83,16 @@ describe('built-in and fixture packs', () => {
     expect(pack.manifest.role).toBe('見守り担当')
     expect(pack.manifest.supportedJobTypes).toContain('watch')
   })
+
+  it('loads the kakikae fixture as a test-only write employee', () => {
+    const pack = loadEmployeePack(
+      fixtureEmployeePackDirectory('kakikae'),
+      'installed',
+    )
+    expect(pack.manifest.id).toBe('kakikae')
+    expect(pack.manifest.permissionProfile).toBe('edit-worktree')
+    expect(pack.manifest.supportedJobTypes).toContain('edit')
+  })
 })
 
 describe('compatibility and validation', () => {
@@ -95,6 +109,9 @@ describe('compatibility and validation', () => {
     expect(satisfiesIntegerRange('<=1', 1)).toBe(true)
     expect(satisfiesIntegerRange('>1', 1)).toBe(false)
     expect(satisfiesIntegerRange('^2', 1)).toBe(false)
+    expect(compareSemver('1.0.1', '1.0.0')).toBeGreaterThan(0)
+    expect(compareSemver('0.9.0', '1.0.0')).toBeLessThan(0)
+    expect(compareSemver('1.0.0', '1.0.0')).toBe(0)
   })
 
   it('fails closed on unknown schema, invalid yaml, missing refs, and incompatible core', () => {

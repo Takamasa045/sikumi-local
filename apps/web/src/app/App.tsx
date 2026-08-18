@@ -3,6 +3,7 @@ import type {
   ApprovalRequest,
   Artifact,
   EmployeeSummary,
+  InstalledPack,
   Job,
   PersistedEvent,
   ProviderId,
@@ -16,14 +17,26 @@ import {
   updateEmployeeDefaultProvider,
 } from '../api/employees'
 import { getHealth } from '../api/health'
+import { getEmployeeGrowth, listGrowth } from '../api/growth'
 import {
+  applyArtifact,
   cancelJob,
   createJob,
+  discardWorktree,
+  exportArtifact,
   getJob,
+  getJobWorktree,
+  keepWorktree,
   listArtifacts,
   listJobEvents,
   listJobs,
 } from '../api/jobs'
+import {
+  installPack,
+  listPacks,
+  previewPack,
+  uninstallPack,
+} from '../api/packs'
 import { openEventStream } from '../api/live'
 import { listProviders, type ProviderAvailability } from '../api/providers'
 import {
@@ -71,6 +84,28 @@ export function App() {
   const [events, setEvents] = useState<PersistedEvent[]>([])
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [growth, setGrowth] = useState<{
+    level: number
+    permissionProfile: string
+    metrics: Array<{ id: string; label: string; value: number }>
+    unlocks: string[]
+  } | null>(null)
+  const [packs, setPacks] = useState<InstalledPack[]>([])
+  const [packPreview, setPackPreview] = useState<Awaited<
+    ReturnType<typeof previewPack>
+  > | null>(null)
+  const [dirtyRepo, setDirtyRepo] = useState<{
+    message: string
+    request: string
+  } | null>(null)
+  const [worktree, setWorktree] = useState<{
+    branchName: string
+    baseCommit: string
+    status: string
+    summary: string
+    files: string[]
+    patch: string
+  } | null>(null)
   const world = getWorldPack(worldPackId)
   const selectedEmployee =
     employees.find((employee) => employee.id === selectedEmployeeId) ??
@@ -145,6 +180,24 @@ export function App() {
       .catch(() => {
         // Garden stays usable with the world pack name.
       })
+    void listGrowth()
+      .then((listed) => {
+        if (!cancelled && listed[0]) {
+          setGrowth(listed[0])
+        }
+      })
+      .catch(() => {
+        // Growth is optional decoration.
+      })
+    void listPacks()
+      .then((listed) => {
+        if (!cancelled) {
+          setPacks(listed)
+        }
+      })
+      .catch(() => {
+        // Settings can stay usable without the pack catalog.
+      })
 
     return () => {
       cancelled = true
@@ -208,10 +261,19 @@ export function App() {
           setRecentJobs([])
         }
       })
+    void getEmployeeGrowth(selectedEmployeeId, workspace?.id)
+      .then((next) => {
+        if (!cancelled) {
+          setGrowth(next)
+        }
+      })
+      .catch(() => {
+        // Drawer still works without growth.
+      })
     return () => {
       cancelled = true
     }
-  }, [selectedEmployeeId])
+  }, [selectedEmployeeId, workspace?.id])
 
   useEffect(() => {
     if (!job) {
@@ -240,6 +302,23 @@ export function App() {
         setEvents(nextEvents)
         setApprovals(nextApprovals)
         setArtifacts(nextArtifacts)
+        try {
+          const nextWorktree = await getJobWorktree(job.id)
+          if (!cancelled) {
+            setWorktree({
+              branchName: nextWorktree.worktree.branchName,
+              baseCommit: nextWorktree.worktree.baseCommit,
+              status: nextWorktree.worktree.status,
+              summary: nextWorktree.diff.summary,
+              files: [...nextWorktree.diff.files],
+              patch: nextWorktree.diff.patch,
+            })
+          }
+        } catch {
+          if (!cancelled) {
+            setWorktree(null)
+          }
+        }
       } catch {
         // Keep the last known snapshot while recovery fails.
       }
@@ -281,6 +360,16 @@ export function App() {
     }
   }
 
+  function jobCreateFields() {
+    return {
+      ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
+      ...(selectedEmployee?.supportedJobTypes[0]
+        ? { jobType: selectedEmployee.supportedJobTypes[0] }
+        : {}),
+      ...(selectedProvider === 'auto' ? {} : { selectedProvider }),
+    }
+  }
+
   async function handleSubmitJob(value: string) {
     if (!workspace) {
       return
@@ -291,11 +380,7 @@ export function App() {
       const created = await createJob({
         workspaceId: workspace.id,
         request: value,
-        ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
-        ...(selectedEmployee?.supportedJobTypes[0]
-          ? { jobType: selectedEmployee.supportedJobTypes[0] }
-          : {}),
-        ...(selectedProvider === 'auto' ? {} : { selectedProvider }),
+        ...jobCreateFields(),
       })
       setJob(created)
       setEvents([])
@@ -320,6 +405,14 @@ export function App() {
         setConfirmation({
           message: caught.message,
           alternatives,
+          request: value,
+        })
+      } else if (
+        caught instanceof AppError &&
+        caught.code === 'WORKTREE_DIRTY_REPO'
+      ) {
+        setDirtyRepo({
+          message: caught.message,
           request: value,
         })
       } else {
@@ -371,6 +464,35 @@ export function App() {
     }
   }
 
+  async function handleDirtyPolicy(
+    policy: 'from-head' | 'include-dirty-patch' | 'cancel',
+  ) {
+    const pending = dirtyRepo?.request ?? request
+    setDirtyRepo(null)
+    if (policy === 'cancel' || !workspace) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const created = await createJob({
+        workspaceId: workspace.id,
+        request: pending,
+        dirtyWorktreePolicy: policy,
+        ...jobCreateFields(),
+      })
+      setJob(created)
+      setEvents([])
+      setApprovals([])
+      setArtifacts([])
+      setRequest('')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '依頼に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function handleSubmitJobWithFallback(
     value: string,
     providerId: ProviderId,
@@ -385,7 +507,8 @@ export function App() {
         workspaceId: workspace.id,
         request: value,
         confirmFallbackProvider: providerId,
-        ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
+        ...jobCreateFields(),
+        selectedProvider: providerId,
       })
       setJob(created)
       setEvents([])
@@ -394,6 +517,83 @@ export function App() {
       setRequest('')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '依頼に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function refreshWorktree(jobId: string) {
+    try {
+      const nextWorktree = await getJobWorktree(jobId)
+      setWorktree({
+        branchName: nextWorktree.worktree.branchName,
+        baseCommit: nextWorktree.worktree.baseCommit,
+        status: nextWorktree.worktree.status,
+        summary: nextWorktree.diff.summary,
+        files: [...nextWorktree.diff.files],
+        patch: nextWorktree.diff.patch,
+      })
+    } catch {
+      setWorktree(null)
+    }
+  }
+
+  async function handleApplyArtifact(id: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      await applyArtifact(id)
+      if (job) {
+        await refreshWorktree(job.id)
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '適用に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleExportArtifact(id: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      await exportArtifact(id)
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : '書き出しに失敗しました',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleKeepWorktree() {
+    if (!job) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await keepWorktree(job.id)
+      await refreshWorktree(job.id)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '保持に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleDiscardWorktree() {
+    if (!job) {
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await discardWorktree(job.id)
+      setWorktree(null)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '破棄に失敗しました')
     } finally {
       setBusy(false)
     }
@@ -480,6 +680,8 @@ export function App() {
                 {...(displayEmployeeId
                   ? { employeeId: displayEmployeeId }
                   : {})}
+                level={growth?.level ?? 1}
+                unlocks={growth?.unlocks ?? []}
                 station={presence.station}
                 pose={presence.pose}
                 activitySummary={
@@ -553,6 +755,9 @@ export function App() {
                         },
                       }
                     : {})}
+                  {...(dirtyRepo
+                    ? { dirtyRepo: { message: dirtyRepo.message } }
+                    : {})}
                   notice={
                     fakeHarness
                       ? '開発用ハーネスです。Codex / Grok Build / Claude Code としては表示しません'
@@ -572,6 +777,9 @@ export function App() {
                   }}
                   onCancelConfirmation={() => {
                     setConfirmation(null)
+                  }}
+                  onDirtyPolicy={(policy) => {
+                    void handleDirtyPolicy(policy)
                   }}
                 />
 
@@ -603,14 +811,46 @@ export function App() {
                   </a>
                 </div>
 
-                <ArtifactShelf artifacts={artifacts} />
+                <ArtifactShelf
+                  artifacts={artifacts}
+                  worktree={worktree}
+                  busy={busy}
+                  onApply={(id) => {
+                    void handleApplyArtifact(id)
+                  }}
+                  onExport={(id) => {
+                    void handleExportArtifact(id)
+                  }}
+                  onKeep={() => {
+                    void handleKeepWorktree()
+                  }}
+                  onDiscard={() => {
+                    void handleDiscardWorktree()
+                  }}
+                />
               </section>
             </>
           ) : null}
 
           {screen === 'artifacts' ? (
             <section className="garden-controls">
-              <ArtifactShelf artifacts={artifacts} />
+              <ArtifactShelf
+                artifacts={artifacts}
+                worktree={worktree}
+                busy={busy}
+                onApply={(id) => {
+                  void handleApplyArtifact(id)
+                }}
+                onExport={(id) => {
+                  void handleExportArtifact(id)
+                }}
+                onKeep={() => {
+                  void handleKeepWorktree()
+                }}
+                onDiscard={() => {
+                  void handleDiscardWorktree()
+                }}
+              />
             </section>
           ) : null}
 
@@ -656,6 +896,27 @@ export function App() {
                     setWorkspace,
                   )
                 }}
+                packs={packs}
+                packPreview={packPreview}
+                onPreviewPack={(input) => {
+                  void previewPack(input).then(setPackPreview)
+                }}
+                onInstallPack={() => {
+                  if (!packPreview) {
+                    return
+                  }
+                  void installPack(packPreview.id).then(() => {
+                    setPackPreview(null)
+                    void listPacks().then(setPacks)
+                    void listEmployees().then(setEmployees)
+                  })
+                }}
+                onUninstallPack={(id) => {
+                  void uninstallPack(id).then(() => {
+                    void listPacks().then(setPacks)
+                    void listEmployees().then(setEmployees)
+                  })
+                }}
               />
             </section>
           ) : null}
@@ -683,6 +944,7 @@ export function App() {
         onClose={() => {
           setEmployeeDrawerOpen(false)
         }}
+        growth={growth}
         onDefaultProviderChange={(providerId) => {
           if (!selectedEmployee) {
             return

@@ -28,7 +28,9 @@ export function persistJobArtifactFile(input: {
       ? '.json'
       : input.artifactType === 'markdown'
         ? '.md'
-        : '.txt'
+        : input.artifactType === 'patch' || input.artifactType === 'code_diff'
+          ? '.patch'
+          : '.txt'
   const filename = `${sanitizePathSegment(input.title, 'title')}-${artifactId}${extension}`
   mkdirSync(input.dataDirectory, { recursive: true, mode: 0o700 })
   const directory = join(input.dataDirectory, kind, jobId)

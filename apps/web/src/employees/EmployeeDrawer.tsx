@@ -10,6 +10,11 @@ interface EmployeeDrawerProps {
   readonly busy: boolean
   readonly onClose: () => void
   readonly onDefaultProviderChange: (providerId: ProviderId | null) => void
+  readonly growth?: {
+    readonly level: number
+    readonly permissionProfile: string
+    readonly metrics: readonly { id: string; label: string; value: number }[]
+  } | null
 }
 
 export function EmployeeDrawer({
@@ -20,6 +25,7 @@ export function EmployeeDrawer({
   busy,
   onClose,
   onDefaultProviderChange,
+  growth,
 }: EmployeeDrawerProps) {
   if (!open || !employee) {
     return null
@@ -80,6 +86,22 @@ export function EmployeeDrawer({
             </li>
           ))}
         </ul>
+
+        {growth ? (
+          <section data-testid="employee-growth">
+            <h3>実績</h3>
+            <p>
+              Lv.{growth.level} · 権限は {growth.permissionProfile} のままです
+            </p>
+            <ul className="drawer__jobs">
+              {growth.metrics.map((metric) => (
+                <li key={metric.id}>
+                  {metric.label} {metric.value}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
         <h3>最近の仕事</h3>
         {recentJobs.length === 0 ? (

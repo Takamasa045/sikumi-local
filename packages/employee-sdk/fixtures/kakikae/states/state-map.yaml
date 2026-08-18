@@ -1,0 +1,32 @@
+states:
+  idle:
+    station: rest
+    pose: idle
+    summary: まだ仕事は始まっていません
+  editing:
+    station: workbench
+    pose: editing
+    summary: 専用Worktreeで編集しています
+  delivering:
+    station: delivery
+    pose: delivering
+    summary: 差分を納品台へ運んでいます
+  completed:
+    station: delivery
+    pose: completed
+    summary: 編集が完了しました
+  failed:
+    station: rest
+    pose: failed
+    summary: 編集を完了できませんでした
+  cancelled:
+    station: rest
+    pose: cancelled
+    summary: 仕事を中止しました
+
+eventBindings:
+  file.changed: editing
+  artifact.created: delivering
+  run.completed: completed
+  run.failed: failed
+  run.cancelled: cancelled

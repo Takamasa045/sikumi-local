@@ -4,7 +4,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { openDatabase } from '../storage/database.js'
 import { createStore } from '../storage/store.js'
 import { createTemporaryDirectory } from '../test/git-fixture.js'
-import { assertRegisteredCwd, registeredRepositoryRoots } from './cwd-policy.js'
+import {
+  assertJobCwd,
+  assertRegisteredCwd,
+  registeredRepositoryRoots,
+} from './cwd-policy.js'
 import { resolveFakeHarnessEnabled } from './runtime.js'
 
 const tempDirectories: string[] = []
@@ -50,6 +54,17 @@ describe('cwd policy', () => {
     expect(() => assertRegisteredCwd(store, escape)).toThrow(
       /登録済みRepository以外/,
     )
+  })
+
+  it('allows a dedicated worktree cwd and rejects anything else', () => {
+    const opened = openDatabase(track(createTemporaryDirectory()))
+    databases.push(opened)
+    const store = createStore(opened.db)
+    const worktree = track(createTemporaryDirectory())
+    expect(assertJobCwd(store, worktree, worktree)).toBe(worktree)
+    expect(() =>
+      assertJobCwd(store, track(createTemporaryDirectory()), worktree),
+    ).toThrow(/専用Worktree以外/)
   })
 })
 

@@ -188,7 +188,70 @@ export const initialSchemaMigration: Migration = {
   `,
 }
 
-export const defaultMigrations: readonly Migration[] = [initialSchemaMigration]
+export const worktreeGrowthPacksMigration: Migration = {
+  version: 2,
+  name: 'worktree-growth-packs',
+  sql: `
+    CREATE TABLE job_worktrees (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL UNIQUE REFERENCES jobs(id) ON DELETE CASCADE,
+      repository_id TEXT NOT NULL,
+      worktree_rel_path TEXT NOT NULL,
+      branch_name TEXT NOT NULL,
+      base_commit TEXT NOT NULL,
+      include_dirty_patch INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE growth_applications (
+      id TEXT PRIMARY KEY,
+      job_id TEXT NOT NULL,
+      employee_id TEXT NOT NULL,
+      scope_key TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      value INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (job_id, employee_id, scope_key, metric)
+    );
+
+    CREATE TABLE world_feature_unlocks (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      world_pack_id TEXT NOT NULL,
+      unlock_id TEXT NOT NULL,
+      unlocked_at TEXT NOT NULL,
+      UNIQUE (workspace_id, world_pack_id, unlock_id)
+    );
+
+    CREATE TABLE pack_previews (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      pack_id TEXT NOT NULL,
+      version TEXT NOT NULL,
+      source_kind TEXT NOT NULL,
+      source_display TEXT NOT NULL,
+      validation_json TEXT NOT NULL,
+      file_summary_json TEXT NOT NULL,
+      git_commit TEXT,
+      git_changes TEXT,
+      staging_rel_path TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+
+    ALTER TABLE installed_packs ADD COLUMN source_kind TEXT;
+    ALTER TABLE installed_packs ADD COLUMN source_display TEXT;
+    ALTER TABLE installed_packs ADD COLUMN commit_hash TEXT;
+    ALTER TABLE installed_packs ADD COLUMN builtin INTEGER NOT NULL DEFAULT 0;
+  `,
+}
+
+export const defaultMigrations: readonly Migration[] = [
+  initialSchemaMigration,
+  worktreeGrowthPacksMigration,
+]
 
 export function applyMigrations(
   sqlite: Database.Database,

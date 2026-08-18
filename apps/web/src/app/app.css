@@ -758,6 +758,42 @@ main {
   margin-top: 3px;
   color: #7e7a6a;
 }
+.artifact-shelf__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.worktree-diff pre {
+  overflow: auto;
+  max-height: 180px;
+  padding: 8px;
+  background: #efe8d4;
+  font-size: 12px;
+}
+.world-stage__unlocks {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  margin: 0;
+  padding: 6px 8px;
+  list-style: none;
+  background: rgba(247, 242, 225, 0.88);
+  border: 1px solid #c6beaa;
+  font-size: 11px;
+}
+.pack-import,
+.pack-trust,
+.pack-list {
+  display: grid;
+  gap: 10px;
+  padding: 0 0 18px;
+}
+.pack-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 
 footer {
   display: flex;

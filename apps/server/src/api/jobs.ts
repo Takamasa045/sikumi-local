@@ -1,5 +1,6 @@
 import {
   AppError,
+  confirmWriteRequestSchema,
   createJobRequestSchema,
   jobSchema,
   persistedEventSchema,
@@ -60,6 +61,9 @@ export function registerJobRoutes(
         ...(parsed.data.selectedModel
           ? { selectedModel: parsed.data.selectedModel }
           : {}),
+        ...(parsed.data.dirtyWorktreePolicy
+          ? { dirtyWorktreePolicy: parsed.data.dirtyWorktreePolicy }
+          : {}),
       }),
     )
     return reply.status(201).send({ job })
@@ -73,6 +77,51 @@ export function registerJobRoutes(
     '/api/jobs/:id/cancel',
     async (request) => {
       return { job: jobSchema.parse(await jobs.cancelJob(request.params.id)) }
+    },
+  )
+
+  app.get<{ Params: { id: string } }>(
+    '/api/jobs/:id/worktree',
+    async (request) => {
+      return jobs.describeWorktree(request.params.id)
+    },
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/api/jobs/:id/worktree/discard',
+    async (request) => {
+      const parsed = confirmWriteRequestSchema.safeParse(request.body)
+      if (!parsed.success) {
+        throw new AppError(
+          'VALIDATION_FAILED',
+          'Discard requires an explicit confirm',
+          400,
+        )
+      }
+      return {
+        job: jobSchema.parse(
+          jobs.discardWorktree(request.params.id, parsed.data.confirm),
+        ),
+      }
+    },
+  )
+
+  app.post<{ Params: { id: string } }>(
+    '/api/jobs/:id/worktree/keep',
+    async (request) => {
+      const parsed = confirmWriteRequestSchema.safeParse(request.body)
+      if (!parsed.success) {
+        throw new AppError(
+          'VALIDATION_FAILED',
+          'Keep requires an explicit confirm',
+          400,
+        )
+      }
+      return {
+        job: jobSchema.parse(
+          jobs.keepWorktree(request.params.id, parsed.data.confirm),
+        ),
+      }
     },
   )
 

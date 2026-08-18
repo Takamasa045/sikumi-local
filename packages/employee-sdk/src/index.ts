@@ -30,7 +30,11 @@ export {
   resolveSafeInstalledEmployeesRoot,
   saguruPackDirectory,
 } from './roots.js'
-export { coreCompatibilitySatisfied, satisfiesIntegerRange } from './semver.js'
+export {
+  compareSemver,
+  coreCompatibilitySatisfied,
+  satisfiesIntegerRange,
+} from './semver.js'
 export {
   EMPLOYEE_PACK_SCHEMA_VERSION,
   FORBIDDEN_PACK_EXTENSIONS,

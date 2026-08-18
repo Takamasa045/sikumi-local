@@ -10,11 +10,14 @@ import { registerApprovalRoutes } from './api/approvals.js'
 import { registerArtifactRoutes } from './api/artifacts.js'
 import { registerEmployeeRoutes } from './api/employees.js'
 import { registerEventRoutes } from './api/events.js'
+import { registerGrowthRoutes } from './api/growth.js'
 import { registerJobRoutes } from './api/jobs.js'
+import { registerPackRoutes } from './api/packs.js'
 import { registerProviderRoutes } from './api/providers.js'
 import { registerSessionRoutes } from './api/session.js'
 import { registerWorkspaceRoutes } from './api/workspaces.js'
 import { createEmployeeRegistry } from './employees/registry.js'
+import { ensureBuiltinPacks } from './packs/manager.js'
 import { createJobManager } from './jobs/job-manager.js'
 import {
   createProviderRegistry,
@@ -63,6 +66,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
   })
   employees.refresh()
   employees.syncToStore(store)
+  ensureBuiltinPacks(store, employees)
   const jobs = createJobManager(store, {
     fakeHarnessEnabled,
     liveProviderRuns,
@@ -156,6 +160,8 @@ export function buildApp(options: AppOptions): FastifyInstance {
   registerEventRoutes(app, jobs, security)
   registerApprovalRoutes(app, jobs)
   registerArtifactRoutes(app, jobs)
+  registerGrowthRoutes(app, store, employees)
+  registerPackRoutes(app, store, employees, options.dataDirectory)
 
   return app
 }

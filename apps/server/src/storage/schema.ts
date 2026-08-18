@@ -195,7 +195,75 @@ export const installedPacks = sqliteTable(
     packId: text('pack_id').notNull(),
     version: text('version').notNull(),
     sourcePath: text('source_path'),
+    sourceKind: text('source_kind'),
+    sourceDisplay: text('source_display'),
+    commitHash: text('commit_hash'),
+    builtin: integer('builtin', { mode: 'boolean' }).notNull(),
     installedAt: text('installed_at').notNull(),
   },
   (table) => [unique().on(table.kind, table.packId)],
 )
+
+export const jobWorktrees = sqliteTable('job_worktrees', {
+  id: text('id').primaryKey(),
+  jobId: text('job_id')
+    .notNull()
+    .unique()
+    .references(() => jobs.id, { onDelete: 'cascade' }),
+  repositoryId: text('repository_id').notNull(),
+  worktreeRelPath: text('worktree_rel_path').notNull(),
+  branchName: text('branch_name').notNull(),
+  baseCommit: text('base_commit').notNull(),
+  includeDirtyPatch: integer('include_dirty_patch', {
+    mode: 'boolean',
+  }).notNull(),
+  status: text('status').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const growthApplications = sqliteTable(
+  'growth_applications',
+  {
+    id: text('id').primaryKey(),
+    jobId: text('job_id').notNull(),
+    employeeId: text('employee_id').notNull(),
+    scopeKey: text('scope_key').notNull(),
+    metric: text('metric').notNull(),
+    value: integer('value').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (table) => [
+    unique().on(table.jobId, table.employeeId, table.scopeKey, table.metric),
+  ],
+)
+
+export const worldFeatureUnlocks = sqliteTable(
+  'world_feature_unlocks',
+  {
+    id: text('id').primaryKey(),
+    workspaceId: text('workspace_id').notNull(),
+    worldPackId: text('world_pack_id').notNull(),
+    unlockId: text('unlock_id').notNull(),
+    unlockedAt: text('unlocked_at').notNull(),
+  },
+  (table) => [
+    unique().on(table.workspaceId, table.worldPackId, table.unlockId),
+  ],
+)
+
+export const packPreviews = sqliteTable('pack_previews', {
+  id: text('id').primaryKey(),
+  kind: text('kind').notNull(),
+  packId: text('pack_id').notNull(),
+  version: text('version').notNull(),
+  sourceKind: text('source_kind').notNull(),
+  sourceDisplay: text('source_display').notNull(),
+  validationJson: text('validation_json').notNull(),
+  fileSummaryJson: text('file_summary_json').notNull(),
+  gitCommit: text('git_commit'),
+  gitChanges: text('git_changes'),
+  stagingRelPath: text('staging_rel_path').notNull(),
+  createdAt: text('created_at').notNull(),
+  expiresAt: text('expires_at').notNull(),
+})

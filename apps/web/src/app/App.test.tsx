@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionToken } from '../api/session'
@@ -782,6 +782,267 @@ describe('Shikumi Local garden', () => {
     ).toBeVisible()
     await userEvent.click(screen.getByRole('button', { name: '仕事を中止' }))
     expect(await screen.findByText('仕事を中止しました')).toBeVisible()
+  })
+
+  it('asks how to handle a dirty repo and installs a pack from the trust screen', async () => {
+    let createdWithPolicy: string | undefined
+    let createdJobType: string | undefined
+    let createdPermission: string | undefined
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method ?? 'GET'
+        if (url.endsWith('/api/session')) {
+          return jsonResponse({ token: 'test-session' })
+        }
+        if (url.endsWith('/api/health')) {
+          return jsonResponse({ ...disconnectedHealth(), fakeHarness: true })
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
+            fakeHarness: true,
+          })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
+        }
+        if (url.endsWith('/api/workspaces')) {
+          return jsonResponse({ workspaces: [sampleWorkspace()] })
+        }
+        if (url.endsWith('/api/jobs') && method === 'GET') {
+          return jsonResponse({ jobs: [] })
+        }
+        if (url.endsWith('/api/jobs') && method === 'POST') {
+          const body = JSON.parse(String(init?.body ?? '{}')) as {
+            dirtyWorktreePolicy?: string
+            jobType?: string
+            permissionProfile?: string
+          }
+          if (!body.dirtyWorktreePolicy) {
+            return jsonResponse(
+              {
+                error: {
+                  code: 'WORKTREE_DIRTY_REPO',
+                  message: '現在の作業ディレクトリに未commitの変更があります',
+                },
+                details: {
+                  options: ['from-head', 'include-dirty-patch', 'cancel'],
+                },
+              },
+              409,
+            )
+          }
+          createdWithPolicy = body.dirtyWorktreePolicy
+          createdJobType = body.jobType
+          createdPermission = body.permissionProfile
+          return jsonResponse({ job: sampleJob('completed') }, 201)
+        }
+        if (url.endsWith('/api/jobs/job_1/worktree')) {
+          return jsonResponse({
+            worktree: {
+              jobId: 'job_1',
+              branchName: 'shikumi/saguru/aaaaaaaa',
+              baseCommit: 'abc12345',
+              status: 'completed',
+              includeDirtyPatch: false,
+            },
+            diff: {
+              summary: '1 file',
+              files: ['from-worktree.txt'],
+              patch: 'diff --git a/from-worktree.txt',
+            },
+          })
+        }
+        if (url.includes('/api/artifacts/art_patch/apply')) {
+          return jsonResponse({
+            artifact: {
+              id: 'art_patch',
+              jobId: 'job_1',
+              type: 'patch',
+              title: '変更パッチ',
+              storagePath: 'x',
+              createdAt: 't',
+            },
+          })
+        }
+        if (url.includes('/api/artifacts/art_patch/export')) {
+          return jsonResponse({ exportRelPath: 'exports/x.patch' })
+        }
+        if (url.includes('/api/jobs/job_1/worktree/keep')) {
+          return jsonResponse({ job: sampleJob('completed') })
+        }
+        if (url.includes('/api/jobs/job_1/worktree/discard')) {
+          return jsonResponse({ job: sampleJob('completed') })
+        }
+        if (url.includes('/api/jobs/job_1')) {
+          return jsonResponse({ job: sampleJob('completed') })
+        }
+        if (url.includes('/api/approvals')) {
+          return jsonResponse({ approvals: [] })
+        }
+        if (url.includes('/api/artifacts')) {
+          return jsonResponse({
+            artifacts: [
+              {
+                id: 'art_patch',
+                jobId: 'job_1',
+                type: 'patch',
+                title: '変更パッチ',
+                storagePath: 'x',
+                createdAt: 't',
+              },
+            ],
+          })
+        }
+        if (url.endsWith('/api/growth')) {
+          return jsonResponse({
+            growth: [
+              {
+                employeeId: 'saguru',
+                employeeName: 'サグル',
+                workspaceId: null,
+                level: 2,
+                permissionProfile: 'research',
+                metrics: [
+                  { id: 'completed_jobs', label: '完了した仕事', value: 3 },
+                ],
+                unlocks: ['bookshelf-small'],
+              },
+            ],
+          })
+        }
+        if (url.includes('/api/employees/saguru/growth')) {
+          return jsonResponse({
+            growth: {
+              employeeId: 'saguru',
+              employeeName: 'サグル',
+              workspaceId: 'ws_1',
+              level: 2,
+              permissionProfile: 'research',
+              metrics: [
+                { id: 'completed_jobs', label: '完了した仕事', value: 3 },
+              ],
+              unlocks: ['bookshelf-small'],
+            },
+          })
+        }
+        if (url.endsWith('/api/packs') && method === 'GET') {
+          return jsonResponse({
+            packs: [
+              {
+                id: 'p1',
+                kind: 'employee',
+                packId: 'saguru',
+                version: '1.0.0',
+                sourcePath: null,
+                sourceKind: 'builtin',
+                sourceDisplay: 'builtin',
+                commitHash: null,
+                builtin: true,
+                installedAt: 't',
+              },
+            ],
+          })
+        }
+        if (url.endsWith('/api/packs/preview')) {
+          return jsonResponse(
+            {
+              preview: {
+                id: 'prev_1',
+                kind: 'employee',
+                packId: 'miru',
+                version: '1.0.0',
+                sourceKind: 'folder',
+                sourceDisplay: 'miru',
+                validation: { ok: true, errors: [] },
+                fileSummary: {
+                  files: 1,
+                  totalBytes: 10,
+                  names: ['employee.yaml'],
+                },
+                gitCommit: null,
+                gitChanges: null,
+                createdAt: 't',
+              },
+            },
+            201,
+          )
+        }
+        if (url.endsWith('/api/packs/install')) {
+          return jsonResponse(
+            {
+              pack: {
+                id: 'p2',
+                kind: 'employee',
+                packId: 'miru',
+                version: '1.0.0',
+                sourcePath: null,
+                sourceKind: 'folder',
+                sourceDisplay: 'miru',
+                commitHash: null,
+                builtin: false,
+                installedAt: 't',
+              },
+            },
+            201,
+          )
+        }
+        return jsonResponse(
+          { error: { code: 'NOT_FOUND', message: 'not found' } },
+          404,
+        )
+      },
+    )
+
+    render(<App />)
+    await userEvent.type(
+      await screen.findByPlaceholderText(
+        '例：このRepositoryの構成と改善点を調べて',
+      ),
+      '直して',
+    )
+    await userEvent.click(screen.getByRole('button', { name: '仕事を頼む' }))
+    expect(
+      await screen.findByText(
+        '現在の作業ディレクトリに未commitの変更があります',
+      ),
+    ).toBeVisible()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'HEADから新しいWorktreeを作る' }),
+    )
+    await waitFor(() => {
+      expect(createdWithPolicy).toBe('from-head')
+      expect(createdJobType).toBe('research')
+      expect(createdPermission).toBeUndefined()
+    })
+
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
+        'link',
+        { name: '設定' },
+      ),
+    )
+    await userEvent.type(screen.getByLabelText('Packの場所'), '/tmp/miru')
+    await userEvent.click(
+      screen.getByRole('button', { name: '確認画面を開く' }),
+    )
+    expect(await screen.findByTestId('pack-trust')).toHaveTextContent('miru')
+    await userEvent.click(
+      screen.getByRole('button', { name: 'このPackを導入する' }),
+    )
+    expect(await screen.findByTestId('pack-list')).toBeVisible()
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
+        'link',
+        { name: '庭' },
+      ),
+    )
+    expect(await screen.findByTestId('world-stage')).toHaveAttribute(
+      'data-level',
+      '2',
+    )
   })
 })
 

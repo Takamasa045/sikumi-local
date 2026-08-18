@@ -29,6 +29,24 @@ describe('WorldStage', () => {
     expect(screen.getByTestId('garden-where')).toHaveTextContent('いま 縁側')
   })
 
+  it('changes visual state from growth without changing the world pack identity', () => {
+    render(
+      <WorldStage
+        world={getWorldPack('dog-office')}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="rest"
+        pose="idle"
+        level={3}
+        unlocks={['bookshelf-small']}
+      />,
+    )
+    expect(screen.getByTestId('world-stage')).toHaveAttribute('data-level', '3')
+    expect(screen.getByTestId('world-unlocks')).toHaveTextContent(
+      'bookshelf-small',
+    )
+  })
+
   it('keeps archive and delivery station labels in the stage markup', () => {
     render(
       <WorldStage

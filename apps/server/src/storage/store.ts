@@ -4,12 +4,15 @@ import {
   approvalRequestSchema,
   artifactSchema,
   employeeSchema,
+  growthApplicationSchema,
   growthRecordSchema,
   installedPackSchema,
   isProviderId,
+  jobWorktreeSchema,
   isRuntimeProviderId,
   isShikumiEventType,
   jobSchema,
+  packPreviewRecordSchema,
   persistedEventSchema,
   providerSchema,
   providerSessionSchema,
@@ -17,26 +20,31 @@ import {
   redactSensitiveText,
   sanitizeEventPayload,
   workspaceSchema,
+  worldFeatureUnlockSchema,
   type ApprovalRequest,
   type ApprovalStatus,
   type Artifact,
   type AuditEntry,
   type Employee,
   type EmployeeInstance,
+  type GrowthApplication,
   type GrowthRecord,
   type InstalledPack,
   type Job,
+  type JobWorktree,
   type PersistedEvent,
   type Provider,
   type ProviderSession,
   type ProviderSetting,
   type Repository,
   type Run,
+  type PackPreviewRecord,
   type UserQuestion,
   type Workspace,
+  type WorldFeatureUnlock,
   type WorldUnlock,
 } from '@sikumi-local/core'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { GitInspection } from '../workspaces/git-repository.js'
 import type { AppDatabase } from './database.js'
 import {
@@ -46,9 +54,12 @@ import {
   employeeInstances,
   employees,
   events,
+  growthApplications,
   growthRecords,
   installedPacks,
+  jobWorktrees,
   jobs,
+  packPreviews,
   providerSessions,
   providerSettings,
   providers,
@@ -56,6 +67,7 @@ import {
   runs,
   userQuestions,
   workspaces,
+  worldFeatureUnlocks,
   worldUnlocks,
 } from './schema.js'
 
@@ -122,10 +134,43 @@ export interface AppStore {
   listArtifacts(jobId?: string): Artifact[]
   ensureDefaultEmployee(): Employee
   insertGrowthRecord(record: GrowthRecord): GrowthRecord
+  listGrowthRecords(filter?: {
+    employeeId?: string
+    workspaceId?: string | null
+  }): GrowthRecord[]
+  tryInsertGrowthApplication(record: GrowthApplication): boolean
+  recordGrowthOnce(input: {
+    readonly application: GrowthApplication
+    readonly record: GrowthRecord
+  }): { readonly applied: boolean }
+  listGrowthApplications(filter?: {
+    employeeId?: string
+    jobId?: string
+  }): GrowthApplication[]
   insertWorldUnlock(unlock: WorldUnlock): WorldUnlock
+  listWorldUnlocks(workspaceId?: string): WorldUnlock[]
+  insertWorldFeatureUnlock(unlock: WorldFeatureUnlock): WorldFeatureUnlock
+  listWorldFeatureUnlocks(workspaceId?: string): WorldFeatureUnlock[]
   insertAuditEntry(entry: AuditEntry): AuditEntry
   insertPack(pack: InstalledPack): InstalledPack
+  updatePack(id: string, patch: Partial<InstalledPack>): InstalledPack
+  deletePack(id: string): void
+  getPack(id: string): InstalledPack | undefined
+  findPack(
+    kind: InstalledPack['kind'],
+    packId: string,
+  ): InstalledPack | undefined
   listPacks(): InstalledPack[]
+  insertJobWorktree(record: JobWorktree): JobWorktree
+  getJobWorktreeByJobId(jobId: string): JobWorktree | undefined
+  listActiveWriteWorktrees(): JobWorktree[]
+  updateJobWorktree(
+    id: string,
+    patch: Partial<Pick<JobWorktree, 'status' | 'updatedAt'>>,
+  ): JobWorktree
+  insertPackPreview(record: PackPreviewRecord): PackPreviewRecord
+  getPackPreview(id: string): PackPreviewRecord | undefined
+  deletePackPreview(id: string): void
 }
 
 export function createStore(db: AppDatabase): AppStore {
@@ -683,6 +728,126 @@ export function createStore(db: AppDatabase): AppStore {
       return parsed
     },
 
+    listGrowthRecords(filter) {
+      return db
+        .select()
+        .from(growthRecords)
+        .all()
+        .map((row) =>
+          growthRecordSchema.parse({
+            id: row.id,
+            employeeId: row.employeeId,
+            workspaceId: row.workspaceId,
+            metric: row.metric,
+            value: row.value,
+            createdAt: row.createdAt,
+          }),
+        )
+        .filter((record) => {
+          if (filter?.employeeId && record.employeeId !== filter.employeeId) {
+            return false
+          }
+          if (filter && 'workspaceId' in filter) {
+            return record.workspaceId === filter.workspaceId
+          }
+          return true
+        })
+    },
+
+    tryInsertGrowthApplication(record) {
+      const parsed = growthApplicationSchema.parse(record)
+      const existing = db
+        .select()
+        .from(growthApplications)
+        .where(
+          and(
+            eq(growthApplications.jobId, parsed.jobId),
+            eq(growthApplications.employeeId, parsed.employeeId),
+            eq(growthApplications.scopeKey, parsed.scopeKey),
+            eq(growthApplications.metric, parsed.metric),
+          ),
+        )
+        .get()
+      if (existing) {
+        return false
+      }
+      db.insert(growthApplications)
+        .values({
+          id: parsed.id,
+          jobId: parsed.jobId,
+          employeeId: parsed.employeeId,
+          scopeKey: parsed.scopeKey,
+          metric: parsed.metric,
+          value: parsed.value,
+          createdAt: parsed.createdAt,
+        })
+        .run()
+      return true
+    },
+
+    recordGrowthOnce(input) {
+      const application = growthApplicationSchema.parse(input.application)
+      const record = growthRecordSchema.parse(input.record)
+      try {
+        db.transaction((tx) => {
+          tx.insert(growthApplications)
+            .values({
+              id: application.id,
+              jobId: application.jobId,
+              employeeId: application.employeeId,
+              scopeKey: application.scopeKey,
+              metric: application.metric,
+              value: application.value,
+              createdAt: application.createdAt,
+            })
+            .run()
+          tx.insert(growthRecords)
+            .values({
+              id: record.id,
+              employeeId: record.employeeId,
+              workspaceId: record.workspaceId,
+              metric: record.metric,
+              value: record.value,
+              createdAt: record.createdAt,
+            })
+            .run()
+        })
+        return { applied: true }
+      } catch (error) {
+        if (isGrowthApplicationConflict(error)) {
+          return { applied: false }
+        }
+        throw error
+      }
+    },
+
+    listGrowthApplications(filter) {
+      return db
+        .select()
+        .from(growthApplications)
+        .all()
+        .map((row) =>
+          growthApplicationSchema.parse({
+            id: row.id,
+            jobId: row.jobId,
+            employeeId: row.employeeId,
+            scopeKey: row.scopeKey,
+            metric: row.metric,
+            value: row.value,
+            createdAt: row.createdAt,
+          }),
+        )
+        .filter((record) => {
+          if (filter?.employeeId && record.employeeId !== filter.employeeId) {
+            return false
+          }
+          if (filter?.jobId && record.jobId !== filter.jobId) {
+            return false
+          }
+          return true
+        })
+    },
+
     insertWorldUnlock(unlock) {
       db.insert(worldUnlocks)
         .values({
@@ -693,6 +858,71 @@ export function createStore(db: AppDatabase): AppStore {
         })
         .run()
       return unlock
+    },
+
+    listWorldUnlocks(workspaceId) {
+      return db
+        .select()
+        .from(worldUnlocks)
+        .all()
+        .filter((row) => !workspaceId || row.workspaceId === workspaceId)
+        .map((row) => ({
+          id: row.id,
+          workspaceId: row.workspaceId,
+          worldPackId: row.worldPackId,
+          unlockedAt: row.unlockedAt,
+        }))
+    },
+
+    insertWorldFeatureUnlock(unlock) {
+      const parsed = worldFeatureUnlockSchema.parse(unlock)
+      const existing = db
+        .select()
+        .from(worldFeatureUnlocks)
+        .where(
+          and(
+            eq(worldFeatureUnlocks.workspaceId, parsed.workspaceId),
+            eq(worldFeatureUnlocks.worldPackId, parsed.worldPackId),
+            eq(worldFeatureUnlocks.unlockId, parsed.unlockId),
+          ),
+        )
+        .get()
+      if (existing) {
+        return worldFeatureUnlockSchema.parse({
+          id: existing.id,
+          workspaceId: existing.workspaceId,
+          worldPackId: existing.worldPackId,
+          unlockId: existing.unlockId,
+          unlockedAt: existing.unlockedAt,
+        })
+      }
+      db.insert(worldFeatureUnlocks)
+        .values({
+          id: parsed.id,
+          workspaceId: parsed.workspaceId,
+          worldPackId: parsed.worldPackId,
+          unlockId: parsed.unlockId,
+          unlockedAt: parsed.unlockedAt,
+        })
+        .run()
+      return parsed
+    },
+
+    listWorldFeatureUnlocks(workspaceId) {
+      return db
+        .select()
+        .from(worldFeatureUnlocks)
+        .all()
+        .filter((row) => !workspaceId || row.workspaceId === workspaceId)
+        .map((row) =>
+          worldFeatureUnlockSchema.parse({
+            id: row.id,
+            workspaceId: row.workspaceId,
+            worldPackId: row.worldPackId,
+            unlockId: row.unlockId,
+            unlockedAt: row.unlockedAt,
+          }),
+        )
     },
 
     insertAuditEntry(entry) {
@@ -718,10 +948,60 @@ export function createStore(db: AppDatabase): AppStore {
           packId: parsed.packId,
           version: parsed.version,
           sourcePath: parsed.sourcePath,
+          sourceKind: parsed.sourceKind,
+          sourceDisplay: parsed.sourceDisplay,
+          commitHash: parsed.commitHash,
+          builtin: parsed.builtin,
           installedAt: parsed.installedAt,
         })
         .run()
       return parsed
+    },
+
+    updatePack(id, patch) {
+      const current = this.getPack(id)
+      if (!current) {
+        throw new AppError('NOT_FOUND', 'Packが見つかりません', 404)
+      }
+      const next = installedPackSchema.parse({ ...current, ...patch })
+      db.update(installedPacks)
+        .set({
+          version: next.version,
+          sourcePath: next.sourcePath,
+          sourceKind: next.sourceKind,
+          sourceDisplay: next.sourceDisplay,
+          commitHash: next.commitHash,
+          builtin: next.builtin,
+          installedAt: next.installedAt,
+        })
+        .where(eq(installedPacks.id, id))
+        .run()
+      return next
+    },
+
+    deletePack(id) {
+      const current = this.getPack(id)
+      if (!current) {
+        throw new AppError('NOT_FOUND', 'Packが見つかりません', 404)
+      }
+      if (current.builtin) {
+        throw new AppError(
+          'PACK_BUILTIN_PROTECTED',
+          '組み込みPackは削除できません',
+          403,
+        )
+      }
+      db.delete(installedPacks).where(eq(installedPacks.id, id)).run()
+    },
+
+    getPack(id) {
+      return this.listPacks().find((pack) => pack.id === id)
+    },
+
+    findPack(kind, packId) {
+      return this.listPacks().find(
+        (pack) => pack.kind === kind && pack.packId === packId,
+      )
     },
 
     listPacks() {
@@ -736,9 +1016,132 @@ export function createStore(db: AppDatabase): AppStore {
             packId: row.packId,
             version: row.version,
             sourcePath: row.sourcePath,
+            sourceKind: row.sourceKind,
+            sourceDisplay: row.sourceDisplay,
+            commitHash: row.commitHash,
+            builtin: Boolean(row.builtin),
             installedAt: row.installedAt,
           }),
         )
+    },
+
+    insertJobWorktree(record) {
+      const parsed = jobWorktreeSchema.parse(record)
+      db.insert(jobWorktrees)
+        .values({
+          id: parsed.id,
+          jobId: parsed.jobId,
+          repositoryId: parsed.repositoryId,
+          worktreeRelPath: parsed.worktreeRelPath,
+          branchName: parsed.branchName,
+          baseCommit: parsed.baseCommit,
+          includeDirtyPatch: parsed.includeDirtyPatch,
+          status: parsed.status,
+          createdAt: parsed.createdAt,
+          updatedAt: parsed.updatedAt,
+        })
+        .run()
+      return parsed
+    },
+
+    getJobWorktreeByJobId(jobId) {
+      const row = db
+        .select()
+        .from(jobWorktrees)
+        .where(eq(jobWorktrees.jobId, jobId))
+        .get()
+      return row ? mapJobWorktree(row) : undefined
+    },
+
+    listActiveWriteWorktrees() {
+      return db
+        .select()
+        .from(jobWorktrees)
+        .all()
+        .map(mapJobWorktree)
+        .filter(
+          (record) =>
+            record.status === 'prepared' || record.status === 'active',
+        )
+    },
+
+    updateJobWorktree(id, patch) {
+      const current = db
+        .select()
+        .from(jobWorktrees)
+        .where(eq(jobWorktrees.id, id))
+        .get()
+      if (!current) {
+        throw new AppError(
+          'WORKTREE_NOT_FOUND',
+          'Worktreeが見つかりません',
+          404,
+        )
+      }
+      const next = jobWorktreeSchema.parse({
+        ...mapJobWorktree(current),
+        ...patch,
+      })
+      db.update(jobWorktrees)
+        .set({
+          status: next.status,
+          updatedAt: next.updatedAt,
+        })
+        .where(eq(jobWorktrees.id, id))
+        .run()
+      return next
+    },
+
+    insertPackPreview(record) {
+      const parsed = packPreviewRecordSchema.parse(record)
+      db.insert(packPreviews)
+        .values({
+          id: parsed.id,
+          kind: parsed.kind,
+          packId: parsed.packId,
+          version: parsed.version,
+          sourceKind: parsed.sourceKind,
+          sourceDisplay: parsed.sourceDisplay,
+          validationJson: JSON.stringify(parsed.validation),
+          fileSummaryJson: JSON.stringify(parsed.fileSummary),
+          gitCommit: parsed.gitCommit,
+          gitChanges: parsed.gitChanges,
+          stagingRelPath: parsed.stagingRelPath,
+          createdAt: parsed.createdAt,
+          expiresAt: parsed.expiresAt,
+        })
+        .run()
+      return parsed
+    },
+
+    getPackPreview(id) {
+      const row = db
+        .select()
+        .from(packPreviews)
+        .where(eq(packPreviews.id, id))
+        .get()
+      if (!row) {
+        return undefined
+      }
+      return packPreviewRecordSchema.parse({
+        id: row.id,
+        kind: row.kind,
+        packId: row.packId,
+        version: row.version,
+        sourceKind: row.sourceKind,
+        sourceDisplay: row.sourceDisplay,
+        validation: JSON.parse(row.validationJson) as Record<string, unknown>,
+        fileSummary: JSON.parse(row.fileSummaryJson) as Record<string, unknown>,
+        gitCommit: row.gitCommit,
+        gitChanges: row.gitChanges,
+        stagingRelPath: row.stagingRelPath,
+        createdAt: row.createdAt,
+        expiresAt: row.expiresAt,
+      })
+    },
+
+    deletePackPreview(id) {
+      db.delete(packPreviews).where(eq(packPreviews.id, id)).run()
     },
   }
 }
@@ -836,6 +1239,21 @@ function mapArtifact(row: typeof artifacts.$inferSelect): Artifact {
   })
 }
 
+function mapJobWorktree(row: typeof jobWorktrees.$inferSelect): JobWorktree {
+  return jobWorktreeSchema.parse({
+    id: row.id,
+    jobId: row.jobId,
+    repositoryId: row.repositoryId,
+    worktreeRelPath: row.worktreeRelPath,
+    branchName: row.branchName,
+    baseCommit: row.baseCommit,
+    includeDirtyPatch: row.includeDirtyPatch,
+    status: row.status,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  })
+}
+
 function parseCatalogProviderId(value: string) {
   if (!isProviderId(value)) {
     throw new Error(`Unknown provider id: ${value}`)
@@ -852,4 +1270,16 @@ function parseRuntimeProviderId(value: string) {
 
 function parseOptionalProviderId(value: string | null) {
   return value === null ? null : parseCatalogProviderId(value)
+}
+
+function isGrowthApplicationConflict(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+  const code = 'code' in error ? String(error.code) : ''
+  const message = 'message' in error ? String(error.message) : String(error)
+  return (
+    message.includes('growth_applications') &&
+    (/SQLITE_CONSTRAINT/i.test(code) || /unique constraint failed/i.test(message))
+  )
 }

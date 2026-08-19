@@ -197,7 +197,7 @@ describe('local server', () => {
       url: '/api/workspaces/choose-folder',
     })
 
-    if (process.platform === 'darwin') {
+    if (process.platform === 'darwin' || process.platform === 'win32') {
       expect([200, 400]).toContain(response.statusCode)
       return
     }

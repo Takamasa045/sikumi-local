@@ -7,9 +7,10 @@ import {
   readSync,
   statSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import {
   isPlainObject,
+  looksWindowsAbsolutePath,
   OBSERVER_LIVE_MAX_FILE_BYTES,
   OBSERVER_LIVE_MAX_SESSION_FILES,
   OBSERVER_LIVE_SESSION_MAX_AGE_MS,
@@ -29,6 +30,20 @@ export interface SessionFileRecord {
   readonly title: string | null
   readonly lastObservedAt: string
   readonly externalSessionId: string
+}
+
+export function sessionHomeRoots(homeDir: string): {
+  readonly codexSessions: string | null
+  readonly claudeProjects: string | null
+  readonly cursorChats: string | null
+  readonly grokSessions: string | null
+} {
+  return {
+    codexSessions: safeJoinUnderRoot(homeDir, '.codex', 'sessions'),
+    claudeProjects: safeJoinUnderRoot(homeDir, '.claude', 'projects'),
+    cursorChats: safeJoinUnderRoot(homeDir, '.cursor', 'chats'),
+    grokSessions: safeJoinUnderRoot(homeDir, '.grok', 'sessions'),
+  }
 }
 
 export function listRecentSessionRecords(input: {
@@ -53,7 +68,7 @@ function readCodexSessions(
   now: number,
   maxAgeMs: number,
 ): SessionFileRecord[] {
-  const sessionsRoot = safeJoinUnderRoot(homeDir, '.codex', 'sessions')
+  const sessionsRoot = sessionHomeRoots(homeDir).codexSessions
   if (!sessionsRoot || !existsSync(sessionsRoot)) {
     return []
   }
@@ -112,15 +127,17 @@ function readClaudeSessions(
   now: number,
   maxAgeMs: number,
 ): SessionFileRecord[] {
-  const projectsRoot = safeJoinUnderRoot(homeDir, '.claude', 'projects')
+  const projectsRoot = sessionHomeRoots(homeDir).claudeProjects
   if (!projectsRoot || !existsSync(projectsRoot)) {
     return []
   }
   const records: SessionFileRecord[] = []
   for (const root of roots) {
-    const encoded = encodeClaudeProjectDir(root.absolutePath)
-    const projectDir = safeJoinUnderRoot(projectsRoot, encoded)
-    if (!projectDir || !existsSync(projectDir)) {
+    const projectDir = firstExistingJoin(
+      projectsRoot,
+      claudeProjectDirNames(root.absolutePath),
+    )
+    if (!projectDir) {
       continue
     }
     for (const file of listRecentFiles(projectDir, now, maxAgeMs, 1)) {
@@ -135,7 +152,7 @@ function readClaudeSessions(
       }
       const id =
         readString(head?.sessionId) ??
-        file.replace(/\.jsonl$/, '').split('/').pop() ??
+        basename(file.replace(/\.jsonl$/, '')) ??
         file
       records.push({
         source: 'claude-code',
@@ -162,13 +179,15 @@ function readCursorSessions(
   now: number,
   maxAgeMs: number,
 ): SessionFileRecord[] {
-  const chatsRoot = safeJoinUnderRoot(homeDir, '.cursor', 'chats')
+  const chatsRoot = sessionHomeRoots(homeDir).cursorChats
   const records: SessionFileRecord[] = []
   if (chatsRoot && existsSync(chatsRoot)) {
     for (const root of roots) {
-      const hashed = createHash('md5').update(root.absolutePath).digest('hex')
-      const workspaceDir = safeJoinUnderRoot(chatsRoot, hashed)
-      if (!workspaceDir || !existsSync(workspaceDir)) {
+      const workspaceDir = firstExistingJoin(
+        chatsRoot,
+        cursorWorkspaceKeyHashes(root.absolutePath),
+      )
+      if (!workspaceDir) {
         continue
       }
       for (const file of listRecentFiles(workspaceDir, now, maxAgeMs, 2)) {
@@ -180,7 +199,7 @@ function readCursorSessions(
         if (!matchRegisteredRoot(cwd, roots)) {
           continue
         }
-        const id = file.split('/').at(-2) ?? file
+        const id = basename(dirname(file)) || file
         records.push({
           source: 'cursor',
           cwd,
@@ -203,7 +222,7 @@ function readGrokSessions(
   now: number,
   maxAgeMs: number,
 ): SessionFileRecord[] {
-  const sessionsRoot = safeJoinUnderRoot(homeDir, '.grok', 'sessions')
+  const sessionsRoot = sessionHomeRoots(homeDir).grokSessions
   if (!sessionsRoot || !existsSync(sessionsRoot)) {
     return []
   }
@@ -234,6 +253,51 @@ function readGrokSessions(
 
 export function encodeClaudeProjectDir(cwd: string): string {
   return cwd.replace(/[^A-Za-z0-9]/g, '-')
+}
+
+export function claudeProjectDirNames(cwd: string): string[] {
+  return uniqueStrings(pathVariants(cwd).map((item) => encodeClaudeProjectDir(item)))
+}
+
+export function cursorWorkspaceKeyHashes(absolutePath: string): string[] {
+  return uniqueStrings(
+    pathVariants(absolutePath).map((item) =>
+      createHash('md5').update(item).digest('hex'),
+    ),
+  )
+}
+
+function pathVariants(path: string): string[] {
+  const trimmed = path.trim()
+  const variants = new Set<string>([trimmed])
+  const unified = trimmed.replaceAll('\\', '/')
+  variants.add(unified)
+  if (looksWindowsAbsolutePath(trimmed) || trimmed.includes('\\')) {
+    variants.add(unified.replaceAll('/', '\\'))
+    if (/^[A-Za-z]:/.test(unified)) {
+      const letter = unified[0]!
+      const rest = unified.slice(1)
+      variants.add(letter.toUpperCase() + rest)
+      variants.add(letter.toLowerCase() + rest)
+      variants.add((letter.toUpperCase() + rest).replaceAll('/', '\\'))
+      variants.add((letter.toLowerCase() + rest).replaceAll('/', '\\'))
+    }
+  }
+  return [...variants]
+}
+
+function firstExistingJoin(root: string, names: readonly string[]): string | null {
+  for (const name of names) {
+    const candidate = safeJoinUnderRoot(root, name)
+    if (candidate && existsSync(candidate)) {
+      return candidate
+    }
+  }
+  return null
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)]
 }
 
 function listRecentFiles(

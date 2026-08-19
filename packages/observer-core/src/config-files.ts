@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { homedir } from 'node:os'
-import { dirname, isAbsolute, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve, win32 } from 'node:path'
 import { AppError } from '@sikumi-local/core'
 import {
   containsParentTraversal,
@@ -21,9 +21,26 @@ import type { ObserverInstallFilePlan } from './types.js'
 const SHELL_METACHARACTERS = /[|&;<>()$`\\'\n\r*?[\]{}!#~]/
 
 export function realUserHome(env: NodeJS.ProcessEnv = process.env): string {
-  return env.HOME && env.HOME.trim().length > 0
-    ? resolve(env.HOME)
-    : resolve(homedir())
+  const windowsHome = firstWindowsHome(env)
+  if (windowsHome) {
+    return windowsHome
+  }
+  if (env.HOME && env.HOME.trim().length > 0) {
+    return resolve(env.HOME)
+  }
+  return resolve(homedir())
+}
+
+function firstWindowsHome(env: NodeJS.ProcessEnv): string | null {
+  const profile = env.USERPROFILE?.trim()
+  if (profile && looksWindowsAbsolutePath(profile)) {
+    return win32.normalize(profile)
+  }
+  const home = env.HOME?.trim()
+  if (home && looksWindowsAbsolutePath(home)) {
+    return win32.normalize(home)
+  }
+  return null
 }
 
 export function realpathIfExists(path: string): string {
@@ -73,7 +90,8 @@ export function safeJoinUnderRoot(
   root: string,
   ...segments: string[]
 ): string | null {
-  if (!isAbsolute(root) || containsParentTraversal(root)) {
+  const windowsRoot = looksWindowsAbsolutePath(root)
+  if ((!isAbsolute(root) && !windowsRoot) || containsParentTraversal(root)) {
     return null
   }
   for (const segment of segments) {
@@ -81,12 +99,15 @@ export function safeJoinUnderRoot(
       segment.length === 0 ||
       segment.includes('\0') ||
       containsParentTraversal(segment) ||
-      isAbsolute(segment)
+      isAbsolute(segment) ||
+      looksWindowsAbsolutePath(segment)
     ) {
       return null
     }
   }
-  const joined = resolve(root, ...segments)
+  const joined = windowsRoot
+    ? win32.resolve(root, ...segments)
+    : resolve(root, ...segments)
   if (!isInsideRoot(joined, root)) {
     return null
   }

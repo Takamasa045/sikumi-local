@@ -15,6 +15,18 @@ describe('resolveRegisteredPath', () => {
     expect(resolveRegisteredPath('~/Projects/demo')).toBe(
       join(homedir(), 'Projects/demo'),
     )
+    expect(resolveRegisteredPath('~\\Projects\\demo')).toBe(
+      join(homedir(), 'Projects', 'demo'),
+    )
+  })
+
+  it('accepts Windows drive paths without treating them as relative', () => {
+    expect(resolveRegisteredPath('C:\\Users\\example\\project')).toBe(
+      'C:\\Users\\example\\project',
+    )
+    expect(resolveRegisteredPath('C:/Users/example/project')).toBe(
+      'C:\\Users\\example\\project',
+    )
   })
 
   it('rejects path traversal segments', () => {

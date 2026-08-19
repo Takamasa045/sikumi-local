@@ -17,7 +17,10 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { observerInboxDir } from '@sikumi-local/observer-bridge'
 import { parseSemver } from '@sikumi-local/observer-core'
-import { createGrokObserverAdapter } from './adapter.js'
+import {
+  createGrokObserverAdapter,
+  GROK_CLI_MISSING_WARNING,
+} from './adapter.js'
 import { runGrokObserverHook } from './cli.js'
 import { discoverGrokHooks, missingGrokEvents } from './discovery.js'
 import {
@@ -456,6 +459,36 @@ describe('grok install and health', () => {
     expect(health.detectedVersion).toBe('2.4.0')
     expect(health.supportedRange).toBe('1.0.5')
     expect(health.warnings.join(' ')).toContain('Git観測')
+  })
+
+  it('treats a missing grok CLI as a warning after settings are written', async () => {
+    const home = createTemp()
+    const adapter = createGrokObserverAdapter()
+    const preview = await adapter.install({ homeDir: home })
+    const applied = await adapter.install({
+      homeDir: home,
+      confirm: true,
+      confirmationToken: preview.confirmationToken!,
+      planDigest: preview.planDigest!,
+    })
+    expect(applied.ok).toBe(true)
+    expect(applied.applied).toBe(true)
+    const health = await adapter.healthCheck({
+      homeDir: home,
+      env: { PATH: home, HOME: home },
+    })
+    expect(health.status).toBe('needs_review')
+    expect(health.errors).toEqual([])
+    expect(health.warnings).toContain(GROK_CLI_MISSING_WARNING)
+    await expect(
+      adapter.healthCheck({
+        homeDir: home,
+        env: { PATH: '', HOME: home },
+      }),
+    ).resolves.toMatchObject({
+      status: 'needs_review',
+      errors: [],
+    })
   })
 
   it('refuses real-user apply, symlink escape, and stale digest', async () => {

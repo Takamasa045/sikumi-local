@@ -702,8 +702,17 @@ describe('observer phase 4 and 5 adapters', () => {
     })
     expect(grokPreview.statusCode).toBe(200)
     expect(grokPreview.json().result.applied).not.toBe(true)
+    expect(String(grokPreview.json().result.message)).not.toBe(
+      'Unexpected server error',
+    )
     expect(String(grokPreview.json().result.preview ?? '')).toContain(
       'sikumi-observer',
+    )
+    expect(String(grokPreview.json().result.preview ?? '')).not.toContain(
+      '# sikumi-observer-begin',
+    )
+    expect(String(JSON.stringify(grokPreview.json().result))).not.toContain(
+      '[[hooks.',
     )
 
     const repo = track(createTemporaryGitRepository())
@@ -727,6 +736,52 @@ describe('observer phase 4 and 5 adapters', () => {
     })
     expect(grokRepo.statusCode).toBe(200)
     expect(grokRepo.json().result.applied).not.toBe(true)
+    expect(String(JSON.stringify(grokRepo.json().result))).not.toContain(
+      '"hooks":{',
+    )
+
+    const grokApply = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/observer/adapters/grok-build/install',
+      payload: {
+        scope: 'repo',
+        repositoryId,
+        confirm: true,
+        confirmationToken: grokRepo.json().result.confirmationToken,
+        planDigest: grokRepo.json().result.planDigest,
+      },
+    })
+    expect(grokApply.statusCode).toBe(200)
+    expect(grokApply.json().result.ok).toBe(true)
+    expect(grokApply.json().result.applied).toBe(true)
+    expect(grokApply.json().result.message).toBe('つながりました')
+    expect(existsSync(join(repo, '.grok', 'hooks', 'sikumi-observer.json'))).toBe(
+      true,
+    )
+    expect(String(JSON.stringify(grokApply.json().result))).not.toContain(
+      'Unexpected server error',
+    )
+
+    const grokAgain = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/observer/adapters/grok-build/install',
+      payload: { scope: 'repo', repositoryId },
+    })
+    const grokIdempotent = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/observer/adapters/grok-build/install',
+      payload: {
+        scope: 'repo',
+        repositoryId,
+        confirm: true,
+        confirmationToken: grokAgain.json().result.confirmationToken,
+        planDigest: grokAgain.json().result.planDigest,
+      },
+    })
+    expect(grokIdempotent.statusCode).toBe(200)
+    expect(grokIdempotent.json().result.ok).toBe(true)
+    expect(grokIdempotent.json().result.applied).toBe(true)
+    expect(grokIdempotent.json().result.message).toBe('つながりました')
     expect(snapshotRealUserHomes()).toEqual(homesBefore)
   })
 })

@@ -302,19 +302,23 @@ main {
 }
 
 .garden-station {
+  appearance: none;
   position: absolute;
   left: var(--station-x);
   top: var(--station-y);
   z-index: 2;
   transform: translate(-50%, -120%);
+  margin: 0;
   padding: 4px 8px;
   color: #efe6cc;
   background: rgba(23, 33, 25, 0.62);
   border: 1px solid rgba(232, 196, 129, 0.28);
   border-radius: 2px;
+  font: inherit;
   font-size: 10px;
   letter-spacing: 0.08em;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: pointer;
   opacity: 0.72;
 }
 .garden-station.is-active {
@@ -324,19 +328,42 @@ main {
 }
 
 .employee {
+  appearance: none;
   position: absolute;
-  left: var(--character-x);
-  top: var(--character-y);
+  left: var(--character-x, 50%);
+  top: var(--character-y, 50%);
   z-index: 3;
   width: clamp(104px, 15vw, 184px);
+  margin: 0;
+  padding: 0;
   aspect-ratio: 1;
+  border: 0;
+  background: transparent;
   transform: translate(-50%, -62%);
-  transition:
-    left 700ms ease,
-    top 700ms ease;
+  cursor: pointer;
+  color: inherit;
 }
-.employee.is-idle .employee__sprite {
+.employee.is-ready {
+  transition-property: left, top;
+  transition-duration: var(--garden-travel-ms, 720ms);
+  transition-timing-function: ease-in-out;
+}
+.employee.is-selected {
+  z-index: 6;
+}
+.employee.is-idle .employee__sprite,
+.employee[data-gesture='idle'] .employee__sprite {
   animation: employee-idle 4.8s ease-in-out infinite;
+}
+.employee[data-gesture='working'] .employee__sprite {
+  animation: employee-working 1.15s ease-in-out infinite;
+}
+.employee[data-gesture='waiting'] .employee__sprite {
+  animation: employee-waiting 2.4s ease-in-out infinite;
+}
+.employee[data-gesture='walking'] .employee__sprite,
+.employee.is-traveling .employee__sprite {
+  animation: employee-walk 0.42s ease-in-out infinite;
 }
 .employee__sprite {
   position: absolute;
@@ -397,6 +424,21 @@ main {
   margin-top: 5px;
   color: #646357;
   font-size: 11px;
+}
+.employee__name {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 92%;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  color: #36372f;
+  background: rgba(244, 239, 219, 0.94);
+  border-radius: 999px;
+  box-shadow: 0 4px 10px rgba(15, 19, 13, 0.2);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
 .garden-controls {
@@ -763,6 +805,39 @@ main {
   }
   50% {
     transform: translateY(-4px);
+  }
+}
+@keyframes employee-working {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  40% {
+    transform: translateY(-3px) rotate(-2deg);
+  }
+  70% {
+    transform: translateY(-1px) rotate(2deg);
+  }
+}
+@keyframes employee-waiting {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+}
+@keyframes employee-walk {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(-3px, -5px);
+  }
+  75% {
+    transform: translate(3px, -2px);
   }
 }
 .approval-panel h2,
@@ -1229,7 +1304,9 @@ footer span {
   .employee {
     transition: none;
   }
-  .employee.is-idle .employee__sprite {
+  .employee.is-idle .employee__sprite,
+  .employee[data-gesture] .employee__sprite,
+  .employee.is-traveling .employee__sprite {
     animation: none;
   }
 }
@@ -1415,8 +1492,16 @@ footer span {
   color: #f4f0df;
   border: 1px solid #1c271e;
   background:
-    radial-gradient(ellipse at 18% 8%, rgba(232, 196, 129, 0.22), transparent 42%),
-    radial-gradient(ellipse at 82% 18%, rgba(51, 72, 58, 0.55), transparent 48%),
+    radial-gradient(
+      ellipse at 18% 8%,
+      rgba(232, 196, 129, 0.22),
+      transparent 42%
+    ),
+    radial-gradient(
+      ellipse at 82% 18%,
+      rgba(51, 72, 58, 0.55),
+      transparent 48%
+    ),
     linear-gradient(180deg, #4a6351 0%, #2a3b2f 46%, #172119 100%);
 }
 
@@ -1568,7 +1653,8 @@ footer span {
   background-position: center;
   background-size: cover;
   box-shadow: inset 0 0 80px rgba(40, 28, 16, 0.18);
-  font-family: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+  font-family:
+    'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
   color: var(--observer-ink);
 }
 
@@ -1583,8 +1669,17 @@ footer span {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(120% 70% at 50% 110%, rgba(40, 32, 18, 0.22), transparent 55%),
-    linear-gradient(180deg, rgba(255, 250, 240, 0.18), transparent 28%, rgba(28, 24, 16, 0.12) 100%);
+    radial-gradient(
+      120% 70% at 50% 110%,
+      rgba(40, 32, 18, 0.22),
+      transparent 55%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 250, 240, 0.18),
+      transparent 28%,
+      rgba(28, 24, 16, 0.12) 100%
+    );
   z-index: 1;
 }
 
@@ -1635,11 +1730,14 @@ footer span {
   letter-spacing: 0.08em;
   cursor: pointer;
   opacity: 0.86;
-  transition: opacity 160ms ease, background-color 160ms ease;
+  transition:
+    opacity 160ms ease,
+    background-color 160ms ease;
 }
 
 .observer-garden.observer-garden--satoyama .observer-garden-nav-button:hover,
-.observer-garden.observer-garden--satoyama .observer-garden-nav-button:focus-visible {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-nav-button:focus-visible {
   opacity: 1;
   background: rgba(28, 24, 18, 0.55);
   outline: none;
@@ -1673,8 +1771,12 @@ footer span {
   box-shadow: 0 1px 0 rgba(90, 68, 48, 0.18);
 }
 
-.observer-garden.observer-garden--satoyama .observer-garden-station--archive .observer-garden-station-pill,
-.observer-garden.observer-garden--satoyama .observer-garden-station--rest .observer-garden-station-pill {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-station--archive
+  .observer-garden-station-pill,
+.observer-garden.observer-garden--satoyama
+  .observer-garden-station--rest
+  .observer-garden-station-pill {
   background: rgba(244, 234, 216, 0.62);
 }
 
@@ -1687,8 +1789,11 @@ footer span {
   max-height: 42%;
   padding: 12px 12px 10px;
   overflow: auto;
-  background:
-    linear-gradient(180deg, rgba(244, 234, 216, 0.92), rgba(232, 214, 184, 0.9));
+  background: linear-gradient(
+    180deg,
+    rgba(244, 234, 216, 0.92),
+    rgba(232, 214, 184, 0.9)
+  );
   border: 1px solid rgba(90, 68, 48, 0.35);
   border-radius: 4px 12px 8px 4px;
   box-shadow: 2px 6px 0 rgba(40, 28, 16, 0.12);
@@ -1725,7 +1830,8 @@ footer span {
   border-bottom: 1px dashed rgba(90, 68, 48, 0.28);
 }
 
-.observer-garden.observer-garden--satoyama .observer-garden-bulletin-item:last-child {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-bulletin-item:last-child {
   border-bottom: 0;
   padding-bottom: 0;
 }
@@ -1737,7 +1843,8 @@ footer span {
 }
 
 .observer-garden.observer-garden--satoyama .observer-garden-bulletin-repo,
-.observer-garden.observer-garden--satoyama .observer-garden-bulletin-title-text {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-bulletin-title-text {
   font-size: 12px;
   line-height: 1.35;
 }
@@ -1771,17 +1878,23 @@ footer span {
   height: 64px;
   flex: 0 0 64px;
   background-repeat: no-repeat;
-  background-size: calc(var(--observer-atlas-columns, 3) * 100%) calc(var(--observer-atlas-rows, 4) * 100%);
-  background-position: calc(var(--observer-atlas-x, 0) * -100%) calc(var(--observer-atlas-y, 0) * -100%);
+  background-size: calc(var(--observer-atlas-columns, 3) * 100%)
+    calc(var(--observer-atlas-rows, 4) * 100%);
+  background-position: calc(var(--observer-atlas-x, 0) * -100%)
+    calc(var(--observer-atlas-y, 0) * -100%);
   filter: drop-shadow(0 4px 0 rgba(40, 28, 16, 0.18));
   animation: observer-garden-bob 2.8s ease-in-out infinite;
 }
 
-.observer-garden.observer-garden--satoyama .observer-garden-actor--waiting .observer-garden-actor-sprite {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor--waiting
+  .observer-garden-actor-sprite {
   animation-duration: 3.6s;
 }
 
-.observer-garden.observer-garden--satoyama .observer-garden-actor--workbench .observer-garden-actor-sprite {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor--workbench
+  .observer-garden-actor-sprite {
   animation-duration: 1.8s;
 }
 
@@ -1843,8 +1956,13 @@ footer span {
 }
 
 @keyframes observer-garden-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 @media (max-width: 760px) {
@@ -1942,7 +2060,8 @@ footer span {
   background-position: center;
   background-size: cover;
   box-shadow: inset 0 0 80px rgba(40, 28, 16, 0.18);
-  font-family: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+  font-family:
+    'Yu Mincho', 'YuMincho', 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
   color: var(--observer-ink);
 }
 
@@ -1957,8 +2076,17 @@ footer span {
   inset: 0;
   pointer-events: none;
   background:
-    radial-gradient(120% 70% at 50% 110%, rgba(40, 32, 18, 0.22), transparent 55%),
-    linear-gradient(180deg, rgba(255, 250, 240, 0.18), transparent 28%, rgba(28, 24, 16, 0.12) 100%);
+    radial-gradient(
+      120% 70% at 50% 110%,
+      rgba(40, 32, 18, 0.22),
+      transparent 55%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 250, 240, 0.18),
+      transparent 28%,
+      rgba(28, 24, 16, 0.12) 100%
+    );
   z-index: 1;
 }
 
@@ -2027,7 +2155,8 @@ footer span {
 }
 
 .observer-garden.observer-garden--satoyama .observer-garden-nav-button:hover,
-.observer-garden.observer-garden--satoyama .observer-garden-nav-button:focus-visible {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-nav-button:focus-visible {
   opacity: 1;
   background: rgba(28, 24, 18, 0.55);
   outline: none;
@@ -2070,7 +2199,11 @@ footer span {
   max-height: 42%;
   padding: 12px 12px 10px;
   overflow: auto;
-  background: linear-gradient(180deg, rgba(244, 234, 216, 0.92), rgba(232, 214, 184, 0.9));
+  background: linear-gradient(
+    180deg,
+    rgba(244, 234, 216, 0.92),
+    rgba(232, 214, 184, 0.9)
+  );
   border: 1px solid rgba(90, 68, 48, 0.35);
   border-radius: 4px 12px 8px 4px;
   box-shadow: 2px 6px 0 rgba(40, 28, 16, 0.12);
@@ -2101,7 +2234,8 @@ footer span {
   border-bottom: 1px dashed rgba(90, 68, 48, 0.28);
 }
 
-.observer-garden.observer-garden--satoyama .observer-garden-bulletin-item:last-child {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-bulletin-item:last-child {
   border-bottom: 0;
   padding-bottom: 0;
 }
@@ -2142,13 +2276,16 @@ footer span {
   height: 112px;
   transform: translateX(-50%);
   background-repeat: no-repeat;
-  background-size: calc(var(--observer-atlas-columns, 3) * 100%) calc(var(--observer-atlas-rows, 4) * 100%);
+  background-size: calc(var(--observer-atlas-columns, 3) * 100%)
+    calc(var(--observer-atlas-rows, 4) * 100%);
   background-position: var(--observer-atlas-x) var(--observer-atlas-y);
   filter: drop-shadow(0 5px 0 rgba(40, 28, 16, 0.2));
   animation: none;
 }
 
-.observer-garden.observer-garden--satoyama .observer-garden-actor--workbench .observer-garden-actor-sprite {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor--workbench
+  .observer-garden-actor-sprite {
   animation: observer-garden-bob 2.6s ease-in-out infinite;
 }
 
@@ -2215,8 +2352,13 @@ footer span {
 }
 
 @keyframes observer-garden-bob {
-  0%, 100% { transform: translateX(-50%) translateY(0); }
-  50% { transform: translateX(-50%) translateY(-5px); }
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-5px);
+  }
 }
 
 @media (max-width: 760px) {
@@ -2292,21 +2434,196 @@ footer span {
 
 @media (prefers-reduced-motion: reduce) {
   .observer-garden.observer-garden--satoyama .observer-garden-actor-sprite,
-  .observer-garden.observer-garden--satoyama .observer-garden-actor--workbench .observer-garden-actor-sprite,
+  .observer-garden.observer-garden--satoyama
+    .observer-garden-actor--workbench
+    .observer-garden-actor-sprite,
   .observer-garden.observer-garden--satoyama .observer-garden-nav-button {
     animation: none !important;
     transition: none !important;
   }
 }
 
-.observer-garden.observer-garden--satoyama .observer-garden-actor--waiting .observer-garden-bubble {
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor--waiting
+  .observer-garden-bubble {
   right: calc(50% + 56px);
   left: auto;
 }
 
 @media (max-width: 760px) {
-  .observer-garden.observer-garden--satoyama .observer-garden-actor--waiting .observer-garden-bubble {
+  .observer-garden.observer-garden--satoyama
+    .observer-garden-actor--waiting
+    .observer-garden-bubble {
     right: calc(50% + 40px);
     left: auto;
+  }
+}
+
+.garden-inspect {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  z-index: 9;
+  width: min(280px, 52vw);
+  padding: 12px 12px 10px;
+  color: #36372f;
+  background: linear-gradient(
+    180deg,
+    rgba(244, 234, 216, 0.96),
+    rgba(232, 214, 184, 0.94)
+  );
+  border: 1px solid rgba(90, 68, 48, 0.35);
+  border-radius: 4px 12px 8px 4px;
+  box-shadow: 2px 6px 0 rgba(40, 28, 16, 0.12);
+}
+.garden-inspect__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+.garden-inspect__kicker {
+  margin: 0;
+  width: 100%;
+  color: #8f3a2e;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+.garden-inspect__title {
+  font-family: 'Yu Mincho', 'Hiragino Mincho ProN', serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+.garden-inspect__head button {
+  margin-left: auto;
+  padding: 2px 8px;
+  color: #36372f;
+  background: rgba(244, 239, 219, 0.8);
+  border: 1px solid rgba(90, 68, 48, 0.28);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.garden-inspect__facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+  margin: 0;
+}
+.garden-inspect__facts dt {
+  color: #6f6c5e;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+.garden-inspect__facts dd {
+  margin: 0;
+  font-size: 13px;
+}
+.garden-inspect__meaning,
+.garden-inspect__occupants,
+.garden-inspect__summary {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-station {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+  cursor: pointer;
+  font: inherit;
+}
+.observer-garden.observer-garden--satoyama
+  .observer-garden-station.is-active
+  .observer-garden-station-pill {
+  box-shadow: 0 0 0 1px rgba(143, 58, 46, 0.45);
+}
+.observer-garden.observer-garden--satoyama .observer-garden-actor-hit {
+  appearance: none;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.observer-garden.observer-garden--satoyama .observer-garden-actor.is-ready {
+  transition-property: left, top;
+  transition-duration: var(--garden-travel-ms, 720ms);
+  transition-timing-function: ease-in-out;
+}
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor[data-gesture='idle']
+  .observer-garden-actor-sprite {
+  animation: observer-garden-bob 3.6s ease-in-out infinite;
+}
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor[data-gesture='working']
+  .observer-garden-actor-sprite {
+  animation: observer-garden-bob 1.6s ease-in-out infinite;
+}
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor[data-gesture='waiting']
+  .observer-garden-actor-sprite {
+  animation: observer-garden-wait 2.8s ease-in-out infinite;
+}
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor[data-gesture='walking']
+  .observer-garden-actor-sprite,
+.observer-garden.observer-garden--satoyama
+  .observer-garden-actor.is-traveling
+  .observer-garden-actor-sprite {
+  animation: observer-garden-walk 0.42s ease-in-out infinite;
+}
+
+@keyframes observer-garden-walk {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+  25% {
+    transform: translateX(-50%) translate(-3px, -5px);
+  }
+  75% {
+    transform: translateX(-50%) translate(3px, -2px);
+  }
+}
+@keyframes observer-garden-wait {
+  0%,
+  100% {
+    transform: translateX(-50%);
+  }
+  50% {
+    transform: translateX(calc(-50% + 3px));
+  }
+}
+
+.observer-garden.observer-garden--satoyama .employee {
+  z-index: 6;
+}
+
+@media (max-width: 760px) {
+  .garden-inspect {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .observer-garden.observer-garden--satoyama .observer-garden-actor,
+  .observer-garden.observer-garden--satoyama .employee {
+    transition: none !important;
+  }
+  .observer-garden.observer-garden--satoyama .observer-garden-actor-sprite,
+  .observer-garden.observer-garden--satoyama .employee__sprite {
+    animation: none !important;
   }
 }

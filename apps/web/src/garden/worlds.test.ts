@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { getWorldPack, worldPacks } from './worlds'
+import {
+  describeStationOccupants,
+  gardenStationMeanings,
+  getWorldPack,
+  worldPacks,
+} from './worlds'
 
 describe('world packs', () => {
   it('starts with the two approved packs from sikumi', () => {
@@ -21,5 +26,22 @@ describe('world packs', () => {
 
   it('falls back to the dog atelier for an unknown pack', () => {
     expect(getWorldPack('missing').id).toBe('dog-office')
+  })
+
+  it('explains who is at a station or heading there', () => {
+    expect(gardenStationMeanings.archive).toContain('資料')
+    expect(describeStationOccupants('archive', [])).toBe(
+      '資料棚に、いまは誰もいません',
+    )
+    expect(
+      describeStationOccupants('workbench', [
+        { name: 'サグル', traveling: false },
+      ]),
+    ).toBe('サグルが作業台にいます')
+    expect(
+      describeStationOccupants('waiting', [
+        { name: 'サグル', traveling: true },
+      ]),
+    ).toBe('サグルが確認札へ向かっています')
   })
 })

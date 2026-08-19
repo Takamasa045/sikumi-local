@@ -15,6 +15,32 @@ export const gardenStationLabels: Record<GardenStationId, string> = {
   rest: '縁側',
 }
 
+export const gardenStationMeanings: Record<GardenStationId, string> = {
+  archive: 'この工房の資料を読む場所',
+  observatory: '外の世界を調べる場所',
+  workbench: '整理や作業をする場所',
+  waiting: 'あなたの確認を待つ場所',
+  delivery: '成果を届ける場所',
+  rest: '仕事の合間にいる場所',
+}
+
+export function describeStationOccupants(
+  station: GardenStationId,
+  occupants: readonly { readonly name: string; readonly traveling: boolean }[],
+): string {
+  const place = gardenStationLabels[station]
+  if (occupants.length === 0) {
+    return `${place}に、いまは誰もいません`
+  }
+  return occupants
+    .map((occupant) =>
+      occupant.traveling
+        ? `${occupant.name}が${place}へ向かっています`
+        : `${occupant.name}が${place}にいます`,
+    )
+    .join('。')
+}
+
 export interface WorldPack {
   readonly id: WorldPackId
   readonly name: string

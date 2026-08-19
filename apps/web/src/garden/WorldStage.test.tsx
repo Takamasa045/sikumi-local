@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WorldStage } from './WorldStage'
 import { getWorldPack } from './worlds'
 
@@ -67,4 +68,125 @@ describe('WorldStage', () => {
       screen.getByText('納品台').closest('.garden-station'),
     ).not.toHaveClass('is-active')
   })
+
+  it('opens a small inspect when the employee or a station is clicked', async () => {
+    render(
+      <WorldStage
+        world={getWorldPack('dog-office')}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="rest"
+        pose="idle"
+        activitySummary="まだ仕事は始まっていません"
+      />,
+    )
+
+    await userEvent.click(screen.getByTestId('garden-employee'))
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('サグル')
+    expect(inspect).toHaveTextContent('調査担当')
+    expect(inspect).toHaveTextContent('縁側にいます')
+    expect(inspect).toHaveTextContent('まだ仕事は始まっていません')
+
+    await userEvent.click(screen.getByRole('button', { name: '資料棚' }))
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'この工房の資料を読む場所',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      '資料棚に、いまは誰もいません',
+    )
+  })
+
+  it('walks between stations instead of snapping', async () => {
+    vi.useFakeTimers()
+    const world = getWorldPack('dog-office')
+    const { rerender } = render(
+      <WorldStage
+        world={world}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="rest"
+        pose="idle"
+      />,
+    )
+    const employee = screen.getByTestId('garden-employee')
+    expect(employee).toHaveStyle({ left: '53%', top: '49%' })
+    expect(employee).toHaveAttribute('data-traveling', 'false')
+
+    rerender(
+      <WorldStage
+        world={world}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="archive"
+        pose="reading"
+      />,
+    )
+    expect(employee).toHaveStyle({ left: '13%', top: '22%' })
+    expect(employee).toHaveAttribute('data-traveling', 'true')
+    expect(employee).toHaveAttribute('data-gesture', 'walking')
+
+    await act(async () => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(employee).toHaveAttribute('data-traveling', 'false')
+    expect(employee).toHaveAttribute('data-gesture', 'working')
+    vi.useRealTimers()
+  })
+
+  it('snaps immediately when reduced motion is requested', async () => {
+    stubMatchMedia(true)
+    vi.useFakeTimers()
+    const world = getWorldPack('dog-office')
+    const { rerender } = render(
+      <WorldStage
+        world={world}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="rest"
+        pose="idle"
+      />,
+    )
+
+    rerender(
+      <WorldStage
+        world={world}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="workbench"
+        pose="working"
+      />,
+    )
+    const employee = screen.getByTestId('garden-employee')
+    expect(employee).toHaveStyle({ left: '49%', top: '38%' })
+    expect(employee).toHaveAttribute('data-traveling', 'false')
+    expect(employee).toHaveAttribute('data-gesture', 'working')
+    await act(async () => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(employee).toHaveAttribute('data-traveling', 'false')
+    vi.useRealTimers()
+  })
 })
+
+afterEach(() => {
+  vi.useRealTimers()
+  stubMatchMedia(false)
+})
+
+function stubMatchMedia(reduced: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: reduced && query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      onchange: null,
+    }),
+  })
+}

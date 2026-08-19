@@ -228,6 +228,7 @@ export type PlaceResident = {
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
   readonly driverNote: string | null
+  readonly workTool: string | null
 }
 
 export type PlaceInspectCopy = {
@@ -364,6 +365,7 @@ export function collectPlaceResidents(
       outgoingCount: repository.outgoingCount ?? null,
       incomingCount: repository.incomingCount ?? null,
       driverNote: describeObservedDriver(observed, nowMs),
+      workTool: pickResidentWorkTool(observed, nowMs),
     }
   })
   const extras = workspaces
@@ -395,6 +397,7 @@ export function collectPlaceResidents(
       outgoingCount: null,
       incomingCount: null,
       driverNote: null,
+      workTool: null,
     }))
   return [...fromOverview, ...extras]
 }
@@ -504,6 +507,7 @@ function residentForLiveStream(
     areas: primary ? resident.areas : [],
     latestRecordTitle: primary ? resident.latestRecordTitle : null,
     driverNote: describeObservedDriver([session], nowMs),
+    workTool: everydayWorkTool(session, nowMs),
     streamIndex,
   }
 }
@@ -961,11 +965,15 @@ export function describeVisibleFacts(resident: PlaceResident): string {
 export function describePlaceInspect(
   resident: PlaceResident,
 ): PlaceInspectCopy {
+  const nowText = joinFactLines(inspectNowLines(resident))
+  const namedInNow = Boolean(
+    resident.workTool && nowText?.includes(`${resident.workTool}で`),
+  )
   return {
-    nowText: joinFactLines(inspectNowLines(resident)),
+    nowText,
     implementationLook: null,
     nextStep: describeNextStep(resident),
-    driverNote: resident.driverNote,
+    driverNote: namedInNow ? null : resident.driverNote,
     goal: resident.working ? resident.goal : null,
     placeIntro: describePlaceIntro(resident),
     articleTitles: resident.articleTitles,
@@ -1022,6 +1030,7 @@ function inspectNowLines(resident: PlaceResident): string[] {
   const areaWork = resident.working ? describeLiveAreaWork(resident) : null
   const placeWork = placeWorkLook(resident.placeIntro)
   const hideLeftoverAreas = hidesLeftoverAreaCopy(resident)
+  const tool = resident.workTool
 
   if (resident.waiting && !resident.working) {
     lines.push('確認待ち')
@@ -1034,27 +1043,27 @@ function inspectNowLines(resident: PlaceResident): string[] {
 
   if (resident.working) {
     if (resident.goal) {
-      lines.push(resident.goal)
+      lines.push(withInspectTool(resident.goal, tool))
     } else if (spoken && spoken !== '確認待ち') {
-      lines.push(spoken)
+      lines.push(withInspectTool(spoken, tool))
     } else if (placeWork) {
-      lines.push(placeWork.working)
+      lines.push(withInspectTool(placeWork.working, tool))
     } else if (areaWork) {
-      lines.push(areaWork)
+      lines.push(withInspectTool(areaWork, tool))
     } else {
-      lines.push('動いている')
+      lines.push(withInspectTool('動いている', tool))
     }
   } else if (resident.workStory && leftover) {
-    lines.push(resident.workStory)
+    lines.push(withInspectTool(resident.workStory, tool))
   } else if (placeWork && leftover) {
-    lines.push(placeWork.leftoverNow)
+    lines.push(withInspectTool(placeWork.leftoverNow, tool))
   } else if (
     spoken &&
     spoken !== '確認待ち' &&
     leftover &&
     spoken !== softenRecordTitle(resident.latestRecordTitle)
   ) {
-    lines.push(spoken)
+    lines.push(withInspectTool(spoken, tool))
   }
 
   if (
@@ -1065,7 +1074,7 @@ function inspectNowLines(resident: PlaceResident): string[] {
     !lines.includes(leftoverSentence) &&
     !hidesConfirmationLeftover(resident.working, leftoverKinds)
   ) {
-    lines.push(leftoverSentence)
+    lines.push(withInspectTool(leftoverSentence, tool))
   } else if (
     leftover &&
     !hideLeftoverAreas &&
@@ -1073,7 +1082,7 @@ function inspectNowLines(resident: PlaceResident): string[] {
     !storyImpliesLeftover(resident.workStory) &&
     !lines.some((line) => line.includes('途中の仕事'))
   ) {
-    lines.push(LEFTOVER_WORK_REMAINING)
+    lines.push(withInspectTool(LEFTOVER_WORK_REMAINING, tool))
   } else if (
     leftover &&
     !resident.working &&
@@ -1083,7 +1092,7 @@ function inspectNowLines(resident: PlaceResident): string[] {
     !storyImpliesLeftover(resident.workStory) &&
     !lines.some((line) => line.includes('途中の仕事'))
   ) {
-    lines.push(LEFTOVER_WORK_REMAINING)
+    lines.push(withInspectTool(LEFTOVER_WORK_REMAINING, tool))
   } else if (
     leftover &&
     !resident.working &&
@@ -1092,7 +1101,7 @@ function inspectNowLines(resident: PlaceResident): string[] {
     !resident.workStory &&
     !lines.some((line) => line.includes('途中'))
   ) {
-    lines.push(LEFTOVER_WORK_REMAINING)
+    lines.push(withInspectTool(LEFTOVER_WORK_REMAINING, tool))
   }
 
   const seen = lastSeenLabel(resident)
@@ -1524,6 +1533,57 @@ function lookAreas(repository: OverviewRepository): string[] {
     }
   }
   return uniqueLabels(fromFiles)
+}
+
+function inspectToolName(source: string | null | undefined): string | null {
+  const key = sourceKey(source)
+  if (key === 'grok' || key === 'grok-build') {
+    return 'Grok'
+  }
+  if (key === 'codex') {
+    return 'Codex'
+  }
+  if (key === 'claude-code') {
+    return 'Claude Code'
+  }
+  return null
+}
+
+function everydayWorkTool(
+  session: OverviewSession,
+  nowMs: number,
+): string | null {
+  if (!shouldShowGardenDog(session, nowMs)) {
+    return null
+  }
+  if (isHookLeftoverTitle(session.title?.trim() ?? '')) {
+    return null
+  }
+  return inspectToolName(session.source)
+}
+
+function pickResidentWorkTool(
+  sessions: readonly OverviewSession[],
+  nowMs: number,
+): string | null {
+  const tools: string[] = []
+  for (const session of sessions) {
+    const tool = everydayWorkTool(session, nowMs)
+    if (tool && !tools.includes(tool)) {
+      tools.push(tool)
+    }
+  }
+  return tools.length === 1 ? tools[0] : null
+}
+
+function withInspectTool(line: string, tool: string | null): string {
+  if (!tool) {
+    return line
+  }
+  if (line.startsWith(`${tool}で`)) {
+    return line
+  }
+  return `${tool}で${line}`
 }
 
 function describeObservedDriver(

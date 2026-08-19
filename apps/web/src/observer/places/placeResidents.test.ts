@@ -337,7 +337,7 @@ describe('collectGardenActors', () => {
     expect(working?.station).toBe('workbench')
     expect(working?.repositoryName).toBe('my-blog')
     expect(working?.workSummary).toBe('APIを直している')
-    expect(working?.nowText).toBe('APIを直している')
+    expect(working?.nowText).toBe('CodexでAPIを直している')
     expect(working?.nextStep).toBeNull()
     expect(working?.driverNote).toBeNull()
     const quiet = actors.find((actor) => actor.placeName === 'notes番')
@@ -649,11 +649,12 @@ describe('collectGardenActors', () => {
     const other = actors.find(
       (actor) => actor.workSummary === '確認の仕組みを書いている',
     )
-    expect(grok?.nowText).toContain('働きの画面を直している')
+    expect(grok?.nowText).toContain('Grokで働きの画面を直している')
     expect(grok?.nowText).not.toContain('確認の仕組みを書いている')
-    expect(other?.nowText).toContain('確認の仕組みを書いている')
+    expect(other?.nowText).toContain('Codexで確認の仕組みを書いている')
     expect(other?.nowText).not.toContain('働きの画面を直している')
     expect(other?.nowText).not.toContain('途中の仕事')
+    expect(JSON.stringify(actors)).not.toContain('Grok Build')
     expect(
       actors.every(
         (actor) =>
@@ -795,6 +796,10 @@ describe('collectGardenActors', () => {
     expect(actors.some((actor) => actor.placeName === 'tsugite番 2')).toBe(
       false,
     )
+    expect(actors.every((actor) => actor.nowText?.includes('Grokで'))).toBe(
+      true,
+    )
+    expect(actors.some((actor) => actor.placeName.includes('Grok'))).toBe(false)
     expect(JSON.stringify(actors)).not.toMatch(
       /Grok Build|Claude Code|Codex|まだ分かっていません|変更元不明|fake-claude/,
     )
@@ -1008,7 +1013,7 @@ describe('describePlaceInspect', () => {
 
     expect(describePlaceInspect(resident!)).toEqual({
       nowText:
-        'APIを直している\n画面の途中が残っています。\n最後に見えたのは1分前',
+        'CodexでAPIを直している\nCodexで画面の途中が残っています。\n最後に見えたのは1分前',
       implementationLook: null,
       nextStep: '画面の途中を続ける',
       driverNote: null,
@@ -1217,7 +1222,60 @@ describe('describePlaceInspect', () => {
 
     expect(resident?.driverNote).toBe('Codexが動かしている')
     expect(resident?.lastObservedWork).toBe('')
-    expect(describePlaceInspect(resident!).nowText).toBe('動いている')
+    expect(describePlaceInspect(resident!).nowText).toBe('Codexで動いている')
+  })
+
+  it('puts the live tool in front of the current work words', () => {
+    const [tsugite] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+            }),
+          ],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+    expect(tsugite?.placeName).toBe('継番')
+    expect(describePlaceInspect(tsugite!).nowText).toContain(
+      'Grokで動画を作っている',
+    )
+    expect(JSON.stringify(describePlaceInspect(tsugite!))).not.toMatch(
+      /Grok Build|fake-claude|変更元不明|縁側/,
+    )
+
+    const [claude] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_notes', 'ws_notes', 'notes', [
+          session({
+            id: 'claude',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: '見出しを直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+    expect(describePlaceInspect(claude!).nowText).toContain(
+      'Claude Codeで見出しを直している',
+    )
+    expect(JSON.stringify(describePlaceInspect(claude!))).not.toContain(
+      'fake-claude',
+    )
   })
 })
 
@@ -1651,6 +1709,8 @@ describe('describeVisibleFacts', () => {
     expect(describePlaceInspect(leftover!).nowText).toBe(
       '動画の途中が残っています。',
     )
+    expect(describePlaceInspect(leftover!).nowText).not.toContain('Grokで')
+    expect(describePlaceInspect(leftover!).nowText).not.toContain('Codexで')
     expect(describePlaceInspect(leftover!).nextStep).toBe('動画の途中を続ける')
     expect(JSON.stringify(describePlaceInspect(leftover!))).not.toMatch(
       /仕組みと途中|確認用の仕組み|作業中のファイル|設定や確認|README/,
@@ -1683,10 +1743,13 @@ describe('describeVisibleFacts', () => {
       ]),
     )
     expect(describeVisibleFacts(working!)).toBe('動画を作っている')
-    expect(describePlaceInspect(working!).nowText).toContain('動画を作っている')
+    expect(describePlaceInspect(working!).nowText).toContain(
+      'Grokで動画を作っている',
+    )
     expect(describePlaceInspect(working!).nowText).toContain(
       '最後に見えたのはたった今',
     )
+    expect(describePlaceInspect(working!).nowText).not.toContain('Grok Build')
     expect(describePlaceInspect(working!).nextStep).toBe('動画の途中を続ける')
     expect(describePlaceInspect(working!).nowText).not.toMatch(
       /仕組みと途中|確認用の仕組み|確認の仕組み/,
@@ -2002,14 +2065,11 @@ describe('describeVisibleFacts', () => {
           actor.workSummary === ANOTHER_LIVE_WORK,
       ),
     ).toBe(true)
-    expect(
-      actors.some(
-        (actor) =>
-          actor.driverNote === 'Grok Buildが動かしている' ||
-          actor.driverNote === 'Codexが動かしている' ||
-          actor.driverNote === 'Grok BuildとCodexが動かしている',
-      ),
-    ).toBe(true)
+    expect(actors.some((actor) => actor.nowText?.includes('Grokで'))).toBe(true)
+    expect(actors.some((actor) => actor.nowText?.includes('Codexで'))).toBe(
+      true,
+    )
+    expect(JSON.stringify(actors)).not.toContain('Grok Build')
     expect(
       actors.every((actor) => actor.goal === null || actor.goal === undefined),
     ).toBe(true)

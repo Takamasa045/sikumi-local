@@ -127,18 +127,19 @@ describe('ObserverGarden', () => {
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     const first = screen.getByTestId('garden-inspect')
-    expect(first).toHaveTextContent('働きの画面を直している')
+    expect(first).toHaveTextContent('Grokで働きの画面を直している')
     expect(first).not.toHaveTextContent('確認の仕組みを書いている')
     expect(first).not.toHaveTextContent('まだ分かっていません')
     expect(first).not.toHaveTextContent('.tsx')
     expect(first).not.toHaveTextContent('SHA')
+    expect(first).not.toHaveTextContent('Grok Build')
 
     await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
     await userEvent.click(
       within(screen.getByTestId('garden-place-repo_a-2')).getByRole('button'),
     )
     const second = screen.getByTestId('garden-inspect')
-    expect(second).toHaveTextContent('確認の仕組みを書いている')
+    expect(second).toHaveTextContent('Codexで確認の仕組みを書いている')
     expect(second).not.toHaveTextContent('働きの画面を直している')
     expect(second).not.toHaveTextContent('まだ分かっていません')
     expect(second).not.toHaveTextContent('Grok Build')
@@ -237,10 +238,13 @@ describe('ObserverGarden', () => {
       ),
     )
     const first = screen.getByTestId('garden-inspect')
-    expect(first).toHaveTextContent('動いている')
+    expect(first).toHaveTextContent('Grokで動いている')
     expect(first).not.toHaveTextContent(ANOTHER_LIVE_WORK)
     expect(first).not.toHaveTextContent('Grok Build')
     expect(first).not.toHaveTextContent('まだ分かっていません')
+    expect(first.querySelector('.garden-inspect__title')).toHaveTextContent(
+      'tsugite番',
+    )
 
     await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
     await userEvent.click(
@@ -249,9 +253,12 @@ describe('ObserverGarden', () => {
       ),
     )
     const second = screen.getByTestId('garden-inspect')
-    expect(second).toHaveTextContent(ANOTHER_LIVE_WORK)
+    expect(second).toHaveTextContent(`Grokで${ANOTHER_LIVE_WORK}`)
     expect(second).not.toHaveTextContent('Grok Build')
     expect(second).not.toHaveTextContent('まだ分かっていません')
+    expect(second.querySelector('.garden-inspect__title')).toHaveTextContent(
+      'tsugite番',
+    )
   })
 
   it('does not stack two working places on the same walk stop', () => {
@@ -666,9 +673,8 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('動いている')
-    expect(inspect.textContent).toMatch(
-      /Grok Buildが動かしている|Codexが動かしている/,
-    )
+    expect(inspect.textContent).toMatch(/Grokで|Codexで/)
+    expect(inspect).not.toHaveTextContent('Grok Build')
     expect(inspect).not.toHaveTextContent('確認待ち')
     expect(inspect).not.toHaveTextContent('確認が必要')
     expect(inspect).not.toHaveTextContent('確認まわりを直している')
@@ -710,12 +716,61 @@ describe('ObserverGarden', () => {
     expect(inspect).toHaveTextContent('この場所は何の仕事か')
     expect(inspect).toHaveTextContent('継。ローカルで動画を作る工房です。')
     expect(inspect).toHaveTextContent('動画の途中が残っています。')
+    expect(inspect).not.toHaveTextContent('Grokで')
+    expect(inspect).not.toHaveTextContent('Codexで')
     expect(inspect).toHaveTextContent('動画の途中を続ける')
     expect(inspect).not.toHaveTextContent('仕組みと途中')
     expect(inspect).not.toHaveTextContent('確認用の仕組み')
     expect(inspect).not.toHaveTextContent('確認の仕組みと画面')
     expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('README')
+  })
+
+  it('names Grok in inspect now when 継 is working, without renaming the character', async () => {
+    renderGarden(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          0,
+          [],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+      [workspace('ws_repo_tsugite', '継番')],
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getByText('継番')).toBeVisible()
+    expect(within(residents).getByText('動画を作っている')).toBeVisible()
+    expect(within(residents).queryByText('Grok Build')).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_tsugite')).getByRole(
+        'button',
+      ),
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect.querySelector('.garden-inspect__title')).toHaveTextContent(
+      '継番',
+    )
+    expect(inspect).toHaveTextContent('Grokで動画を作っている')
+    expect(inspect).not.toHaveTextContent('Grok Build')
+    expect(inspect).not.toHaveTextContent('fake-claude')
+    expect(inspect).not.toHaveTextContent('変更元不明')
+    expect(inspect).not.toHaveTextContent('縁側')
   })
 
   it('speaks leftover tsugite as video when the long README work sentence was read', async () => {

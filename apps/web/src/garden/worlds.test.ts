@@ -4,6 +4,7 @@ import {
   gardenStationLabels,
   gardenStationMeanings,
   getWorldPack,
+  resolveWorldPackId,
   worldPacks,
 } from './worlds'
 
@@ -13,6 +14,15 @@ describe('world packs', () => {
       'dog-office',
       'craft-workshop',
     ])
+    expect(worldPacks.map((pack) => pack.lookName)).toEqual(['里山', '工房'])
+  })
+
+  it('keeps the workshop look on the existing craft assets', () => {
+    const workshop = getWorldPack('craft-workshop')
+    expect(workshop.backgroundUrl).toContain('craft-workshop')
+    expect(workshop.character.atlasUrl).toContain('craft-workshop')
+    expect(resolveWorldPackId('craft-workshop')).toBe('craft-workshop')
+    expect(resolveWorldPackId('missing')).toBe('dog-office')
   })
 
   it('describes the dog atlas used by Saguru', () => {

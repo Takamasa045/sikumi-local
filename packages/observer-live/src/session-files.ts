@@ -14,6 +14,7 @@ import {
   OBSERVER_LIVE_MAX_SESSION_FILES,
   OBSERVER_LIVE_SESSION_MAX_AGE_MS,
   safeJoinUnderRoot,
+  type ObserverSurface,
 } from '@sikumi-local/observer-core'
 import { matchRegisteredRoot } from './match.js'
 import { firstExplicitTitle } from './titles.js'
@@ -25,6 +26,7 @@ import type {
 
 export interface SessionFileRecord {
   readonly source: LiveAgentSource
+  readonly surface?: ObserverSurface
   readonly cwd: string
   readonly title: string | null
   readonly lastObservedAt: string
@@ -73,6 +75,7 @@ function readCodexSessions(
     const id = readString(meta?.id) ?? file
     records.push({
       source: 'codex',
+      surface: inferCodexSessionSurface(meta),
       cwd,
       title: titles.get(id) ?? firstExplicitTitle(meta),
       lastObservedAt: new Date(fileMtime(file) ?? now).toISOString(),
@@ -292,7 +295,71 @@ function readJsonHead(path: string): Record<string, unknown> | null {
     return null
   }
   const first = raw.split(/\r?\n/).find((line) => line.trim().length > 0)
-  return parseJsonObject(first ?? '')
+  if (!first) {
+    return null
+  }
+  return parseJsonObject(first) ?? recoverTruncatedJsonFields(first)
+}
+
+function recoverTruncatedJsonFields(
+  raw: string,
+): Record<string, unknown> | null {
+  const cwd = readQuotedJsonField(raw, 'cwd')
+  const id = readQuotedJsonField(raw, 'id')
+  const originator = readQuotedJsonField(raw, 'originator')
+  const source = readQuotedJsonField(raw, 'source')
+  if (!cwd && !id && !originator && !source) {
+    return null
+  }
+  const payload: Record<string, unknown> = {}
+  if (id) {
+    payload.id = id
+  }
+  if (cwd) {
+    payload.cwd = cwd
+  }
+  if (originator) {
+    payload.originator = originator
+  }
+  if (source) {
+    payload.source = source
+  }
+  return {
+    type: readQuotedJsonField(raw, 'type') ?? 'session_meta',
+    payload,
+  }
+}
+
+function readQuotedJsonField(raw: string, key: string): string | null {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = raw.match(
+    new RegExp(`"${escapedKey}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`),
+  )
+  if (!match?.[1]) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(`"${match[1]}"`) as unknown
+    return typeof parsed === 'string' && parsed.trim().length > 0
+      ? parsed.trim()
+      : null
+  } catch {
+    return null
+  }
+}
+
+function inferCodexSessionSurface(
+  meta: Record<string, unknown> | null,
+): ObserverSurface {
+  const originator = (readString(meta?.originator) ?? '').toLowerCase()
+  const client = (readString(meta?.source) ?? '').toLowerCase()
+  if (originator.includes('codex desktop') || originator.includes('desktop')) {
+    return 'desktop-app'
+  }
+  if (client.includes('vscode') || client.includes('ide')) {
+    return 'ide'
+  }
+  return 'cli'
 }
 
 function readJsonObjectFile(path: string): Record<string, unknown> | null {
@@ -372,13 +439,14 @@ export function toLiveSighting(
   return {
     source: record.source,
     surface:
-      record.source === 'cursor'
+      record.surface ??
+      (record.source === 'cursor'
         ? 'cursor-agent'
         : record.source === 'claude-code'
           ? 'cli'
           : record.source === 'grok-build'
             ? 'cli'
-            : 'cli',
+            : 'cli'),
     kind: 'session-file',
     cwd: record.cwd,
     repositoryId: matched.repositoryId,

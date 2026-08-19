@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import {
   mkdirSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   utimesSync,
   writeFileSync,
@@ -10,7 +11,10 @@ import {
 import { tmpdir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { OBSERVER_LIVE_SESSION_MAX_AGE_MS } from '@sikumi-local/observer-core'
+import {
+  OBSERVER_LIVE_MAX_FILE_BYTES,
+  OBSERVER_LIVE_SESSION_MAX_AGE_MS,
+} from '@sikumi-local/observer-core'
 import { discoverLiveSessions } from './discover.js'
 import { identifyLiveAgent } from './identify.js'
 import { resetPlaceIdentityCache, sameRepoIdentity } from './identity.js'
@@ -629,6 +633,123 @@ describe('desktop and alias discovery', () => {
     expect(sightings).toHaveLength(0)
   })
 
+  it('discovers a Codex Desktop session when the first jsonl line exceeds the bounded read', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = '/Users/takamasa/Projects/hataraki'
+    const file = writeCodexSession(home, {
+      id: '01a01863-16b8-7972-b137-89bc593e6a40',
+      cwd: hataraki,
+      mtime: NOW - 20_000,
+      originator: 'Codex Desktop',
+      clientSource: 'vscode',
+      firstLineBytes: 48_000,
+    })
+    expect(firstJsonlLineLength(file)).toBeGreaterThan(OBSERVER_LIVE_MAX_FILE_BYTES)
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', hataraki)],
+      listProcesses: () => [
+        processRow({
+          pid: 91,
+          user: 'mei',
+          command: 'ChatGPT',
+          args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+          cwd: '/',
+          childCwds: ['/', '/tmp', '/Users/takamasa'],
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      surface: 'desktop-app',
+      kind: 'session-file',
+      cwd: hataraki,
+      repositoryId: 'repo-hataraki',
+      ingestionMethod: 'session-file',
+    })
+  })
+
+  it('still counts a vscode Codex session file when originator is not Desktop', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = '/Users/takamasa/Projects/hataraki'
+    writeCodexSession(home, {
+      id: 'sess-vscode',
+      cwd: hataraki,
+      mtime: NOW - 12_000,
+      clientSource: 'vscode',
+      firstLineBytes: 48_000,
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', hataraki)],
+      listProcesses: () => [],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      surface: 'ide',
+      kind: 'session-file',
+      cwd: hataraki,
+      repositoryId: 'repo-hataraki',
+    })
+  })
+
+  it('does not invent a cwd from a truncated session file that has no cwd field', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = '/Users/takamasa/Projects/hataraki'
+    writeCodexSession(home, {
+      id: 'sess-trunc',
+      cwd: hataraki,
+      mtime: NOW - 10_000,
+      originator: 'Codex Desktop',
+      clientSource: 'vscode',
+      truncatedWithoutCwd: true,
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', hataraki)],
+      listProcesses: () => [],
+    })
+
+    expect(sightings).toHaveLength(0)
+  })
+
+  it('does not bind a huge Codex session in an older same-leaf checkout of another repo', () => {
+    const home = track(createTempDir('home-'))
+    const registered = '/Users/takamasa/Projects/hataraki'
+    const olderSikumi = '/Users/takamasa/Projects/*開発/hataraki'
+    writeCodexSession(home, {
+      id: 'sess-old-leaf',
+      cwd: olderSikumi,
+      mtime: NOW - 15_000,
+      originator: 'Codex Desktop',
+      clientSource: 'vscode',
+      firstLineBytes: 48_000,
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', registered)],
+      listProcesses: () => [],
+    })
+
+    expect(sightings).toHaveLength(0)
+  })
+
   it('does not invent a place when Desktop cwd is / and two registered folders have recent sessions', () => {
     const home = track(createTempDir('home-'))
     const hataraki = '/Users/takamasa/Projects/hataraki'
@@ -687,8 +808,12 @@ function writeCodexSession(
     readonly cwd: string
     readonly mtime: number
     readonly dayOffset?: number
+    readonly originator?: string
+    readonly clientSource?: string
+    readonly firstLineBytes?: number
+    readonly truncatedWithoutCwd?: boolean
   },
-) {
+): string {
   const day = new Date(NOW + (input.dayOffset ?? 0) * 86_400_000)
   const folder = join(
     home,
@@ -700,6 +825,14 @@ function writeCodexSession(
   )
   mkdirSync(folder, { recursive: true })
   const file = join(folder, `rollout-${input.id}.jsonl`)
+  if (input.truncatedWithoutCwd) {
+    writeFileSync(
+      file,
+      `{"type":"session_meta","payload":{"id":"${input.id}","originator":"${input.originator ?? 'Codex Desktop'}","source":"${input.clientSource ?? 'vscode'}","base_instructions":"${'X'.repeat(20_000)}`,
+    )
+    touch(file, input.mtime)
+    return file
+  }
   writeFileSync(
     file,
     `${JSON.stringify({
@@ -708,10 +841,20 @@ function writeCodexSession(
         id: input.id,
         cwd: input.cwd,
         timestamp: new Date(input.mtime).toISOString(),
+        ...(input.originator ? { originator: input.originator } : {}),
+        ...(input.clientSource ? { source: input.clientSource } : {}),
+        ...(input.firstLineBytes
+          ? { base_instructions: 'X'.repeat(input.firstLineBytes) }
+          : {}),
       },
     })}\n{"type":"event_msg","payload":{"type":"user_message","message":"do not use this"}}\n`,
   )
   touch(file, input.mtime)
+  return file
+}
+
+function firstJsonlLineLength(path: string): number {
+  return readFileSync(path, 'utf8').split(/\r?\n/, 1)[0]?.length ?? 0
 }
 
 function touch(path: string, mtime: number) {

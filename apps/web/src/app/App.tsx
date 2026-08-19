@@ -899,12 +899,6 @@ export function App() {
           >
             今日の作業場
           </a>
-          <a
-            aria-current={screen === 'settings' ? 'page' : undefined}
-            href="#settings"
-          >
-            設定
-          </a>
         </nav>
         <div
           className="connection-badge"
@@ -1214,7 +1208,12 @@ export function App() {
         <p>
           登録した場所の様子を整理します。Gitの用語や、誰が直したかの断定はしません。
         </p>
-        <span>Shikumi Local · 127.0.0.1</span>
+        <div className="footer-meta">
+          <a href="#settings" className="footer-settings-link">
+            設定
+          </a>
+          <span>Shikumi Local · 127.0.0.1</span>
+        </div>
       </footer>
     </div>
   )

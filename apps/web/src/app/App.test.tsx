@@ -62,7 +62,12 @@ describe('Shikumi Local garden', () => {
     expect(
       within(nav).getByRole('link', { name: '今日の作業場' }),
     ).toBeVisible()
-    expect(within(nav).getByRole('link', { name: '設定' })).toBeVisible()
+    expect(within(nav).queryByRole('link', { name: '設定' })).toBeNull()
+    expect(
+      within(screen.getByRole('contentinfo')).getByRole('link', {
+        name: '設定',
+      }),
+    ).toBeVisible()
     expect(screen.queryByText('以前の実行画面')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: 'Legacy Executionを開く' }),
@@ -116,7 +121,7 @@ describe('Shikumi Local garden', () => {
     await openTodayWorkshop()
 
     expect(
-      screen.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+      screen.getByRole('heading', { name: '登録した場所' }),
     ).toBeVisible()
     expect(screen.getByTestId('connection-badge')).toHaveAttribute(
       'data-status',
@@ -146,7 +151,7 @@ describe('Shikumi Local garden', () => {
     await userEvent.click(screen.getByRole('link', { name: '今日の作業場' }))
     expect(
       await screen.findByRole('heading', {
-        name: 'いま何が、どこで起きているか',
+        name: '登録した場所',
       }),
     ).toBeVisible()
     expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
@@ -389,7 +394,7 @@ describe('Shikumi Local garden', () => {
       )
     })
     expect(
-      screen.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+      screen.getByRole('heading', { name: '登録した場所' }),
     ).toBeVisible()
     await openSettings()
     expect(screen.getByText('✓ Gitの場所です')).toBeVisible()
@@ -1271,11 +1276,7 @@ describe('Shikumi Local garden', () => {
       },
     )
     render(<App />)
-    await userEvent.click(
-      within(
-        await screen.findByRole('navigation', { name: '主要画面' }),
-      ).getByRole('link', { name: '設定' }),
-    )
+    await openSettings()
     expect(await screen.findByTestId('provider-status-panel')).toBeVisible()
     await userEvent.click(screen.getAllByRole('button', { name: '再確認' })[0]!)
     await waitFor(() => {
@@ -1519,10 +1520,9 @@ async function openGarden() {
 
 async function openSettings() {
   await userEvent.click(
-    within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
-      'link',
-      { name: '設定' },
-    ),
+    within(screen.getByRole('contentinfo')).getByRole('link', {
+      name: '設定',
+    }),
   )
 }
 

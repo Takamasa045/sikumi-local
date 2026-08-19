@@ -27,6 +27,23 @@ afterEach(() => {
 })
 
 describe('SettingsPanel', () => {
+  it('keeps connecting tools optional and closed by default', () => {
+    render(
+      <SettingsPanel
+        workspace={null}
+        providers={[]}
+        busy={false}
+        error={null}
+        onRegister={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('道具をつなぐ（任意）')).toBeVisible()
+    expect(
+      screen.getByText(/つなぐは必須ではありません/),
+    ).toBeInTheDocument()
+    expect(screen.queryByTestId('observer-adapters')).not.toBeVisible()
+  })
+
   it('does not present the garden as a labs or legacy screen', () => {
     render(
       <SettingsPanel

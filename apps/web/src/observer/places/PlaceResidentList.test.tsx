@@ -65,6 +65,64 @@ describe('PlaceResidentList', () => {
     expect(onSelect).toHaveBeenCalledWith('repo_a')
   })
 
+  it('lists live places before quieter ones, then by recency', () => {
+    render(
+      <PlaceResidentList
+        overview={overviewOf([
+          repository(
+            'repo_quiet',
+            'notes',
+            [
+              session({
+                id: 'old',
+                source: 'codex',
+                lastObservedAt: '2026-08-19T00:01:00.000Z',
+              }),
+            ],
+            '2026-08-19T00:01:00.000Z',
+          ),
+          repository(
+            'repo_working',
+            'alpha',
+            [
+              session({
+                id: 'run',
+                source: 'codex',
+                displayName: 'Codex',
+                title: 'APIを直している',
+                status: 'running',
+                activity: 'working',
+                lastObservedAt: '2026-08-19T00:08:00.000Z',
+                lastObservedLabel: '2分前',
+              }),
+            ],
+            '2026-08-19T00:02:00.000Z',
+          ),
+          repository(
+            'repo_fresh',
+            'blog',
+            [
+              session({
+                id: 'idle',
+                source: 'codex',
+                lastObservedAt: '2026-08-19T00:09:00.000Z',
+              }),
+            ],
+            '2026-08-19T00:09:00.000Z',
+          ),
+        ])}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    const rows = screen.getAllByRole('button', { name: /番/ })
+    expect(rows.map((row) => row.getAttribute('data-testid'))).toEqual([
+      'observer-place-repo_working',
+      'observer-place-repo_fresh',
+      'observer-place-repo_quiet',
+    ])
+  })
+
   it('does not offer a job request action', () => {
     render(<PlaceResidentList overview={overviewOf([])} onSelect={vi.fn()} />)
     expect(screen.queryByRole('button', { name: '仕事を頼む' })).toBeNull()
@@ -110,7 +168,7 @@ function overviewOf(
   repositories: TodayOverview['repositories'],
 ): TodayOverview {
   return {
-    generatedAt: '2026-08-19T00:00:00.000Z',
+    generatedAt: '2026-08-19T00:10:00.000Z',
     repositoryCount: repositories.length,
     activeRepositoryCount: repositories.length,
     waitingCount: 0,
@@ -123,6 +181,7 @@ function repository(
   repositoryId: string,
   displayName: string,
   sessions: SessionView[],
+  lastChangedAt: string | null = null,
 ): RepositoryView {
   return {
     repositoryId,
@@ -132,6 +191,7 @@ function repository(
     gitAvailable: true,
     summary: '',
     changedFileCount: 0,
+    lastChangedAt,
     lastChangedLabel: null,
     sessions,
     worktrees: [],
@@ -149,7 +209,7 @@ function session(
     activity: 'idle',
     attributionConfidence: 'observed',
     title: '作業',
-    lastObservedAt: '2026-08-19T00:00:00.000Z',
+    lastObservedAt: '2026-08-19T00:10:00.000Z',
     lastObservedLabel: null,
     ...partial,
   }

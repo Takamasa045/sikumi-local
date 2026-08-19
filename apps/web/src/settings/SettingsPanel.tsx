@@ -78,13 +78,19 @@ export function SettingsPanel({
     <section className="settings-panel" id="settings" aria-label="設定">
       <p className="section-kicker">設定</p>
       <h2>工房の整え方</h2>
-      <AdapterSettings
-        key={
-          (workspaces ?? (workspace ? [workspace] : []))
-            .map((item) => item.id)
-            .join(',') || 'none'
-        }
-      />
+      <details className="settings-panel__optional">
+        <summary>道具をつなぐ（任意）</summary>
+        <p>
+          つなぐは必須ではありません。登録した場所の様子は、つないでいなくても見られます。
+        </p>
+        <AdapterSettings
+          key={
+            (workspaces ?? (workspace ? [workspace] : []))
+              .map((item) => item.id)
+              .join(',') || 'none'
+          }
+        />
+      </details>
       <RepositoryPanel
         workspace={workspace}
         busy={busy}

@@ -196,7 +196,7 @@ describe('ObserverGarden', () => {
     expect(inspect).not.toHaveTextContent('望遠鏡')
     expect(screen.queryByTestId('garden-employee')).toBeNull()
     expect(
-      screen.queryByRole('heading', { name: 'いま何が、どこで起きているか' }),
+      screen.queryByRole('heading', { name: '登録した場所' }),
     ).toBeNull()
   })
 

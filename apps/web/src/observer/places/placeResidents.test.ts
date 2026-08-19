@@ -16,6 +16,10 @@ import {
   describePlaceInspect,
   describeVisibleFacts,
   GARDEN_GROUND,
+  GARDEN_WORK_GROUND,
+  isGardenDeliveryGround,
+  isGardenEdgeGround,
+  isGardenWorkGround,
   LEFTOVER_WORK_REMAINING,
   placeActivityLabel,
   SHIKUMI_PLACE_NAME,
@@ -348,7 +352,7 @@ describe('collectGardenActors', () => {
     )
   })
 
-  it('scatters quiet places across the center-to-right ground', () => {
+  it('scatters quiet places across the back delivery ground', () => {
     const actors = collectGardenActors(
       overviewOf([
         repository('repo_a', 'ws_a', 'alpha', []),
@@ -370,6 +374,11 @@ describe('collectGardenActors', () => {
           !['archive', 'observatory'].includes(actor.station) &&
           actor.groundY >= GARDEN_GROUND.minY &&
           actor.groundY <= GARDEN_GROUND.maxY,
+      ),
+    ).toBe(true)
+    expect(
+      actors.every((actor) =>
+        isGardenDeliveryGround({ x: actor.groundX, y: actor.groundY }),
       ),
     ).toBe(true)
   })
@@ -416,6 +425,87 @@ describe('collectGardenActors', () => {
     expect(Math.abs((waiting?.groundX ?? 0) - 78)).toBeLessThan(
       Math.abs((working?.groundX ?? 0) - 78),
     )
+    expect(
+      isGardenWorkGround({
+        x: working?.groundX ?? 0,
+        y: working?.groundY ?? 0,
+      }),
+    ).toBe(true)
+    expect(waiting?.groundX).toBeGreaterThan(GARDEN_WORK_GROUND.maxX)
+    expect(quiet?.station).toBe('delivery')
+    expect(
+      isGardenDeliveryGround({
+        x: quiet?.groundX ?? 0,
+        y: quiet?.groundY ?? 0,
+      }),
+    ).toBe(true)
+    expect((working?.groundY ?? 0) > (quiet?.groundY ?? 0)).toBe(true)
+  })
+
+  it('puts leftover work on the side rest and walking only in the front work', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_live', 'ws_live', 'alpha', [
+          session({
+            id: 'run',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+        repository('repo_wait', 'ws_wait', 'beta', [
+          session({
+            id: 'wait',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: '承認が必要',
+            status: 'idle',
+            activity: 'waiting',
+          }),
+        ]),
+        repository('repo_left', 'ws_left', 'hataraki', [], {
+          changedFileCount: 4,
+          areas: ['画面'],
+        }),
+        repository('repo_done', 'ws_done', 'notes', []),
+      ]),
+    )
+
+    const working = actors.find((actor) => actor.placeName === 'alpha番')
+    const waiting = actors.find((actor) => actor.placeName === 'beta番')
+    const leftover = actors.find((actor) => actor.placeName === 'hataraki番')
+    const delivered = actors.find((actor) => actor.placeName === 'notes番')
+    expect(working?.station).toBe('workbench')
+    expect(waiting?.station).toBe('waiting')
+    expect(leftover?.station).toBe('rest')
+    expect(delivered?.station).toBe('delivery')
+    expect(
+      isGardenWorkGround({
+        x: working?.groundX ?? 0,
+        y: working?.groundY ?? 0,
+      }),
+    ).toBe(true)
+    expect(
+      isGardenEdgeGround({
+        x: leftover?.groundX ?? 0,
+        y: leftover?.groundY ?? 0,
+      }),
+    ).toBe(true)
+    expect(
+      isGardenDeliveryGround({
+        x: delivered?.groundX ?? 0,
+        y: delivered?.groundY ?? 0,
+      }),
+    ).toBe(true)
+    expect((working?.groundY ?? 0) > (delivered?.groundY ?? 0)).toBe(true)
+    expect(leftover?.station).not.toBe('delivery')
+    for (const stop of WORKING_WALK_STOPS) {
+      const point = workingWalkPoint(stop, working!)
+      expect(isGardenWorkGround(point)).toBe(true)
+      expect(isGardenDeliveryGround(point)).toBe(false)
+    }
   })
 
   it('keeps unfinished leftover work off delivery even among several places', () => {
@@ -454,7 +544,7 @@ describe('collectGardenActors', () => {
     const leftover = actors.find((actor) => actor.placeName === 'hataraki番')
     expect(leftover?.tone).toBe('observing')
     expect(leftover?.station).not.toBe('delivery')
-    expect(['rest', 'workbench']).toContain(leftover?.station)
+    expect(leftover?.station).toBe('rest')
     expect(leftover?.workSummary).toBe('途中の仕事がある')
     expect(leftover?.workSummary).not.toContain(' / ')
     expect(leftover?.nowText).toBe(LEFTOVER_WORK_REMAINING)
@@ -709,7 +799,7 @@ describe('collectGardenActors', () => {
 
 describe('spreadGardenGroundPlots', () => {
   it('does not put a single resident on the left roof', () => {
-    expect(spreadGardenGroundPlots(1)).toEqual([{ x: 58, y: 50 }])
+    expect(spreadGardenGroundPlots(1)).toEqual([{ x: 50, y: 50 }])
   })
 
   it('gives each resident a distinct ground plot', () => {
@@ -755,11 +845,17 @@ describe('assignGardenGroundPlots', () => {
     ])
     expect(assigned.get('dirty')?.station).not.toBe('delivery')
     expect(assigned.get('outgoing')?.station).not.toBe('delivery')
-    expect(['rest', 'workbench']).toContain(assigned.get('dirty')?.station)
-    expect(['rest', 'workbench']).toContain(assigned.get('outgoing')?.station)
+    expect(assigned.get('dirty')?.station).toBe('rest')
+    expect(assigned.get('outgoing')?.station).toBe('rest')
+    expect(
+      isGardenEdgeGround({
+        x: assigned.get('dirty')?.x ?? 0,
+        y: assigned.get('dirty')?.y ?? 0,
+      }),
+    ).toBe(true)
   })
 
-  it('can still put completed work on delivery', () => {
+  it('puts completed work on the back delivery ground', () => {
     const assigned = assignGardenGroundPlots([
       { repositoryId: 'done-a', waiting: false, working: false },
       { repositoryId: 'done-b', waiting: false, working: false },
@@ -772,6 +868,11 @@ describe('assignGardenGroundPlots', () => {
       [...assigned.values()].every((plot) =>
         ['rest', 'delivery'].includes(plot.station),
       ),
+    ).toBe(true)
+    expect(
+      [...assigned.values()]
+        .filter((plot) => plot.station === 'delivery')
+        .every((plot) => isGardenDeliveryGround(plot)),
     ).toBe(true)
   })
 })

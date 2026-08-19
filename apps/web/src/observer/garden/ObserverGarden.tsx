@@ -14,13 +14,10 @@ import {
 import { poseGesture } from '../../garden/motion'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
 import { useGardenWorldPack } from '../../garden/useGardenWorldPack'
-import {
-  gardenStationLabels,
-  getWorldPack,
-  worldPacks,
-} from '../../garden/worlds'
+import { getWorldPack, worldPacks } from '../../garden/worlds'
 import {
   collectGardenActors,
+  GARDEN_PLACE_POINTS,
   type GardenPlaceActor,
 } from '../places/placeResidents'
 import { placeRepoLabel } from './gardenWalk'
@@ -31,16 +28,28 @@ const ATLAS_ROWS = 4
 const ATLAS_X_PERCENTS = ['0%', '50%', '100%'] as const
 const ATLAS_Y_PERCENTS = ['0%', '33.333%', '66.667%', '100%'] as const
 
-const STATION_IDS = [
-  'archive',
-  'observatory',
+const VISIBLE_GARDEN_PLACES = [
   'workbench',
   'delivery',
   'waiting',
   'rest',
 ] as const
 
-type StationId = (typeof STATION_IDS)[number]
+type StationId = (typeof VISIBLE_GARDEN_PLACES)[number]
+
+export const observerGardenPlaceLabels: Record<StationId, string> = {
+  workbench: '仕事',
+  delivery: '届ける',
+  waiting: '確認待ち',
+  rest: '合間',
+}
+
+export const observerGardenPlaceMeanings: Record<StationId, string> = {
+  workbench: '動いている仕事がいる場所',
+  delivery: '届いた仕事だけがいる場所',
+  waiting: 'あなたの確認を待つ場所',
+  rest: '仕事の合間にいる場所',
+}
 
 type ObserverGardenProps = {
   overview: TodayOverview | null
@@ -54,15 +63,24 @@ function atlasPosition(column: number, row: number): { x: string; y: string } {
   return { x, y }
 }
 
-function stationPoint(
-  stations: ReturnType<typeof getWorldPack>['stations'],
+function describeObserverPlaceOccupants(
   id: StationId,
-): { x: number; y: number } {
-  const point = stations[id]
-  return {
-    x: point?.x ?? 50,
-    y: point?.y ?? 50,
+  occupants: readonly {
+    readonly name: string
+    readonly traveling: boolean
+  }[],
+): string {
+  const place = observerGardenPlaceLabels[id]
+  if (occupants.length === 0) {
+    return `${place}に、いまは誰もいません`
   }
+  return occupants
+    .map((occupant) =>
+      occupant.traveling
+        ? `${occupant.name}が${place}へ向かっています`
+        : `${occupant.name}が${place}にいます`,
+    )
+    .join('。')
 }
 
 function actorAriaLabel(
@@ -139,6 +157,7 @@ export function ObserverGarden({
         role="region"
         aria-label="観測の庭"
         data-world-pack={world.id}
+        data-garden-floor="square"
         style={gardenStyle}
       >
         <div className="observer-garden-mist" aria-hidden="true" />
@@ -180,9 +199,9 @@ export function ObserverGarden({
         </header>
 
         <div className="observer-garden-ground">
-          {STATION_IDS.map((id) => {
-            const point = stationPoint(world.stations, id)
-            const label = gardenStationLabels[id]
+          {VISIBLE_GARDEN_PLACES.map((id) => {
+            const point = GARDEN_PLACE_POINTS[id]
+            const label = observerGardenPlaceLabels[id]
             const occupants = stationOccupants(id)
             return (
               <button
@@ -199,6 +218,12 @@ export function ObserverGarden({
                     kind: 'station',
                     station: id,
                     occupants,
+                    title: label,
+                    meaning: observerGardenPlaceMeanings[id],
+                    occupantsText: describeObserverPlaceOccupants(
+                      id,
+                      occupants,
+                    ),
                   })
                 }}
               >
@@ -284,7 +309,9 @@ function ObserverGardenActor({
     traveling,
     durationMs,
     walkStation,
+    walkStop,
     destination,
+    facing,
   } = useWorkingWalk(actor, home, reducedMotion)
   const pose =
     actor.tone === 'waiting'
@@ -307,6 +334,7 @@ function ObserverGardenActor({
     top: `${travelPoint.y}%`,
     zIndex: Math.max(1, Math.round(travelPoint.y)),
     '--garden-travel-ms': `${durationMs || 720}ms`,
+    '--garden-walk-face': facing === 'left' ? '-1' : '1',
   } as CSSProperties
   const [ready, setReady] = useState(false)
   const onTravelingChangeRef = useRef(onTravelingChange)
@@ -340,7 +368,8 @@ function ObserverGardenActor({
       }
       data-status={actor.tone}
       data-station={actor.station}
-      data-walk-stop={walkStation}
+      data-walk-stop={walkStop}
+      data-walk-facing={facing}
       data-ground-x={String(Math.round(actor.groundX))}
       data-ground-y={String(Math.round(actor.groundY))}
       data-walk-x={String(Math.round(destination.x))}
@@ -386,9 +415,17 @@ function liveInspectSubject(
     return null
   }
   if (inspect.kind === 'station') {
+    const occupants = stationOccupants(inspect.station)
+    const place = inspect.station as StationId
+    const label = observerGardenPlaceLabels[place]
     return {
       ...inspect,
-      occupants: stationOccupants(inspect.station),
+      occupants,
+      title: label ?? inspect.title,
+      meaning: observerGardenPlaceMeanings[place] ?? inspect.meaning,
+      occupantsText: label
+        ? describeObserverPlaceOccupants(place, occupants)
+        : inspect.occupantsText,
     }
   }
   const actor = actors.find((item) => item.key === selectedKey)

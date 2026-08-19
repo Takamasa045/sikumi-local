@@ -9,14 +9,25 @@ import {
   WORKING_WALK_FIRST_STEP_MS,
   initialWalkIndex,
   nextWalkIndex,
+  walkFacing,
   walkStopAt,
   workingWalkPoint,
+  type WorkingWalkFacing,
+  type WorkingWalkStop,
 } from './gardenWalk'
 
 export function useWorkingWalk(
   actor: Pick<
     GardenPlaceActor,
-    'key' | 'tone' | 'station' | 'jitterX' | 'jitterY' | 'slot' | 'streamIndex'
+    | 'key'
+    | 'tone'
+    | 'station'
+    | 'jitterX'
+    | 'jitterY'
+    | 'slot'
+    | 'streamIndex'
+    | 'groundX'
+    | 'groundY'
   >,
   home: { readonly x: number; readonly y: number },
   reducedMotion: boolean,
@@ -25,13 +36,17 @@ export function useWorkingWalk(
   readonly traveling: boolean
   readonly durationMs: number
   readonly walkStation: GardenPlaceStation
+  readonly walkStop: WorkingWalkStop | GardenPlaceStation
   readonly destination: { readonly x: number; readonly y: number }
+  readonly facing: WorkingWalkFacing
 } {
   const working = actor.tone === 'working' && !reducedMotion
   const [index, setIndex] = useState(() => initialWalkIndex(actor.key))
-  const currentStop = walkStopAt(index)
-  const walkStation = working ? currentStop : actor.station
+  const currentStop = walkStopAt(index, actor)
+  const walkStation = actor.station
+  const walkStop = working ? currentStop : actor.station
   const destination = working ? workingWalkPoint(currentStop, actor) : home
+  const facing = working ? walkFacing(destination, actor) : 'right'
   const travel = useStationTravel(destination, reducedMotion)
   const firstStep = useRef(true)
 
@@ -60,6 +75,8 @@ export function useWorkingWalk(
     traveling: travel.traveling,
     durationMs: travel.durationMs,
     walkStation,
+    walkStop,
     destination,
+    facing,
   }
 }

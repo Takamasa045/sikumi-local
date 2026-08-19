@@ -37,8 +37,8 @@ describe('GardenInspect', () => {
           station: 'workbench',
           traveling: false,
           summary: 'APIを直している',
-          nowText: '動いている / APIを直している',
-          implementationLook: '作業中のファイルが2 / 画面あたり',
+          nowText: '動いている\nAPIを直している',
+          implementationLook: 'しまっていない変更が2\n画面あたり',
           nextStep: null,
           driverNote: 'Codexが動かしている',
         }}
@@ -48,11 +48,14 @@ describe('GardenInspect', () => {
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('ブログ番')
     expect(inspect).toHaveTextContent('いま')
-    expect(inspect).toHaveTextContent('動いている / APIを直している')
+    expect(inspect).toHaveTextContent('動いている')
+    expect(inspect).toHaveTextContent('APIを直している')
+    expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).toHaveTextContent('Codexが動かしている')
     expect(inspect).toHaveTextContent('実装の様子')
-    expect(inspect).toHaveTextContent('作業中のファイルが2')
+    expect(inspect).toHaveTextContent('しまっていない変更が2')
     expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('作業中のファイル')
     expect(inspect).not.toHaveTextContent('これから')
     expect(inspect).not.toHaveTextContent('いまの作業の続き')
     expect(inspect).not.toHaveTextContent('役割')
@@ -68,8 +71,8 @@ describe('GardenInspect', () => {
           station: 'rest',
           traveling: false,
           summary: '',
-          nowText: 'まだしまっていない変更が1 / 画面あたり',
-          implementationLook: 'まだしまっていない変更が1 / 画面あたり',
+          nowText: null,
+          implementationLook: 'しまっていない変更が1\n画面あたり',
           nextStep: null,
           live: false,
         }}
@@ -78,7 +81,7 @@ describe('GardenInspect', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('まだしまっていない変更が1')
+    expect(inspect).toHaveTextContent('しまっていない変更が1')
     expect(inspect).toHaveTextContent('画面あたり')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).not.toHaveTextContent('次に動かすまで待つ')

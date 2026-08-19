@@ -8,6 +8,7 @@ import {
   deriveEmployeeName,
   derivePlaceName,
   describePlaceInspect,
+  describeVisibleFacts,
   GARDEN_GROUND,
   placeActivityLabel,
   SHIKUMI_PLACE_NAME,
@@ -327,8 +328,8 @@ describe('collectGardenActors', () => {
     const working = actors.find((actor) => actor.placeName === 'ブログ番')
     expect(working?.station).toBe('workbench')
     expect(working?.repositoryName).toBe('my-blog')
-    expect(working?.workSummary).toBe('動いている / APIを直している')
-    expect(working?.nowText).toBe('動いている / APIを直している')
+    expect(working?.workSummary).toBe('APIを直している')
+    expect(working?.nowText).toBe('動いている\nAPIを直している')
     expect(working?.nextStep).toBeNull()
     expect(working?.driverNote).toBeNull()
     const quiet = actors.find((actor) => actor.placeName === 'notes番')
@@ -412,6 +413,54 @@ describe('collectGardenActors', () => {
       Math.abs((working?.groundX ?? 0) - 78),
     )
   })
+
+  it('keeps unfinished leftover work off delivery even among several places', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_blog', 'ws_blog', 'my-blog', []),
+        repository('repo_sikumi', 'ws_sikumi', 'sikumi-local', []),
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'git',
+              source: 'git',
+              displayName: '変更元不明',
+              title: '変更元不明の作業',
+              attributionConfidence: 'inferred',
+            }),
+            session({
+              id: 'fake',
+              source: 'claude-code',
+              displayName: 'Claude Code',
+              title: 'Claude Codeがファイルを扱っています',
+              lastObservedAt: '2026-08-19T00:00:00.000Z',
+            }),
+          ],
+          {
+            changedFileCount: 15,
+            latestRecordTitle: 'feat: launch HATARAKI office UI',
+          },
+        ),
+      ]),
+    )
+
+    const leftover = actors.find((actor) => actor.placeName === 'hataraki番')
+    expect(leftover?.tone).toBe('observing')
+    expect(leftover?.station).not.toBe('delivery')
+    expect(['rest', 'workbench']).toContain(leftover?.station)
+    expect(leftover?.workSummary).toBe('しまっていない変更が15')
+    expect(leftover?.workSummary).not.toContain(' / ')
+    expect(leftover?.nowText).toBe(
+      'いちばん新しい記録：launch HATARAKI office UI',
+    )
+    expect(leftover?.implementationLook).toBe('しまっていない変更が15')
+    expect(JSON.stringify(leftover)).not.toMatch(
+      /まだ分かっていません|変更元不明|feat:|作業中のファイル|Codexの作業が始まりました/,
+    )
+  })
 })
 
 describe('spreadGardenGroundPlots', () => {
@@ -438,6 +487,46 @@ describe('assignGardenGroundPlots', () => {
     expect(
       [...assigned.values()].every(
         (plot) => !['archive', 'observatory'].includes(plot.station),
+      ),
+    ).toBe(true)
+  })
+
+  it('does not put unfinished leftover work on delivery', () => {
+    const assigned = assignGardenGroundPlots([
+      {
+        repositoryId: 'dirty',
+        waiting: false,
+        working: false,
+        changedFileCount: 9,
+      },
+      {
+        repositoryId: 'outgoing',
+        waiting: false,
+        working: false,
+        outgoingCount: 2,
+      },
+      { repositoryId: 'clean-a', waiting: false, working: false },
+      { repositoryId: 'clean-b', waiting: false, working: false },
+      { repositoryId: 'clean-c', waiting: false, working: false },
+    ])
+    expect(assigned.get('dirty')?.station).not.toBe('delivery')
+    expect(assigned.get('outgoing')?.station).not.toBe('delivery')
+    expect(['rest', 'workbench']).toContain(assigned.get('dirty')?.station)
+    expect(['rest', 'workbench']).toContain(assigned.get('outgoing')?.station)
+  })
+
+  it('can still put completed work on delivery', () => {
+    const assigned = assignGardenGroundPlots([
+      { repositoryId: 'done-a', waiting: false, working: false },
+      { repositoryId: 'done-b', waiting: false, working: false },
+      { repositoryId: 'done-c', waiting: false, working: false },
+    ])
+    expect(
+      [...assigned.values()].some((plot) => plot.station === 'delivery'),
+    ).toBe(true)
+    expect(
+      [...assigned.values()].every((plot) =>
+        ['rest', 'delivery'].includes(plot.station),
       ),
     ).toBe(true)
   })
@@ -471,9 +560,8 @@ describe('describePlaceInspect', () => {
     )
 
     expect(describePlaceInspect(resident!)).toEqual({
-      nowText:
-        '動いている / APIを直している / 作業中のファイルが3 / 画面あたり / 最後に見えたのは1分前',
-      implementationLook: '作業中のファイルが3 / 画面やAPIあたり',
+      nowText: '動いている\nAPIを直している\n最後に見えたのは1分前',
+      implementationLook: 'しまっていない変更が3\n画面やAPIあたり',
       nextStep: null,
       driverNote: null,
     })
@@ -505,17 +593,15 @@ describe('describePlaceInspect', () => {
     )
 
     const inspect = describePlaceInspect(resident!)
-    expect(inspect.nowText).toBe(
-      'まだしまっていない変更が1 / ログイン状態あたり',
-    )
+    expect(inspect.nowText).toBeNull()
     expect(inspect.implementationLook).toBe(
-      'まだしまっていない変更が1 / ログイン状態あたり',
+      'しまっていない変更が1\nログイン状態あたり',
     )
     expect(inspect.nextStep).toBeNull()
     expect(inspect.driverNote).toBeNull()
-    expect(inspect.nowText).not.toContain('変更元不明')
-    expect(inspect.nowText).not.toContain('まだ分かっていません')
     expect(inspect.implementationLook).not.toContain('変更元不明')
+    expect(inspect.implementationLook).not.toContain('まだ分かっていません')
+    expect(inspect.implementationLook).not.toContain(' / ')
   })
 
   it('asks for a check when the place is waiting', () => {
@@ -535,7 +621,7 @@ describe('describePlaceInspect', () => {
     )
 
     expect(describePlaceInspect(resident!)).toMatchObject({
-      nowText: '確認待ち / 承認が必要',
+      nowText: '確認待ち\n承認が必要',
       implementationLook: null,
       nextStep: '確認が必要',
       driverNote: null,
@@ -610,9 +696,9 @@ describe('describePlaceInspect', () => {
 
     expect(resident?.lastObservedWork).toBe('ログイン画面の直し')
     expect(describePlaceInspect(resident!)).toEqual({
-      nowText:
-        'ログイン画面の直し / まだしまっていない変更が2 / 画面あたり / 送っていない / 取り込み待ち',
-      implementationLook: 'まだしまっていない変更が2 / 画面あたり',
+      nowText: 'いちばん新しい記録：ログイン画面の直し',
+      implementationLook:
+        'しまっていない変更が2\n画面あたり\n送っていない\n取り込み待ち',
       nextStep: null,
       driverNote: null,
     })
@@ -656,6 +742,101 @@ describe('describePlaceInspect', () => {
     expect(resident?.driverNote).toBe('Codexが動かしている')
     expect(resident?.lastObservedWork).toBe('')
     expect(describePlaceInspect(resident!).nowText).toBe('動いている')
+  })
+})
+
+describe('describeVisibleFacts', () => {
+  it('uses one everyday sentence and prefers the place over an English record', () => {
+    const [working] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_a',
+          'ws_a',
+          'hataraki',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              displayName: 'Codex',
+              title: 'APIを直している',
+              status: 'running',
+              activity: 'working',
+              lastObservedLabel: '1分前',
+            }),
+          ],
+          {
+            changedFileCount: 3,
+            areas: ['画面'],
+          },
+        ),
+      ]),
+    )
+    expect(describeVisibleFacts(working!)).toBe('APIを直している')
+    expect(describeVisibleFacts(working!)).not.toContain(' / ')
+    expect(describeVisibleFacts(working!)).not.toContain('feat:')
+    expect(describeVisibleFacts(working!)).not.toContain('作業中のファイル')
+
+    const [areaOnly] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_b',
+          'ws_b',
+          'hataraki',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'running',
+              activity: 'working',
+            }),
+          ],
+          { areas: ['画面'] },
+        ),
+      ]),
+    )
+    expect(describeVisibleFacts(areaOnly!)).toBe('画面まわりを直している')
+
+    const [leftover] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_c',
+          'ws_c',
+          'hataraki',
+          [
+            session({
+              id: 'git',
+              source: 'git',
+              displayName: '変更元不明',
+              title: '変更元不明の作業',
+              attributionConfidence: 'inferred',
+            }),
+            session({
+              id: 'fake',
+              source: 'claude-code',
+              displayName: 'Claude Code',
+              title: 'Claude Codeがファイルを扱っています',
+              lastObservedAt: '2026-08-19T00:00:00.000Z',
+            }),
+          ],
+          {
+            changedFileCount: 15,
+            latestRecordTitle: 'feat: launch HATARAKI office UI',
+          },
+        ),
+      ]),
+    )
+    expect(leftover?.working).toBe(false)
+    expect(describeVisibleFacts(leftover!)).toBe('しまっていない変更が15')
+    expect(describeVisibleFacts(leftover!)).not.toContain('feat:')
+    expect(describeVisibleFacts(leftover!)).not.toContain(' / ')
+    expect(describePlaceInspect(leftover!).nowText).toBe(
+      'いちばん新しい記録：launch HATARAKI office UI',
+    )
+    expect(JSON.stringify(describePlaceInspect(leftover!))).not.toMatch(
+      /まだ分かっていません|変更元不明|feat:|作業中のファイル| \/ /,
+    )
   })
 })
 

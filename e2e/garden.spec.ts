@@ -74,7 +74,7 @@ test('the garden shows registered places as characters, not a list', async ({
   const inspect = page.getByTestId('garden-inspect')
   await expect(inspect).toContainText('しくみローカル番')
   await expect(inspect).toContainText('どこまでやったか')
-  await expect(inspect).toContainText('まだしまっていない変更')
+  await expect(inspect).toContainText('しまっていない変更')
   await expect(inspect).not.toContainText('まだ分かっていません')
   await expect(inspect).not.toContainText('次に動かすまで待つ')
   await expect(inspect).not.toContainText('次はこんな感じか')

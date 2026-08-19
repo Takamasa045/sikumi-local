@@ -140,12 +140,11 @@ export function ObserverGarden({
           <div className="observer-garden-heading-group">
             <h2 className="observer-garden-heading">観測の庭</h2>
             <p className="observer-garden-sign">{world.name}</p>
-          </div>
-          <div className="observer-garden-nav-actions">
             <div
               className="observer-garden-look"
               role="group"
               aria-label="庭の様子"
+              data-testid="garden-look"
             >
               {worldPacks.map((pack) => (
                 <button
@@ -161,6 +160,8 @@ export function ObserverGarden({
                 </button>
               ))}
             </div>
+          </div>
+          <div className="observer-garden-nav-actions">
             <button
               type="button"
               className="observer-garden-nav-button observer-garden-nav-workshop"

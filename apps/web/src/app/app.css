@@ -2798,3 +2798,80 @@ footer span {
   background: rgba(244, 234, 216, 0.2);
   opacity: 1;
 }
+
+/* Garden look switch must stay readable and inside overflow:hidden */
+.observer-garden.observer-garden--satoyama .observer-garden-nav {
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 10px;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-heading-group {
+  max-width: min(100%, 22rem);
+  pointer-events: auto;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-look {
+  display: inline-flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  margin-top: 8px;
+  overflow: visible;
+  border: 1px solid rgba(28, 24, 18, 0.62);
+  border-radius: 999px;
+  background: rgba(244, 234, 216, 0.94);
+  box-shadow: 0 1px 0 rgba(40, 28, 16, 0.22);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-look-button {
+  appearance: none;
+  margin: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  padding: 8px 16px;
+  color: #1c1a17;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  opacity: 1;
+  cursor: pointer;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-button[aria-pressed='true'] {
+  background: #3f5136;
+  color: #f4ead8;
+  opacity: 1;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav-workshop {
+  opacity: 1;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(28, 24, 18, 0.62);
+  border-color: rgba(244, 234, 216, 0.45);
+}
+
+@media (max-width: 760px) {
+  .observer-garden.observer-garden--satoyama .observer-garden-heading-group {
+    max-width: none;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-nav-actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-look {
+    width: 100%;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-look-button {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}

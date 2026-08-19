@@ -1594,6 +1594,30 @@ describe('describeVisibleFacts', () => {
     expect(describePlaceInspect(working!).goal).toBeNull()
   })
 
+  it('speaks leftover tsugite as video when the long README work sentence was read', () => {
+    const leftoverAreas = ['設定', '確認用の仕組み', '画面']
+    const workshop =
+      'AI動画を作って終わりにせず、素材、制作ログ、判断、好みを次の制作へ継いでいくローカル動画制作工房です。'
+    const [leftover] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_tsugite', 'ws_tsugite', 'tsugite', [], {
+          placeIntro: workshop,
+          changedFileCount: 18,
+          areas: leftoverAreas,
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(leftover!).placeIntro).toBe(workshop)
+    expect(describeVisibleFacts(leftover!)).toBe('動画の途中が残っている')
+    expect(describePlaceInspect(leftover!).nowText).toBe(
+      '動画の途中が残っています。',
+    )
+    expect(describePlaceInspect(leftover!).nextStep).toBe('動画の途中を続ける')
+    expect(JSON.stringify(describePlaceInspect(leftover!))).not.toMatch(
+      /仕組みと途中|確認の仕組みと画面|確認用の仕組み|作業中のファイル|English \| 日本語|Tsugite|README/,
+    )
+  })
+
   it('speaks しくみローカル leftover as the garden when the intro was read', () => {
     const [resident] = collectPlaceResidents(
       overviewOf([

@@ -164,6 +164,34 @@ describe('snapshotGitRepository', () => {
     expect(snapshot.placeIntro).not.toContain('video-production')
   })
 
+  it('reads a long README.ja.md work sentence after language-switch lines', () => {
+    const repo = createGitRepo()
+    const workshop =
+      'AI動画を作って終わりにせず、素材、制作ログ、判断、好みを次の制作へ継いでいくローカル動画制作工房です。'
+    writeFileSync(
+      join(repo, 'README.md'),
+      ['# Tsugite', '', 'A local video-production workshop.', ''].join('\n'),
+    )
+    writeFileSync(
+      join(repo, 'README.ja.md'),
+      [
+        '# Tsugite',
+        '（言語切替リンク: English | 日本語 | 中文 | 한국어）',
+        workshop,
+        '',
+        '## 詳細',
+        'あ'.repeat(12_000),
+        '',
+      ].join('\n'),
+    )
+    const snapshot = snapshotGitRepository(repo)
+    expect(snapshot.placeIntro).toBe(workshop)
+    expect(snapshot.placeIntro).toContain('動画')
+    expect(snapshot.placeIntro).not.toContain('English | 日本語')
+    expect(snapshot.placeIntro).not.toContain('Tsugite')
+    expect(snapshot.placeIntro).not.toContain('README')
+  })
+
   it('extracts a blog article title from articles.log when the place is a kit', () => {
     const repo = createGitRepo()
     writeFileSync(join(repo, 'BLOG_WORKSPACE.md'), '# blog\n')

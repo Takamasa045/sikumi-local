@@ -175,6 +175,7 @@ describe('collectGardenActors', () => {
     ).toBe(true)
     const working = actors.find((actor) => actor.placeName === 'ブログ番')
     expect(working?.station).toBe('workbench')
+    expect(working?.repositoryName).toBe('my-blog')
     expect(working?.workSummary).toBe('APIを直している')
     expect(working?.nowText).toBe('動いている。APIを直している')
     expect(working?.nextStep).toBe('いまの作業の続き')

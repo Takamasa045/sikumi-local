@@ -219,6 +219,8 @@ export interface ObserverInstallOptions {
   readonly lastEventAt?: string | null
   readonly dataDirectory?: string
   readonly now?: string
+  /** Test injection for a source hook path that may contain shell metacharacters. */
+  readonly hookCommandSourcePath?: string
 }
 
 export interface ObserverInstallFilePlan {
@@ -449,7 +451,9 @@ export function installationStatusLabel(
 export function isEnabledInstallationStatus(
   status: AdapterInstallationStatus,
 ): boolean {
-  return status === 'ready' || status === 'needs_review' || status === 'degraded'
+  return (
+    status === 'ready' || status === 'needs_review' || status === 'degraded'
+  )
 }
 
 export function displayNameForSource(source: ObserverSourceId): string {

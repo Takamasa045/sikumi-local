@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Workspace } from '@sikumi-local/core'
+import { UNSAFE_HOOK_COMMAND_MESSAGE } from '@sikumi-local/observer-core'
 import { listWorkspaces } from '../../api/workspaces'
 import {
   applyObserverAdapterAction,
@@ -43,7 +44,11 @@ export function AdapterSettings() {
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : '観測口を読めませんでした')
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : '道具の一覧を読めませんでした',
+          )
         }
       })
     return () => {
@@ -66,7 +71,9 @@ export function AdapterSettings() {
     if (selected.scope === 'repo') {
       return {
         scope: 'repo',
-        ...(selected.repositoryId ? { repositoryId: selected.repositoryId } : {}),
+        ...(selected.repositoryId
+          ? { repositoryId: selected.repositoryId }
+          : {}),
       }
     }
     return { scope: 'user' }
@@ -85,16 +92,32 @@ export function AdapterSettings() {
     }
   }
 
-  async function handlePreview(source: string, action: 'install' | 'uninstall') {
+  async function handlePreview(
+    source: string,
+    action: 'install' | 'uninstall',
+  ) {
     const target = targetFor(source)
-    if (supportsRepoScope(source) && target.scope === 'repo' && !target.repositoryId) {
-      setError('Repository 限定の導入には、登録済み Repository を選んでください')
+    if (
+      supportsRepoScope(source) &&
+      target.scope === 'repo' &&
+      !target.repositoryId
+    ) {
+      setError('この場所だけにつなぐには、登録した場所を選んでください')
       return
     }
     setBusySource(source)
     setError(null)
     try {
       const result = await previewObserverAdapterAction(source, action, target)
+      if (!result.ok) {
+        setError(friendlyInstallError(result.message))
+        setPlans((current) => {
+          const next = { ...current }
+          delete next[source]
+          return next
+        })
+        return
+      }
       setPlans((current) => ({
         ...current,
         [source]: {
@@ -107,7 +130,9 @@ export function AdapterSettings() {
         },
       }))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '差分を作れませんでした')
+      setError(
+        cause instanceof Error ? cause.message : 'つなぐ準備ができませんでした',
+      )
     } finally {
       setBusySource(null)
     }
@@ -116,7 +141,7 @@ export function AdapterSettings() {
   async function handleApply(source: string) {
     const plan = plans[source]
     if (!plan || (!plan.confirmationToken && !plan.planDigest)) {
-      setError('先に差分を確認してください')
+      setError('先に、どこへつなぐかを確認してください')
       return
     }
     setBusySource(source)
@@ -124,12 +149,18 @@ export function AdapterSettings() {
     try {
       const result = await applyObserverAdapterAction(source, plan.action, {
         scope: plan.scope,
-        ...(plan.repositoryId === undefined ? {} : { repositoryId: plan.repositoryId }),
+        ...(plan.repositoryId === undefined
+          ? {}
+          : { repositoryId: plan.repositoryId }),
         ...(plan.confirmationToken
           ? { confirmationToken: plan.confirmationToken }
           : {}),
         ...(plan.planDigest ? { planDigest: plan.planDigest } : {}),
       })
+      if (!result.ok) {
+        setError(friendlyInstallError(result.message))
+        return
+      }
       setPlans((current) => ({
         ...current,
         [source]: {
@@ -143,7 +174,9 @@ export function AdapterSettings() {
       }))
       await refresh()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '適用できませんでした')
+      setError(
+        cause instanceof Error ? cause.message : 'つなぎ直せませんでした',
+      )
     } finally {
       setBusySource(null)
     }
@@ -151,11 +184,12 @@ export function AdapterSettings() {
 
   return (
     <section className="observer-adapters" data-testid="observer-adapters">
-      <h3>観測するAIアプリ</h3>
+      <h3>庭につなぐ道具</h3>
       <p>
-        Codex、Cursor、Grok Build、Claude Code は公式 Hooks / Plugin で様子を受け取ります。「導入差分」「解除差分」はまだ書き込みません。対象と差分だけを表示します。「表示した対象へこの差分を適用する」を押すと、表示中の対象へ書き込みます。認可はログインと
-        CSRF です。plan digest は確認後に設定が変わっていないかを見るためのもので、認可トークンではありません。Claudeアプリの通常チャットは制限付きの協調報告です。自動の全観測ではありません。生成した
-        .mcpb は Claude Desktop の Settings &gt; Extensions からユーザー自身が入れてください。Sikumi は Claude の設定を書き換えません。
+        フォルダを登録したあと、Codex や Claude Code
+        が庭に様子を知らせるには、一度つなぎます。つないだら、そのフォルダでいつもどおり動かせば庭が反応します。Cursor
+        と Grok Build
+        も同じです。Claudeアプリは、自分から知らせてくれた分だけ届きます。
       </p>
       {error ? (
         <p className="repository-panel__error" role="alert">
@@ -166,22 +200,27 @@ export function AdapterSettings() {
         {adapters.map((adapter) => {
           const plan = plans[adapter.source]
           return (
-            <li key={adapter.id} data-testid={`observer-adapter-${adapter.source}`}>
+            <li
+              key={adapter.id}
+              data-testid={`observer-adapter-${adapter.source}`}
+            >
               <header>
                 <strong>{adapter.displayName}</strong>
                 <span>{statusLabel(adapter.installationStatus)}</span>
               </header>
               <p>{statusEvidence(adapter)}</p>
               {adapter.lastEventAt ? (
-                <small>最終受信: {adapter.lastEventAt}</small>
+                <small>さいごに届いた様子: {adapter.lastEventAt}</small>
               ) : null}
               {supportsRepoScope(adapter.source) ? (
                 <div className="observer-adapter-scope">
                   <label>
-                    <span>導入範囲</span>
+                    <span>つなぐ範囲</span>
                     <select
-                      aria-label={`${adapter.displayName} の導入範囲`}
-                      value={(scopes[adapter.source] ?? { scope: 'user' }).scope}
+                      aria-label={`${adapter.displayName} のつなぐ範囲`}
+                      value={
+                        (scopes[adapter.source] ?? { scope: 'user' }).scope
+                      }
                       onChange={(event) => {
                         const scope =
                           event.target.value === 'repo' ? 'repo' : 'user'
@@ -195,16 +234,16 @@ export function AdapterSettings() {
                         }))
                       }}
                     >
-                      <option value="user">ユーザー全体</option>
-                      <option value="repo">登録した Repository だけ</option>
+                      <option value="user">このパソコン全体</option>
+                      <option value="repo">この場所だけ</option>
                     </select>
                   </label>
                   {(scopes[adapter.source] ?? { scope: 'user' }).scope ===
                   'repo' ? (
                     <label>
-                      <span>対象の Repository</span>
+                      <span>どの場所</span>
                       <select
-                        aria-label={`${adapter.displayName} の対象 Repository`}
+                        aria-label={`${adapter.displayName} の場所`}
                         value={
                           (scopes[adapter.source] ?? { repositoryId: '' })
                             .repositoryId
@@ -230,11 +269,10 @@ export function AdapterSettings() {
                   ) : null}
                 </div>
               ) : adapter.source === 'codex' ? (
-                <p>Codex はユーザー全体へ導入します。</p>
+                <p>Codex はこのパソコン全体につなぎます。</p>
               ) : adapter.source === 'claude-desktop' ? (
                 <p>
-                  制限付き / 協調報告。通常チャットを自動で全部見ることはできません。報告がない Git
-                  変更は変更元不明のままです。
+                  自分から知らせてくれた分だけ庭に届きます。全部を自動で見ることはできません。
                 </p>
               ) : null}
               <div className="observer-card__actions">
@@ -246,7 +284,7 @@ export function AdapterSettings() {
                     void handleCheck(adapter.source)
                   }}
                 >
-                  状態を確認
+                  つながりを確認
                 </button>
                 {canInstall(adapter.source) ? (
                   <>
@@ -259,8 +297,8 @@ export function AdapterSettings() {
                       }}
                     >
                       {adapter.source === 'claude-desktop'
-                        ? 'パッケージ差分'
-                        : '導入差分'}
+                        ? 'パッケージをつくる'
+                        : 'つなぐ'}
                     </button>
                     <button
                       type="button"
@@ -270,19 +308,25 @@ export function AdapterSettings() {
                         void handlePreview(adapter.source, 'uninstall')
                       }}
                     >
-                      解除差分
+                      はずす
                     </button>
                   </>
                 ) : null}
               </div>
               {plan ? (
                 <div className="observer-adapter-plan">
-                  <pre className="observer-adapter-preview">
-                    {plan.message}
-                    {plan.targetRoot ? `\n対象: ${plan.targetRoot}` : ''}
-                    {`\n範囲: ${plan.scope === 'repo' ? '登録Repository' : 'ユーザー全体'}`}
-                    {plan.preview ? `\n\n${plan.preview}` : ''}
-                  </pre>
+                  <p className="observer-adapter-confirm">
+                    {planConfirmation(plan, adapter, repositories)}
+                  </p>
+                  <details className="observer-adapter-details">
+                    <summary>くわしく見る</summary>
+                    <pre className="observer-adapter-preview">
+                      {plan.message}
+                      {plan.targetRoot ? `\n場所: ${plan.targetRoot}` : ''}
+                      {`\n範囲: ${plan.scope === 'repo' ? 'この場所だけ' : 'このパソコン全体'}`}
+                      {plan.preview ? `\n\n${plan.preview}` : ''}
+                    </pre>
+                  </details>
                   {plan.requiresConfirm &&
                   (plan.confirmationToken || plan.planDigest) ? (
                     <button
@@ -293,9 +337,7 @@ export function AdapterSettings() {
                         void handleApply(adapter.source)
                       }}
                     >
-                      {adapter.source === 'claude-desktop'
-                        ? 'パッケージを生成する'
-                        : '表示した対象へこの差分を適用する'}
+                      {applyLabel(adapter.source, plan.action)}
                     </button>
                   ) : null}
                   {adapter.source === 'claude-desktop' &&
@@ -305,7 +347,7 @@ export function AdapterSettings() {
                       className="washi-tab"
                       href="/api/observer/adapters/claude-desktop/package"
                     >
-                      パッケージをダウンロード
+                      できたファイルを受け取る
                     </a>
                   ) : null}
                 </div>
@@ -319,7 +361,9 @@ export function AdapterSettings() {
 }
 
 function supportsRepoScope(source: string): boolean {
-  return source === 'claude-code' || source === 'cursor' || source === 'grok-build'
+  return (
+    source === 'claude-code' || source === 'cursor' || source === 'grok-build'
+  )
 }
 
 function canInstall(source: string): boolean {
@@ -335,35 +379,101 @@ function canInstall(source: string): boolean {
 function statusLabel(status: string): string {
   switch (status) {
     case 'not_installed':
-      return '未導入'
+      return 'まだつながっていない'
     case 'needs_review':
-      return '要レビュー'
+      return '要確認'
     case 'ready':
-      return '有効'
+      return 'つながっている'
     case 'degraded':
-      return '劣化'
+      return '調子が悪い'
     case 'error':
-      return 'エラー'
+      return 'うまくつながらない'
     case 'needs_update':
-      return '更新が必要'
+      return 'つなぎ直しが必要'
     case 'unavailable':
-      return '利用できません'
+      return '使えません'
     default:
       return status
   }
 }
 
 function statusEvidence(adapter: ObserverAdapterView): string {
-  const warnings = adapter.health?.warnings ?? []
-  const errors = adapter.health?.errors ?? []
-  if (errors.length > 0) {
-    return errors.join(' / ')
+  if (adapter.installationStatus === 'error') {
+    const errors = adapter.health?.errors ?? []
+    if (errors.length > 0) {
+      return errors.join(' / ')
+    }
+    return 'うまくつながりませんでした'
   }
-  if (warnings.length > 0) {
-    return warnings.join(' / ')
+  switch (adapter.installationStatus) {
+    case 'not_installed':
+      return adapter.source === 'claude-desktop'
+        ? 'まだパッケージを作っていません'
+        : 'まだつながっていません'
+    case 'needs_review':
+      return 'つなぎ方はあるようですが、庭が様子を受け取った記録はまだありません'
+    case 'ready':
+      return 'つながっています。この場所でいつもどおり動かせば、庭が反応します'
+    case 'degraded':
+      return 'つながっていますが、様子が届きにくいかもしれません'
+    case 'needs_update':
+      return 'つなぎ方が古くなっています。もう一度つなぎ直してください'
+    case 'unavailable':
+      return 'いまはこの道具を使えません'
+    default:
+      return 'まだつながっていません'
   }
-  if (adapter.installationStatus === 'ready') {
-    return '観測口は使える状態です'
+}
+
+function placeLabel(
+  plan: AdapterPlan,
+  repositories: readonly Workspace['repository'][],
+): string {
+  if (plan.scope !== 'repo') {
+    return 'このパソコン全体'
   }
-  return '根拠はまだありません'
+  const name = repositories.find(
+    (repository) => repository.id === plan.repositoryId,
+  )?.displayName
+  return name ? `${name} だけ` : 'この場所だけ'
+}
+
+function planConfirmation(
+  plan: AdapterPlan,
+  adapter: ObserverAdapterView,
+  repositories: readonly Workspace['repository'][],
+): string {
+  if (adapter.source === 'claude-desktop') {
+    if (plan.action === 'install') {
+      return plan.applied && plan.ok
+        ? 'パッケージを作りました。Claude Desktop の設定から自分で入れてください。'
+        : 'Claudeアプリ用の小さな道具を作ります。できたファイルは、Claude Desktop の設定から自分で入れてください。'
+    }
+    return plan.applied && plan.ok
+      ? 'パッケージの用意をやめました。'
+      : '作っておいた Claudeアプリ用のパッケージをやめます。'
+  }
+  const place = placeLabel(plan, repositories)
+  if (plan.action === 'install') {
+    return plan.applied && plan.ok
+      ? `${place}で、${adapter.displayName} が庭に様子を知らせるようになりました。この場所でいつもどおり動かせば、庭が反応します。`
+      : `${place}で、${adapter.displayName} が庭に様子を知らせるようにします。`
+  }
+  return plan.applied && plan.ok
+    ? `${place}で、${adapter.displayName} から庭への知らせをやめました。`
+    : `${place}で、${adapter.displayName} から庭への知らせをやめます。`
+}
+
+function friendlyInstallError(message: string): string {
+  if (message.includes('Hookコマンドの絶対pathが安全ではありません')) {
+    return UNSAFE_HOOK_COMMAND_MESSAGE
+  }
+  return message
+}
+
+function applyLabel(source: string, action: 'install' | 'uninstall'): string {
+  if (source === 'claude-desktop') {
+    return action === 'install' ? 'このパッケージをつくる' : 'この用意をやめる'
+  }
+  return action === 'install' ? 'この場所につなぐ' : 'この場所からはずす'
 }

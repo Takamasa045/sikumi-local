@@ -1,7 +1,7 @@
-import { existsSync } from 'node:fs'
 import {
   DIRECT_HOOK_CAPABILITIES,
   displayNameForSource,
+  installedHookCommandExists,
   rememberAdapterObservation,
   realUserHome,
   unavailableHealth,
@@ -10,7 +10,11 @@ import {
   type ObserverInstallOptions,
 } from '@sikumi-local/observer-core'
 import { discoverCursorHooks, missingCursorEvents } from './discovery.js'
-import { CURSOR_HOOKS_VERSION, CURSOR_SUPPORTED_RANGE } from './events.js'
+import {
+  CURSOR_HOOK_COMMAND_NAME,
+  CURSOR_HOOKS_VERSION,
+  CURSOR_SUPPORTED_RANGE,
+} from './events.js'
 import {
   applyCursorHookMutation,
   resolveCursorHookCommandPath,
@@ -58,7 +62,7 @@ export function inspectCursorHealth(
       options.lastEventAt,
     )
   }
-  if (!existsSync(command)) {
+  if (!installedHookCommandExists(options, CURSOR_HOOK_COMMAND_NAME, command)) {
     return rememberAdapterObservation(
       {
         ok: false,

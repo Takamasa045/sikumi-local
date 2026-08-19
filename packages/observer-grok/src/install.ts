@@ -6,13 +6,14 @@ import {
   assertConfigPathWritable,
   previewForFiles,
   readTextIfExists,
-  toSafeHookCommand,
+  resolveSafeInstallHookCommand,
+  unsafeHookCommandResult,
   type ObserverInstallFilePlan,
   type ObserverInstallOptions,
   type ObserverInstallResult,
   type ObserverInstallScope,
 } from '@sikumi-local/observer-core'
-import { GROK_PLUGIN_ID } from './events.js'
+import { GROK_HOOK_COMMAND_NAME, GROK_PLUGIN_ID } from './events.js'
 import {
   mergeGrokToml,
   renderGrokHooksJson,
@@ -22,7 +23,11 @@ import {
 
 const USER_CONFIG_SEGMENTS = ['.grok', 'config.toml'] as const
 const REPO_HOOK_SEGMENTS = ['.grok', 'hooks', 'sikumi-observer.json'] as const
-const LEGACY_REPO_HOOK_SEGMENTS = ['.grok', 'hooks', 'sikumi-observer.toml'] as const
+const LEGACY_REPO_HOOK_SEGMENTS = [
+  '.grok',
+  'hooks',
+  'sikumi-observer.toml',
+] as const
 const PLUGIN_MANIFEST_SEGMENTS = [
   '.grok',
   'plugins',
@@ -77,23 +82,25 @@ export function planGrokHookMutation(
       message: 'Repository 限定の導入には登録済み repository が必要です',
     }
   }
-  const command = toSafeHookCommand(resolveGrokHookCommandPath())
-  if (!command) {
-    return {
-      ok: false,
-      changed: false,
-      applied: false,
-      message: 'Hookコマンドの絶対pathが安全ではありません',
-    }
+  const staged = resolveSafeInstallHookCommand({
+    sourcePath: resolveGrokHookCommandPath(),
+    filename: GROK_HOOK_COMMAND_NAME,
+    action,
+    options,
+  })
+  if (!staged.ok) {
+    return unsafeHookCommandResult()
   }
+  const command = staged.command
 
   const root = scope === 'repo' ? repoDir! : homeDir!
   const hookSegments =
     scope === 'repo' ? REPO_HOOK_SEGMENTS : USER_CONFIG_SEGMENTS
   try {
     const hookTarget = assertConfigPathWritable(root, hookSegments)
-    const files =
-      action === 'install'
+    const files = [
+      staged.file,
+      ...(action === 'install'
         ? planInstallFiles({
             root,
             hookTarget,
@@ -105,7 +112,8 @@ export function planGrokHookMutation(
             hookTarget,
             command,
             scope,
-          })
+          })),
+    ]
     return {
       ok: true,
       changed: false,
@@ -143,12 +151,19 @@ export function applyGrokHookMutation(
     scope === 'repo'
       ? (options.repoDir ?? plan.targetRoot ?? null)
       : (options.homeDir ?? plan.targetRoot ?? null)
+  const staged = resolveSafeInstallHookCommand({
+    sourcePath: resolveGrokHookCommandPath(),
+    filename: GROK_HOOK_COMMAND_NAME,
+    action,
+    options,
+  })
   return applyConfirmedInstallPlan(plan, options, {
     targetRoot,
     relativeSegments:
       scope === 'repo' ? REPO_HOOK_SEGMENTS : USER_CONFIG_SEGMENTS,
     successMessage: grokApplySuccessMessage(action, options),
     ...(options.env === undefined ? {} : { env: options.env }),
+    ...(staged.ok ? { stagingRoot: staged.stagingRoot } : {}),
   })
 }
 
@@ -175,7 +190,11 @@ function planInstallFiles(input: {
   if (input.scope === 'repo') {
     const existingJson = readTextIfExists(input.hookTarget)
     return [
-      filePlan(input.hookTarget, renderGrokHooksJson(input.command), existingJson),
+      filePlan(
+        input.hookTarget,
+        renderGrokHooksJson(input.command),
+        existingJson,
+      ),
       ...legacyCleanupPlans(input.root, { includePlugin: true }),
     ]
   }

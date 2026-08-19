@@ -1,12 +1,15 @@
+import { chmodSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { isAbsolute, relative, sep } from 'node:path'
+import { basename, isAbsolute, relative, sep } from 'node:path'
 import {
+  ALLOWED_HOOK_COMMAND_NAMES,
   applyFilePlans,
   assertConfigPathWritable,
   isInsideRoot,
   isRealUserHomePath,
   refuseRealUserApplyMessage,
 } from './config-files.js'
+import { isStagedHookCommandFile } from './hook-command.js'
 import type {
   ObserverInstallFilePlan,
   ObserverInstallOptions,
@@ -81,6 +84,7 @@ export function applyConfirmedInstallPlan(
     readonly relativeSegments: readonly string[]
     readonly successMessage: string
     readonly env?: NodeJS.ProcessEnv
+    readonly stagingRoot?: string | null
   },
 ): ObserverInstallResult {
   const identified = attachInstallPlanIdentity(plan, input.targetRoot)
@@ -130,18 +134,24 @@ export function applyConfirmedInstallPlan(
   try {
     assertConfigPathWritable(input.targetRoot, input.relativeSegments)
     for (const file of identified.files ?? []) {
-      assertPlanFileInsideRoot(file.path, input.targetRoot)
+      assertPlanFileAllowed(
+        file.path,
+        input.targetRoot,
+        input.stagingRoot ?? null,
+      )
     }
   } catch {
     return {
       ok: false,
       changed: false,
       applied: false,
-      message:
-        '設定pathが安全ではないため、導入差分を適用できませんでした',
+      message: '設定pathが安全ではないため、導入差分を適用できませんでした',
     }
   }
   const applied = applyFilePlans(identified.files ?? [])
+  if (applied.ok) {
+    makeStagedHookCommandsExecutable(identified.files ?? [])
+  }
   return {
     ...identified,
     ok: applied.ok,
@@ -152,6 +162,26 @@ export function applyConfirmedInstallPlan(
       ? input.successMessage
       : '書き込みに失敗したため、元の内容へ戻しました。',
   }
+}
+
+function assertPlanFileAllowed(
+  path: string,
+  root: string,
+  stagingRoot: string | null,
+): void {
+  if (isAbsolute(path) && isInsideRoot(path, root)) {
+    assertPlanFileInsideRoot(path, root)
+    return
+  }
+  if (
+    stagingRoot &&
+    isAbsolute(path) &&
+    isStagedHookCommandFile(path, stagingRoot)
+  ) {
+    assertConfigPathWritable(stagingRoot, ['observer', 'bin', basename(path)])
+    return
+  }
+  throw new Error('plan file left the target root')
 }
 
 function assertPlanFileInsideRoot(path: string, root: string): void {
@@ -165,4 +195,22 @@ function assertPlanFileInsideRoot(path: string, root: string): void {
     throw new Error('plan file is the target root')
   }
   assertConfigPathWritable(root, segments)
+}
+
+function makeStagedHookCommandsExecutable(
+  files: readonly ObserverInstallFilePlan[],
+): void {
+  for (const file of files) {
+    if (file.action === 'remove' || file.action === 'keep') {
+      continue
+    }
+    if (!ALLOWED_HOOK_COMMAND_NAMES.has(basename(file.path))) {
+      continue
+    }
+    try {
+      chmodSync(file.path, 0o755)
+    } catch {
+      // chmod is best-effort on platforms that ignore mode bits
+    }
+  }
 }

@@ -56,27 +56,32 @@ describe('normalizeCodexHook', () => {
     const bash = normalizeCodexHook(preToolBash)
     expect(bash?.normalizedType).toBe('command.started')
     expect(bash?.payload.commandCategory).toBe('test')
-    expect(JSON.stringify(bash)).not.toContain('pnpm test --filter observer-codex')
+    expect(JSON.stringify(bash)).not.toContain(
+      'pnpm test --filter observer-codex',
+    )
 
-    expect(normalizeCodexHook({ hook_event_name: 'PermissionRequest' })?.normalizedType).toBe(
-      'permission.requested',
+    expect(
+      normalizeCodexHook({ hook_event_name: 'PermissionRequest' })
+        ?.normalizedType,
+    ).toBe('permission.requested')
+    expect(
+      normalizeCodexHook({ hook_event_name: 'SubagentStart' })?.normalizedType,
+    ).toBe('subagent.started')
+    expect(
+      normalizeCodexHook({ hook_event_name: 'SubagentStop' })?.normalizedType,
+    ).toBe('subagent.stopped')
+    expect(normalizeCodexHook({ hook_event_name: 'Stop' })?.activity).toBe(
+      'completed',
     )
-    expect(normalizeCodexHook({ hook_event_name: 'SubagentStart' })?.normalizedType).toBe(
-      'subagent.started',
-    )
-    expect(normalizeCodexHook({ hook_event_name: 'SubagentStop' })?.normalizedType).toBe(
-      'subagent.stopped',
-    )
-    expect(normalizeCodexHook({ hook_event_name: 'Stop' })?.activity).toBe('completed')
-    expect(normalizeCodexHook({ hook_event_name: 'PreCompact' })?.activity).toBe(
-      'reviewing',
-    )
-    expect(normalizeCodexHook({ hook_event_name: 'PostCompact' })?.normalizedType).toBe(
-      'activity.changed',
-    )
-    expect(normalizeCodexHook({ hook_event_name: 'SessionEnd' })?.normalizedType).toBe(
-      'session.ended',
-    )
+    expect(
+      normalizeCodexHook({ hook_event_name: 'PreCompact' })?.activity,
+    ).toBe('reviewing')
+    expect(
+      normalizeCodexHook({ hook_event_name: 'PostCompact' })?.normalizedType,
+    ).toBe('activity.changed')
+    expect(
+      normalizeCodexHook({ hook_event_name: 'SessionEnd' })?.normalizedType,
+    ).toBe('session.ended')
   })
 
   it('keeps unknown future events instead of throwing', () => {
@@ -122,7 +127,9 @@ describe('codex hook install', () => {
         {
           experimentalFlag: true,
           hooks: {
-            SessionStart: [{ hooks: [{ type: 'command', command: '/tmp/user-hook' }] }],
+            SessionStart: [
+              { hooks: [{ type: 'command', command: '/tmp/user-hook' }] },
+            ],
           },
         },
         null,
@@ -141,9 +148,9 @@ describe('codex hook install', () => {
     expect(readFileSync(join(home, '.codex', 'hooks.json'), 'utf8')).toContain(
       'user-hook',
     )
-    expect(readFileSync(join(home, '.codex', 'hooks.json'), 'utf8')).not.toContain(
-      'sikumi-observer-codex',
-    )
+    expect(
+      readFileSync(join(home, '.codex', 'hooks.json'), 'utf8'),
+    ).not.toContain('sikumi-observer-codex')
   })
 
   it('applies only to a sandbox and can roll back via uninstall', async () => {
@@ -155,7 +162,9 @@ describe('codex hook install', () => {
         {
           keepMe: 'yes',
           hooks: {
-            SessionStart: [{ hooks: [{ type: 'command', command: '/tmp/user-hook' }] }],
+            SessionStart: [
+              { hooks: [{ type: 'command', command: '/tmp/user-hook' }] },
+            ],
           },
         },
         null,
@@ -171,9 +180,9 @@ describe('codex hook install', () => {
     })
     expect(rejected.ok).toBe(false)
     expect(rejected.applied).toBe(false)
-    expect(readFileSync(join(home, '.codex', 'hooks.json'), 'utf8')).not.toContain(
-      'sikumi-observer-codex',
-    )
+    expect(
+      readFileSync(join(home, '.codex', 'hooks.json'), 'utf8'),
+    ).not.toContain('sikumi-observer-codex')
     expect(preview.confirmationToken).toBeTruthy()
     const applied = await adapter.install({
       homeDir: home,
@@ -189,7 +198,9 @@ describe('codex hook install', () => {
     for (const eventName of CODEX_HOOK_EVENTS) {
       expect(written.hooks[eventName]?.length).toBeGreaterThan(0)
     }
-    expect(JSON.stringify(written.hooks.SessionStart)).toContain('/tmp/user-hook')
+    expect(JSON.stringify(written.hooks.SessionStart)).toContain(
+      '/tmp/user-hook',
+    )
 
     const health = await adapter.healthCheck({ homeDir: home })
     expect(health.status).toBe('needs_review')
@@ -277,6 +288,63 @@ describe('codex hook install', () => {
     )
   })
 
+  it('installs through a staged command when the source path contains *', async () => {
+    const sourceRoot = join(createTemp(), '*開発', 'bin')
+    mkdirSync(sourceRoot, { recursive: true })
+    const sourcePath = join(sourceRoot, 'sikumi-observer-codex.mjs')
+    writeFileSync(
+      sourcePath,
+      `${readFileSync(resolveCodexHookCommandPath(), 'utf8')}\n`,
+    )
+    const home = createTemp()
+    const adapter = createCodexObserverAdapter()
+    const preview = await adapter.install({
+      homeDir: home,
+      hookCommandSourcePath: sourcePath,
+    })
+    expect(preview.ok).toBe(true)
+    expect(preview.preview).toContain(
+      join(
+        home,
+        '.shikumi-local',
+        'observer',
+        'bin',
+        'sikumi-observer-codex.mjs',
+      ),
+    )
+    expect(preview.preview).not.toContain(
+      'Hookコマンドの絶対pathが安全ではありません',
+    )
+    const applied = await adapter.install({
+      homeDir: home,
+      hookCommandSourcePath: sourcePath,
+      confirm: true,
+      confirmationToken: preview.confirmationToken!,
+      planDigest: preview.planDigest!,
+    })
+    expect(applied.applied).toBe(true)
+    const written = readFileSync(join(home, '.codex', 'hooks.json'), 'utf8')
+    expect(written).toContain(
+      join(
+        home,
+        '.shikumi-local',
+        'observer',
+        'bin',
+        'sikumi-observer-codex.mjs',
+      ),
+    )
+    expect(written).not.toContain('*開発')
+    const launcher = join(
+      home,
+      '.shikumi-local',
+      'observer',
+      'bin',
+      'sikumi-observer-codex.mjs',
+    )
+    expect(existsSync(launcher)).toBe(true)
+    expect(readFileSync(launcher, 'utf8')).toContain('*開発')
+  })
+
   it('rejects a stale confirmation token after the previewed file changes', async () => {
     const home = createTemp()
     mkdirSync(join(home, '.codex'), { recursive: true })
@@ -339,10 +407,7 @@ describe('plugin trust', () => {
     for (const eventName of CODEX_HOOK_EVENTS) {
       hooks[eventName] = [{ hooks: [{ type: 'command', command }] }]
     }
-    writeFileSync(
-      join(plugin, 'hooks.json'),
-      `${JSON.stringify({ hooks })}\n`,
-    )
+    writeFileSync(join(plugin, 'hooks.json'), `${JSON.stringify({ hooks })}\n`)
     writeFileSync(
       join(plugin, '.codex-plugin', 'plugin.json'),
       `${JSON.stringify({ managed: true, trusted: true, hooks })}\n`,

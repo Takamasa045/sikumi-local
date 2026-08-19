@@ -5,20 +5,25 @@ import {
   applyConfirmedInstallPlan,
   assertConfigPathWritable,
   formatJson,
+  isHookEntryOurs,
   isPlainObject,
   previewForFiles,
   readJsonObject,
-  toSafeHookCommand,
+  resolveSafeInstallHookCommand,
+  unsafeHookCommandResult,
   type ObserverInstallFilePlan,
   type ObserverInstallOptions,
   type ObserverInstallResult,
 } from '@sikumi-local/observer-core'
-import { CODEX_HOOK_EVENTS } from './events.js'
+import { CODEX_HOOK_COMMAND_NAME, CODEX_HOOK_EVENTS } from './events.js'
 
 const USER_HOOK_SEGMENTS = ['.codex', 'hooks.json'] as const
 
 export function resolveCodexHookCommandPath(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), '../bin/sikumi-observer-codex.mjs')
+  return join(
+    dirname(fileURLToPath(import.meta.url)),
+    '../bin/sikumi-observer-codex.mjs',
+  )
 }
 
 export function planCodexHookMutation(
@@ -38,15 +43,16 @@ export function planCodexHookMutation(
       evidence: ['適用先の一時ディレクトリが無いため preview のみです'],
     }
   }
-  const command = toSafeHookCommand(resolveCodexHookCommandPath())
-  if (!command) {
-    return {
-      ok: false,
-      changed: false,
-      applied: false,
-      message: 'Hookコマンドの絶対pathが安全ではありません',
-    }
+  const staged = resolveSafeInstallHookCommand({
+    sourcePath: resolveCodexHookCommandPath(),
+    filename: CODEX_HOOK_COMMAND_NAME,
+    action,
+    options,
+  })
+  if (!staged.ok) {
+    return unsafeHookCommandResult()
   }
+  const command = staged.command
 
   try {
     const target = assertConfigPathWritable(homeDir, USER_HOOK_SEGMENTS)
@@ -56,7 +62,8 @@ export function planCodexHookMutation(
         ok: false,
         changed: false,
         applied: false,
-        message: '既存の hooks.json を安全に読めませんでした。壊れた設定は上書きしません。',
+        message:
+          '既存の hooks.json を安全に読めませんでした。壊れた設定は上書きしません。',
         evidence: [target],
       }
     }
@@ -66,14 +73,11 @@ export function planCodexHookMutation(
         : removeCodexHooks(parsed.value, command)
     const preview = formatJson(next)
     const previous = parsed.raw ?? undefined
-    const unchanged = previous === preview || (!existsSync(target) && action === 'uninstall')
+    const unchanged =
+      previous === preview || (!existsSync(target) && action === 'uninstall')
     const file: ObserverInstallFilePlan = {
       path: target,
-      action: unchanged
-        ? 'keep'
-        : existsSync(target)
-          ? 'update'
-          : 'create',
+      action: unchanged ? 'keep' : existsSync(target) ? 'update' : 'create',
       preview,
       ...(previous === undefined ? {} : { previous }),
     }
@@ -86,8 +90,8 @@ export function planCodexHookMutation(
         action === 'install'
           ? 'Codex Hooks の導入差分です。Sikumiがeventを受信するまで有効とはしません。'
           : 'Codex Hooks から Sikumi の設定だけを外す差分です。ほかの hook は残します。',
-      preview: previewForFiles([file]),
-      files: [file],
+      preview: previewForFiles([staged.file, file]),
+      files: [staged.file, file],
       evidence: [`target: ${target}`, `command: ${command}`],
       targetRoot: homeDir,
     }
@@ -106,11 +110,18 @@ export function applyCodexHookMutation(
   options: ObserverInstallOptions = {},
 ): ObserverInstallResult {
   const plan = planCodexHookMutation(action, options)
+  const staged = resolveSafeInstallHookCommand({
+    sourcePath: resolveCodexHookCommandPath(),
+    filename: CODEX_HOOK_COMMAND_NAME,
+    action,
+    options,
+  })
   return applyConfirmedInstallPlan(plan, options, {
     targetRoot: options.homeDir ?? plan.targetRoot ?? null,
     relativeSegments: USER_HOOK_SEGMENTS,
     successMessage: codexApplySuccessMessage(action, options),
     ...(options.env === undefined ? {} : { env: options.env }),
+    ...(staged.ok ? { stagingRoot: staged.stagingRoot } : {}),
   })
 }
 
@@ -136,7 +147,9 @@ export function mergeCodexHooks(
   const hooks = isPlainObject(existing.hooks) ? { ...existing.hooks } : {}
   for (const eventName of CODEX_HOOK_EVENTS) {
     const current = Array.isArray(hooks[eventName]) ? [...hooks[eventName]] : []
-    const withoutOurs = current.filter((entry) => !isOurCodexEntry(entry, command))
+    const withoutOurs = current.filter(
+      (entry) => !isOurCodexEntry(entry, command),
+    )
     withoutOurs.push({
       hooks: [
         {
@@ -176,14 +189,5 @@ export function removeCodexHooks(
 }
 
 function isOurCodexEntry(entry: unknown, command: string): boolean {
-  if (!isPlainObject(entry)) {
-    return false
-  }
-  if (entry.command === command) {
-    return true
-  }
-  if (Array.isArray(entry.hooks)) {
-    return entry.hooks.some((hook) => isOurCodexEntry(hook, command))
-  }
-  return false
+  return isHookEntryOurs(entry, command)
 }

@@ -5,15 +5,18 @@ import {
   applyConfirmedInstallPlan,
   assertConfigPathWritable,
   formatJson,
+  isHookEntryOurs,
   isPlainObject,
   previewForFiles,
   readJsonObject,
-  toSafeHookCommand,
+  resolveSafeInstallHookCommand,
+  unsafeHookCommandResult,
   type ObserverInstallFilePlan,
   type ObserverInstallOptions,
   type ObserverInstallResult,
 } from '@sikumi-local/observer-core'
 import {
+  CURSOR_HOOK_COMMAND_NAME,
   CURSOR_HOOKS_VERSION,
   CURSOR_REQUIRED_HOOK_EVENTS,
 } from './events.js'
@@ -54,15 +57,16 @@ export function planCursorHookMutation(
       message: 'Repository 限定の導入には登録済み repository が必要です',
     }
   }
-  const command = toSafeHookCommand(resolveCursorHookCommandPath())
-  if (!command) {
-    return {
-      ok: false,
-      changed: false,
-      applied: false,
-      message: 'Hookコマンドの絶対pathが安全ではありません',
-    }
+  const staged = resolveSafeInstallHookCommand({
+    sourcePath: resolveCursorHookCommandPath(),
+    filename: CURSOR_HOOK_COMMAND_NAME,
+    action,
+    options,
+  })
+  if (!staged.ok) {
+    return unsafeHookCommandResult()
   }
+  const command = staged.command
 
   const root = scope === 'repo' ? repoDir! : homeDir!
   try {
@@ -88,11 +92,7 @@ export function planCursorHookMutation(
       previous === preview || (!existsSync(target) && action === 'uninstall')
     const file: ObserverInstallFilePlan = {
       path: target,
-      action: unchanged
-        ? 'keep'
-        : existsSync(target)
-          ? 'update'
-          : 'create',
+      action: unchanged ? 'keep' : existsSync(target) ? 'update' : 'create',
       preview,
       ...(previous === undefined ? {} : { previous }),
     }
@@ -105,8 +105,8 @@ export function planCursorHookMutation(
         action === 'install'
           ? 'Cursor Hooks の導入差分です。version:1 を保ち、既存 hook と未知の項目は残します。Sikumiがeventを受信するまで有効とはしません。'
           : 'Cursor Hooks から Sikumi の設定だけを外す差分です。ほかの hook は残します。',
-      preview: previewForFiles([file]),
-      files: [file],
+      preview: previewForFiles([staged.file, file]),
+      files: [staged.file, file],
       evidence: [
         `target: ${target}`,
         `command: ${command}`,
@@ -134,11 +134,18 @@ export function applyCursorHookMutation(
     scope === 'repo'
       ? (options.repoDir ?? plan.targetRoot ?? null)
       : (options.homeDir ?? plan.targetRoot ?? null)
+  const staged = resolveSafeInstallHookCommand({
+    sourcePath: resolveCursorHookCommandPath(),
+    filename: CURSOR_HOOK_COMMAND_NAME,
+    action,
+    options,
+  })
   return applyConfirmedInstallPlan(plan, options, {
     targetRoot,
     relativeSegments: HOOK_SEGMENTS,
     successMessage: cursorApplySuccessMessage(action, options),
     ...(options.env === undefined ? {} : { env: options.env }),
+    ...(staged.ok ? { stagingRoot: staged.stagingRoot } : {}),
   })
 }
 
@@ -200,14 +207,5 @@ export function removeCursorHooks(
 }
 
 function isOurEntry(entry: unknown, command: string): boolean {
-  if (!isPlainObject(entry)) {
-    return false
-  }
-  if (entry.command === command) {
-    return true
-  }
-  if (Array.isArray(entry.hooks)) {
-    return entry.hooks.some((hook) => isOurEntry(hook, command))
-  }
-  return false
+  return isHookEntryOurs(entry, command)
 }

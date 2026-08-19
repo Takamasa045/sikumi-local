@@ -1,7 +1,7 @@
-import { existsSync } from 'node:fs'
 import {
   DIRECT_HOOK_CAPABILITIES,
   displayNameForSource,
+  installedHookCommandExists,
   rememberAdapterObservation,
   realUserHome,
   unavailableHealth,
@@ -10,11 +10,11 @@ import {
   type ObserverInstallOptions,
 } from '@sikumi-local/observer-core'
 import { discoverGrokHooks, missingGrokEvents } from './discovery.js'
-import { GROK_SUPPORTED_VERSION_RANGE } from './events.js'
 import {
-  applyGrokHookMutation,
-  resolveGrokHookCommandPath,
-} from './install.js'
+  GROK_HOOK_COMMAND_NAME,
+  GROK_SUPPORTED_VERSION_RANGE,
+} from './events.js'
+import { applyGrokHookMutation, resolveGrokHookCommandPath } from './install.js'
 import { normalizeGrokEvent } from './normalize.js'
 import { inspectGrokVersion } from './version.js'
 
@@ -64,7 +64,7 @@ export async function inspectGrokHealth(
   }
   const version = await inspectGrokVersion(options.env)
   const detectedVersion = version.version ?? 'grok-hooks'
-  if (!existsSync(command)) {
+  if (!installedHookCommandExists(options, GROK_HOOK_COMMAND_NAME, command)) {
     return rememberAdapterObservation(
       {
         ok: false,

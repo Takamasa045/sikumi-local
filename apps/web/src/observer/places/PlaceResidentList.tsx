@@ -3,6 +3,7 @@ import type { TodayOverview } from '../../api/observer'
 import { confirmUnregisterPlace } from '../../workspace/confirmUnregisterPlace'
 import {
   collectPlaceResidents,
+  describeImplementationLook,
   placeActivityLabel,
   sortPlaceResidents,
   type PlaceResident,
@@ -77,6 +78,7 @@ function PlaceResidentRow({
   readonly onSelect: () => void
   readonly onUnregister?: () => void
 }) {
+  const work = listedWork(resident)
   return (
     <div
       className={
@@ -100,9 +102,9 @@ function PlaceResidentRow({
         <span className="observer-place-row__status">
           {placeActivityLabel(resident)}
         </span>
-        <span className="observer-place-row__work">
-          {resident.lastObservedWork}
-        </span>
+        {work ? (
+          <span className="observer-place-row__work">{work}</span>
+        ) : null}
         {resident.lastObservedLabel ? (
           <small className="observer-place-row__observed">
             最後の観測: {resident.lastObservedLabel}
@@ -121,6 +123,14 @@ function PlaceResidentRow({
       ) : null}
     </div>
   )
+}
+
+function listedWork(resident: PlaceResident): string {
+  const job = resident.lastObservedWork.trim()
+  if (job) {
+    return job
+  }
+  return describeImplementationLook(resident)
 }
 
 export default PlaceResidentList

@@ -67,7 +67,10 @@ describe('observer phase 1', () => {
     }
     expect(overview.activeRepositoryCount).toBeGreaterThan(0)
     expect(overview.repositories[0]?.changedFileCount).toBeGreaterThan(0)
-    expect(overview.repositories[0]?.summary).toContain('変更元不明')
+    expect(overview.repositories[0]?.summary).toMatch(
+      /作業中のファイル|件の変更/,
+    )
+    expect(overview.repositories[0]?.summary).not.toContain('変更元不明の作業')
 
     const activity = await injectPublic(app, {
       method: 'GET',

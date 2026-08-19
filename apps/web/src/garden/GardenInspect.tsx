@@ -106,33 +106,56 @@ function CharacterBody({
       </dd>
       {hasProgress && live ? (
         <>
-          <dt>いま</dt>
-          <dd>
-            {subject.nowText}
-            {subject.driverNote ? (
-              <span className="garden-inspect__driver">
-                {subject.driverNote}
-              </span>
-            ) : null}
-          </dd>
-          <dt>実装の様子</dt>
-          <dd>{subject.implementationLook}</dd>
-          <dt>これから</dt>
-          <dd>{subject.nextStep}</dd>
+          {subject.nowText ? (
+            <>
+              <dt>いま</dt>
+              <dd>
+                {subject.nowText}
+                {subject.driverNote ? (
+                  <span className="garden-inspect__driver">
+                    {subject.driverNote}
+                  </span>
+                ) : null}
+              </dd>
+            </>
+          ) : null}
+          {subject.implementationLook ? (
+            <>
+              <dt>実装の様子</dt>
+              <dd>{subject.implementationLook}</dd>
+            </>
+          ) : null}
+          {subject.nextStep ? (
+            <>
+              <dt>これから</dt>
+              <dd>{subject.nextStep}</dd>
+            </>
+          ) : null}
         </>
       ) : hasProgress ? (
         <>
-          <dt>どこまでやったか</dt>
-          <dd>
-            {describeStoppedLook(subject.nowText, subject.implementationLook)}
-            {subject.driverNote ? (
-              <span className="garden-inspect__driver">
-                {subject.driverNote}
-              </span>
-            ) : null}
-          </dd>
-          <dt>次はこんな感じか</dt>
-          <dd>{subject.nextStep}</dd>
+          {subject.nowText || subject.implementationLook ? (
+            <>
+              <dt>どこまでやったか</dt>
+              <dd>
+                {describeStoppedLook(
+                  subject.nowText,
+                  subject.implementationLook,
+                )}
+                {subject.driverNote ? (
+                  <span className="garden-inspect__driver">
+                    {subject.driverNote}
+                  </span>
+                ) : null}
+              </dd>
+            </>
+          ) : null}
+          {subject.nextStep ? (
+            <>
+              <dt>次はこんな感じか</dt>
+              <dd>{subject.nextStep}</dd>
+            </>
+          ) : null}
         </>
       ) : (
         <>
@@ -142,8 +165,12 @@ function CharacterBody({
               <dd>{subject.jobTitle}</dd>
             </>
           ) : null}
-          <dt>要約</dt>
-          <dd>{subject.summary}</dd>
+          {subject.summary ? (
+            <>
+              <dt>要約</dt>
+              <dd>{subject.summary}</dd>
+            </>
+          ) : null}
         </>
       )}
     </dl>

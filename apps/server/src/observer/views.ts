@@ -246,13 +246,68 @@ function toSessionView(
     status: session.status,
     activity: session.activity,
     attributionConfidence: session.attributionConfidence,
-    title:
-      label?.title ??
-      session.title ??
-      (session.source === 'git' ? '変更元不明の作業' : '作業中'),
+    title: presentSessionTitle(session, label),
     lastObservedAt: session.lastObservedAt,
     lastObservedLabel: relativeTimeLabel(session.lastObservedAt),
   }
+}
+
+const GENERIC_SESSION_TITLES = new Set([
+  '作業',
+  '作業中',
+  '無題',
+  '変更元不明の作業',
+])
+
+const GENERIC_SESSION_TITLE_PATTERNS = [
+  /の作業が始まりました$/,
+  /の作業が終わりました$/,
+  /の様子が届きました$/,
+  /が確認を待っています$/,
+  /がファイルを扱っています$/,
+  /が道具を使っています$/,
+  /のサブエージェントが始まりました$/,
+]
+
+function presentSessionTitle(
+  session: ExternalSession,
+  label?: SessionLabel,
+): string {
+  const candidates = [label?.title, session.title]
+  for (const candidate of candidates) {
+    const title = candidate?.trim() ?? ''
+    if (!title || isGenericSessionTitle(title)) {
+      continue
+    }
+    return title
+  }
+  return ''
+}
+
+function isGenericSessionTitle(title: string): boolean {
+  if (GENERIC_SESSION_TITLES.has(title)) {
+    return true
+  }
+  return GENERIC_SESSION_TITLE_PATTERNS.some((pattern) => pattern.test(title))
+}
+
+function describeKnownChangeSummary(
+  changedFileCount: number,
+  areas: readonly string[],
+): string {
+  const named = areas.filter((area) => area && area !== '作業中のファイル')
+  const areaText = named.slice(0, 3).join('、')
+  if (changedFileCount <= 0 && named.length === 0) {
+    return '現在観測中の作業はありません'
+  }
+  if (changedFileCount <= 0) {
+    return areaText
+  }
+  const files =
+    changedFileCount === 1
+      ? '作業中のファイルが1つある'
+      : `作業中のファイルが${changedFileCount}件ある`
+  return areaText ? `${files}。${areaText}` : files
 }
 
 function sessionDisplayName(session: ExternalSession): string {
@@ -304,10 +359,7 @@ function buildSummary(input: {
     return '現在観測中の作業はありません'
   }
   if (input.sessions.every((session) => session.source === 'git')) {
-    const areaText = input.areas.slice(0, 3).join('、')
-    return input.changedFileCount > 0
-      ? `変更元不明の作業があります。${areaText || `${input.changedFileCount}件の変更`}`
-      : '変更元不明の作業があります'
+    return describeKnownChangeSummary(input.changedFileCount, input.areas)
   }
   const named = input.sessions
     .filter((session) => session.source !== 'git')

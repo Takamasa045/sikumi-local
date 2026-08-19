@@ -330,7 +330,9 @@ function ObserverGardenActor({
         {repoLabel ? (
           <p className="observer-garden-bubble-repo">{repoLabel}</p>
         ) : null}
-        <p className="observer-garden-bubble-title">{actor.workSummary}</p>
+        {actor.workSummary ? (
+          <p className="observer-garden-bubble-title">{actor.workSummary}</p>
+        ) : null}
       </div>
     </article>
   )

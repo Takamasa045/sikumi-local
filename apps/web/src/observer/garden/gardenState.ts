@@ -36,6 +36,9 @@ const GENERIC_WORK_TITLES = new Set([
   '作業中',
   '無題',
   '変更元不明の作業',
+  'まだ分かっていません',
+  UNKNOWN_GARDEN_WORK,
+  ...Object.values(KNOWN_SOURCE_LABELS),
 ])
 
 const GENERIC_WORK_PATTERNS = [
@@ -129,11 +132,50 @@ export function shouldShowGardenDog(
   return false
 }
 
+export function isUnknownActivity(
+  activity: string | null | undefined,
+): boolean {
+  const trimmed = activity?.trim().toLowerCase() ?? ''
+  return !trimmed || trimmed === 'unknown'
+}
+
 export function isGenericWorkTitle(title: string | null | undefined): boolean {
   const trimmed = title?.trim() ?? ''
   if (!trimmed) return true
   if (GENERIC_WORK_TITLES.has(trimmed)) return true
+  if (sourceKey(trimmed) && knownSourceLabel(trimmed)) return true
   return GENERIC_WORK_PATTERNS.some((pattern) => pattern.test(trimmed))
+}
+
+export function isSourceNameTitle(
+  title: string | null | undefined,
+  source?: string | null,
+): boolean {
+  const trimmed = title?.trim() ?? ''
+  if (!trimmed) return true
+  if (isGenericWorkTitle(trimmed)) return true
+  const label = knownSourceLabel(source)
+  const key = sourceKey(source)
+  if (label && trimmed === label) return true
+  if (key && trimmed.toLowerCase() === key) return true
+  return false
+}
+
+export function canNameObservedDriver(
+  session: OverviewSession,
+  nowMs: number,
+): boolean {
+  if (!isObservedAgent(session) || isUnconfirmedChange(session)) {
+    return false
+  }
+  if (isUnknownActivity(session.activity)) return false
+  if (isSourceNameTitle(session.title, session.source)) return false
+  const tone = resolveTone(session.status, session.activity)
+  if (tone === 'waiting') return true
+  if (tone === 'working') {
+    return isRecentlyObserved(session.lastObservedAt, nowMs)
+  }
+  return false
 }
 
 export function describeGardenWork(

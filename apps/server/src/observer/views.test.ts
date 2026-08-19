@@ -60,6 +60,73 @@ describe('observer views', () => {
     ])
     expect(activity.sessions[1]?.title).toContain('ほか 1 件')
   })
+
+  it('summarizes git-only changes with file facts instead of unknown-source copy', () => {
+    const activity = buildRepositoryActivity({
+      repository: {
+        id: 'repo-a',
+        workspaceId: 'ws-a',
+        absolutePath: '/tmp/repo',
+        displayName: 'demo',
+        currentBranch: 'main',
+        readable: true,
+      },
+      snapshot: {
+        available: true,
+        reason: null,
+        repositoryRoot: '/tmp/repo',
+        displayName: 'demo',
+        branch: 'main',
+        headCommit: 'abc',
+        baseCommit: null,
+        worktrees: [
+          {
+            path: '/tmp/repo',
+            isPrimary: true,
+            branch: 'main',
+            headCommit: 'abc',
+            baseCommit: null,
+            changedFileCount: 1,
+            truncated: false,
+            changedFiles: [changedFile('src/login.ts')],
+          },
+        ],
+        changedFiles: [changedFile('src/login.ts')],
+        scannedAt: '2026-08-18T00:10:00.000Z',
+        truncated: false,
+      },
+      sessions: [
+        {
+          id: 'git-1',
+          source: 'git',
+          surface: 'unknown',
+          externalSessionId: null,
+          workspaceId: 'ws-a',
+          repositoryId: 'repo-a',
+          cwd: '/tmp/repo',
+          worktreePath: '/tmp/repo',
+          branch: 'main',
+          baseCommit: null,
+          headCommit: null,
+          title: '変更元不明の作業',
+          status: 'detected',
+          activity: 'unknown',
+          attributionConfidence: 'inferred',
+          startedAt: '2026-08-18T00:00:00.000Z',
+          lastObservedAt: '2026-08-18T00:10:00.000Z',
+          endedAt: null,
+        },
+      ],
+      labels: {},
+      conflicts: [],
+      claims: [],
+    })
+
+    expect(activity.summary).toContain('作業中のファイルが1つある')
+    expect(activity.summary).toContain('ログイン状態')
+    expect(activity.summary).not.toContain('変更元不明の作業')
+    expect(activity.sessions[0]?.title).toBe('')
+  })
 })
 
 function session(
@@ -84,6 +151,21 @@ function session(
     startedAt: '2026-08-18T00:00:00.000Z',
     lastObservedAt: input.lastObservedAt,
     endedAt: null,
+  }
+}
+
+function changedFile(path: string) {
+  return {
+    path,
+    previousPath: null,
+    changeType: 'modified' as const,
+    addedLines: 2,
+    deletedLines: 1,
+    staged: false,
+    untracked: false,
+    category: 'auth',
+    label: 'ログイン状態',
+    hash: null,
   }
 }
 

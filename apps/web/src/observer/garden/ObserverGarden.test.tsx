@@ -46,7 +46,7 @@ describe('ObserverGarden', () => {
     expect(within(residents).getByText('ブログ番')).toBeVisible()
     expect(within(residents).getByText('APIを直している')).toBeVisible()
     expect(within(residents).getByText('notes番')).toBeVisible()
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).getByText('静か')).toBeVisible()
     expect(within(residents).queryByText('Codex')).toBeNull()
     expect(within(residents).queryByText('Claude Code')).toBeNull()
     expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
@@ -69,9 +69,7 @@ describe('ObserverGarden', () => {
     expect(within(residents).getAllByRole('listitem')).toHaveLength(2)
     expect(within(residents).getByText('alpha番')).toBeVisible()
     expect(within(residents).getByText('beta番')).toBeVisible()
-    expect(within(residents).getAllByText('まだ分かっていません')).toHaveLength(
-      2,
-    )
+    expect(within(residents).getAllByText('静か')).toHaveLength(2)
     const items = within(residents).getAllByRole('listitem')
     expect(
       items.every(
@@ -115,7 +113,8 @@ describe('ObserverGarden', () => {
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
     expect(within(residents).getByText('alpha番')).toBeVisible()
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).getByText('作業中のファイルが4件ある')).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
     expect(within(residents).queryByText('Git作業')).toBeNull()
     expect(within(residents).queryByText('Codexらしい')).toBeNull()
@@ -228,10 +227,12 @@ describe('ObserverGarden', () => {
     expect(
       within(residents).queryByText('エージェントワークフローキッズ版'),
     ).toBeNull()
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).getByText('動いている')).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(
       within(residents).queryByText('Codexの作業が始まりました'),
     ).toBeNull()
+    expect(within(residents).queryByText('Codexが動かしている')).toBeNull()
     expect(within(residents).getByRole('listitem')).toHaveAttribute(
       'data-station',
       'workbench',
@@ -245,7 +246,7 @@ describe('ObserverGarden', () => {
     )
   })
 
-  it('says the work is unknown when no real title remains', async () => {
+  it('shows the activity instead of unknown copy when no real title remains', async () => {
     renderGarden(
       overviewOf([
         repository('repo_a', '', [
@@ -262,10 +263,15 @@ describe('ObserverGarden', () => {
     )
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).getByText('動いている')).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     await userEvent.click(within(residents).getByRole('button'))
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('動いている')
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       'まだ分かっていません',
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
+      'Codexが動かしている',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       'いまの作業の続き',
@@ -370,7 +376,7 @@ describe('ObserverGarden', () => {
     const residents = screen.getByRole('list', { name: '庭の住人' })
     expect(within(residents).getByText('ブログ番')).toBeVisible()
     expect(within(residents).getByText('my-blog')).toBeVisible()
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).getByText('静か')).toBeVisible()
   })
 
   it('shows how far a still place got and what is next, without inventing', async () => {
@@ -381,7 +387,8 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
+    expect(inspect).toHaveTextContent('静か')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).toHaveTextContent('作業中のファイルが1つある')
     expect(inspect).toHaveTextContent('次はこんな感じか')
     expect(inspect).toHaveTextContent('次に動かすまで待つ')

@@ -68,8 +68,8 @@ describe('GardenInspect', () => {
           name: 'notes番',
           station: 'rest',
           traveling: false,
-          summary: 'まだ分かっていません',
-          nowText: '静か。まだ分かっていません',
+          summary: '静か',
+          nowText: '静か',
           implementationLook: '作業中のファイルが1つある',
           nextStep: '次に動かすまで待つ',
           live: false,
@@ -79,7 +79,8 @@ describe('GardenInspect', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
+    expect(inspect).toHaveTextContent('静か')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).toHaveTextContent('作業中のファイルが1つある')
     expect(inspect).toHaveTextContent('次はこんな感じか')
     expect(inspect).toHaveTextContent('次に動かすまで待つ')
@@ -93,7 +94,7 @@ describe('GardenInspect', () => {
     expect(inspect).not.toHaveTextContent('変更元不明')
   })
 
-  it('says the work is unknown instead of inventing missing facts', () => {
+  it('hides empty progress headings instead of filling them with unknown copy', () => {
     render(
       <GardenInspect
         subject={{
@@ -101,17 +102,18 @@ describe('GardenInspect', () => {
           name: 'notes番',
           station: 'rest',
           traveling: false,
-          summary: 'まだ分かっていません',
-          nowText: '静か。まだ分かっていません',
-          implementationLook: 'まだ分かっていません',
+          summary: '静か',
+          nowText: '静か',
+          implementationLook: '',
           nextStep: '次に動かすまで待つ',
         }}
         onClose={vi.fn()}
       />,
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
-    expect(inspect).toHaveTextContent('実装の様子')
+    expect(inspect).toHaveTextContent('静か')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('実装の様子')
     expect(inspect).toHaveTextContent('次に動かすまで待つ')
     expect(inspect).not.toHaveTextContent('変更元不明')
   })

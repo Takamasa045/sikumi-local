@@ -1,6 +1,7 @@
 import type { GardenStationId, Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
 import {
+  canNameObservedDriver,
   describeGardenWork,
   isGenericWorkTitle,
   knownSourceLabel,
@@ -10,7 +11,6 @@ import {
   UNKNOWN_GARDEN_WORK,
 } from '../garden/gardenState'
 
-export const UNKNOWN_PLACE_WORK = 'まだ分かっていません'
 export const SHIKUMI_PLACE_NAME = 'しくみローカル番'
 
 const ATLAS_COLUMNS = 3
@@ -172,7 +172,7 @@ export function collectPlaceResidents(
       repositoryName: workspace.repository.displayName,
       working: false,
       waiting: false,
-      lastObservedWork: UNKNOWN_PLACE_WORK,
+      lastObservedWork: '',
       lastObservedLabel: null,
       lastObservedWorkLabel: null,
       lastChangedAt: workspace.updatedAt,
@@ -206,7 +206,7 @@ export function collectGardenActors(
         repositoryId: resident.repositoryId,
         placeName: resident.placeName,
         repositoryName: resident.repositoryName,
-        workSummary: resident.lastObservedWork,
+        workSummary: describeKnownWork(resident),
         nowText: inspect.nowText,
         implementationLook: inspect.implementationLook,
         nextStep: inspect.nextStep,
@@ -398,17 +398,28 @@ export function describePlaceInspect(
   resident: PlaceResident,
 ): PlaceInspectCopy {
   const activity = placeActivityLabel(resident)
-  const work = resident.lastObservedWork.trim() || UNKNOWN_PLACE_WORK
-  const when =
-    work !== UNKNOWN_PLACE_WORK && resident.lastObservedWorkLabel
-      ? `（${resident.lastObservedWorkLabel}）`
-      : ''
+  const work = resident.lastObservedWork.trim()
+  const whenLabel =
+    resident.lastObservedWorkLabel ?? resident.lastObservedLabel
+  const when = whenLabel ? `（${whenLabel}）` : ''
   return {
-    nowText: `${activity}。${work}${when}`,
+    nowText: work ? `${activity}。${work}${when}` : `${activity}${when}`,
     implementationLook: describeImplementationLook(resident),
     nextStep: describeNextStep(resident),
     driverNote: resident.driverNote,
   }
+}
+
+export function describeKnownWork(resident: PlaceResident): string {
+  const job = resident.lastObservedWork.trim()
+  if (job) {
+    return job
+  }
+  const files = describeImplementationLook(resident)
+  if (files) {
+    return files
+  }
+  return placeActivityLabel(resident)
 }
 
 function describePlaceWork(
@@ -447,20 +458,22 @@ function describePlaceWork(
       return described
     }
   }
-  return UNKNOWN_PLACE_WORK
+  return ''
 }
 
-function describeImplementationLook(resident: PlaceResident): string {
+export function describeImplementationLook(resident: PlaceResident): string {
   const count = resident.changedFileCount
   const named = uniqueLabels(resident.areas).filter(
     (area) => area !== '作業中のファイル',
   )
   const shown = named.slice(0, 2)
   if (count <= 0 && shown.length === 0) {
-    return UNKNOWN_PLACE_WORK
+    return ''
   }
   const filesPhrase =
-    count === 1 ? '作業中のファイルが1つある' : '作業中のファイルがいくつかある'
+    count === 1
+      ? '作業中のファイルが1つある'
+      : `作業中のファイルが${count}件ある`
   if (count <= 0) {
     return shown.length === 1
       ? `${shown[0]}あたりの様子が見えています`
@@ -509,11 +522,7 @@ function describeObservedDriver(
 ): string | null {
   const labels: string[] = []
   for (const session of sessions) {
-    const tone = resolveTone(session.status, session.activity)
-    const live =
-      tone === 'waiting' ||
-      (tone === 'working' && shouldShowGardenDog(session, nowMs))
-    if (!live) {
+    if (!canNameObservedDriver(session, nowMs)) {
       continue
     }
     const label = knownSourceLabel(session.source)

@@ -302,7 +302,7 @@ describe('Shikumi Local garden', () => {
       '動いている。APIを直している',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      '作業中のファイルがいくつかある',
+      '作業中のファイルが2件ある',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       'いまの作業の続き',
@@ -617,7 +617,8 @@ describe('Shikumi Local garden', () => {
     expect(
       screen.getByText((content) => content === 'my-project'),
     ).toBeVisible()
-    expect(screen.getByText('まだ分かっていません')).toBeVisible()
+    expect(screen.getByText('作業中のファイルが1つある。ログイン状態あたりです')).toBeVisible()
+    expect(screen.queryByText('まだ分かっていません')).toBeNull()
     expect(screen.queryByText('Codexが変更中')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: '仕事を頼む' }),
@@ -751,7 +752,8 @@ describe('Shikumi Local garden', () => {
     try {
       render(<App />)
       expect(await screen.findByText('my-project番')).toBeVisible()
-      expect(screen.getByText('まだ分かっていません')).toBeVisible()
+      expect(screen.getByText('静か')).toBeVisible()
+      expect(screen.queryByText('まだ分かっていません')).toBeNull()
       expect(
         screen.queryByText(
           '登録した場所がまだありません。今日の作業場からフォルダを追加してください。',
@@ -851,7 +853,10 @@ describe('Shikumi Local garden', () => {
     )
     expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
     expect(await screen.findByText('kept-project番')).toBeVisible()
-    expect(screen.getByText('まだ分かっていません')).toBeVisible()
+    expect(
+      screen.getByText('作業中のファイルが1つある。ログイン状態あたりです'),
+    ).toBeVisible()
+    expect(screen.queryByText('まだ分かっていません')).toBeNull()
     expect(
       screen.queryByRole('list', { name: '出どころ未確認の変更' }),
     ).toBeNull()
@@ -859,7 +864,10 @@ describe('Shikumi Local garden', () => {
     await openTodayWorkshop()
     expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
     expect(screen.getByText('kept-project番')).toBeVisible()
-    expect(screen.getByText('まだ分かっていません')).toBeVisible()
+    expect(
+      screen.getByText('作業中のファイルが1つある。ログイン状態あたりです'),
+    ).toBeVisible()
+    expect(screen.queryByText('まだ分かっていません')).toBeNull()
     expect(
       screen.getByRole('button', { name: 'この場所を追加' }),
     ).toBeVisible()
@@ -1558,7 +1566,7 @@ function observerResponse(
                 displayName,
                 available: true,
                 gitAvailable: true,
-                summary: '変更元不明の作業があります。ログイン状態',
+                summary: '作業中のファイルが1つある。ログイン状態',
                 changedFileCount: 1,
                 lastChangedLabel: '2分前',
                 sessions: [
@@ -1594,7 +1602,7 @@ function observerResponse(
         displayName,
         available: true,
         gitAvailable: true,
-        summary: '変更元不明の作業があります。ログイン状態',
+        summary: '作業中のファイルが1つある。ログイン状態',
         changedFileCount: 1,
         lastChangedLabel: '2分前',
         sessions: [],

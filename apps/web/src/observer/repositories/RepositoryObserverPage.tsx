@@ -41,17 +41,12 @@ export function RepositoryObserverPage({
       </p>
 
       <h3>いまの作業</h3>
-      {activity.sessions.length === 0 ? (
+      {visibleSessions(activity.sessions).length === 0 ? (
         <p>直接つながった作業はありません。</p>
       ) : (
         <ul>
-          {activity.sessions.map((session) => (
-            <li key={session.id}>
-              {session.displayName} / {session.title}
-              {session.attributionConfidence === 'inferred'
-                ? '（変更元不明）'
-                : ''}
-            </li>
+          {visibleSessions(activity.sessions).map((item) => (
+            <li key={item.id}>{item.label}</li>
           ))}
         </ul>
       )}
@@ -123,4 +118,20 @@ export function RepositoryObserverPage({
       </div>
     </section>
   )
+}
+
+function visibleSessions(
+  sessions: RepositoryActivity['sessions'],
+): readonly { readonly id: string; readonly label: string }[] {
+  return sessions.flatMap((session) => {
+    const title = session.title.trim()
+    if (!title) {
+      return []
+    }
+    const inferred = session.attributionConfidence === 'inferred'
+    const label = inferred
+      ? title
+      : [session.displayName, title].filter(Boolean).join(' / ')
+    return label ? [{ id: session.id, label }] : []
+  })
 }

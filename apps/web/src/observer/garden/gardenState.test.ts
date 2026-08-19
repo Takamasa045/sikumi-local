@@ -3,8 +3,10 @@ import type { TodayOverview } from '../../api/observer'
 import {
   GARDEN_ACTIVE_WINDOW_MS,
   UNKNOWN_GARDEN_WORK,
+  canNameObservedDriver,
   describeGardenWork,
   isGenericWorkTitle,
+  isUnknownActivity,
   shouldShowGardenDog,
   stationForTone,
 } from './gardenState'
@@ -173,9 +175,73 @@ describe('describeGardenWork', () => {
   it('treats source event templates as generic', () => {
     expect(isGenericWorkTitle('Codexの作業が始まりました')).toBe(true)
     expect(isGenericWorkTitle('Claude Codeの作業が終わりました')).toBe(true)
+    expect(isGenericWorkTitle('Claude Codeがファイルを扱っています')).toBe(
+      true,
+    )
     expect(isGenericWorkTitle('Grok Buildが確認を待っています')).toBe(true)
+    expect(isGenericWorkTitle('Codex')).toBe(true)
+    expect(isGenericWorkTitle('Claude Code')).toBe(true)
     expect(isGenericWorkTitle('作業中')).toBe(true)
     expect(isGenericWorkTitle('APIを直している')).toBe(false)
+  })
+})
+
+describe('canNameObservedDriver', () => {
+  it('names a live observed session with a real job title', () => {
+    expect(
+      canNameObservedDriver(
+        session({
+          id: 'run',
+          source: 'codex',
+          title: 'APIを直している',
+          status: 'running',
+          activity: 'working',
+          lastObservedAt: '2026-08-19T00:08:00.000Z',
+        }),
+        NOW_MS,
+      ),
+    ).toBe(true)
+  })
+
+  it('does not name git inferred, unknown activity, or source-name titles', () => {
+    expect(
+      canNameObservedDriver(
+        session({
+          id: 'git',
+          source: 'git',
+          title: '変更元不明の作業',
+          attributionConfidence: 'inferred',
+          activity: 'unknown',
+        }),
+        NOW_MS,
+      ),
+    ).toBe(false)
+    expect(
+      canNameObservedDriver(
+        session({
+          id: 'unknown',
+          source: 'claude-code',
+          title: 'ログイン画面を直している',
+          status: 'running',
+          activity: 'unknown',
+        }),
+        NOW_MS,
+      ),
+    ).toBe(false)
+    expect(
+      canNameObservedDriver(
+        session({
+          id: 'template',
+          source: 'codex',
+          title: 'Codexの作業が始まりました',
+          status: 'running',
+          activity: 'working',
+        }),
+        NOW_MS,
+      ),
+    ).toBe(false)
+    expect(isUnknownActivity('unknown')).toBe(true)
+    expect(isUnknownActivity('working')).toBe(false)
   })
 })
 

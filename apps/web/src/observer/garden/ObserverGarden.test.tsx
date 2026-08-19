@@ -5,6 +5,7 @@ import { WORKING_WALK_FIRST_STEP_MS, WORKING_WALK_STOPS } from './gardenWalk'
 import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
 import { ObserverGarden } from './ObserverGarden'
+import { ANOTHER_LIVE_WORK } from '../places/placeResidents'
 
 type RepositoryView = TodayOverview['repositories'][number]
 type SessionView = RepositoryView['sessions'][number]
@@ -43,8 +44,10 @@ describe('ObserverGarden', () => {
     )
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
-    expect(within(residents).getByText('ブログ番')).toBeVisible()
+    expect(within(residents).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(residents).getAllByText('ブログ番')).toHaveLength(2)
     expect(within(residents).getByText(/APIを直している/)).toBeVisible()
+    expect(within(residents).getByText(/テストを書いている/)).toBeVisible()
     expect(within(residents).getByText('notes番')).toBeVisible()
     expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(within(residents).queryByText('Codex')).toBeNull()
@@ -55,6 +58,107 @@ describe('ObserverGarden', () => {
     expect(
       screen.queryByRole('list', { name: '出どころ未確認の変更' }),
     ).toBeNull()
+  })
+
+  it('lets each live stream on one place be inspected as its own everyday line', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'hataraki', [
+          session({
+            id: 'grok',
+            source: 'grok-build',
+            displayName: 'Grok Build',
+            title: '働きの画面を直している',
+            status: 'running',
+            activity: 'working',
+            lastObservedLabel: '1分前',
+          }),
+          session({
+            id: 'codex',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '確認の仕組みを書いている',
+            status: 'running',
+            activity: 'working',
+            lastObservedAt: '2026-08-18T23:58:00.000Z',
+            lastObservedLabel: '2分前',
+          }),
+        ]),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(residents).getAllByText('hataraki番')).toHaveLength(2)
+    expect(within(residents).getByText('働きの画面を直している')).toBeVisible()
+    expect(within(residents).getByText('確認の仕組みを書いている')).toBeVisible()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
+    )
+    const first = screen.getByTestId('garden-inspect')
+    expect(first).toHaveTextContent('働きの画面を直している')
+    expect(first).not.toHaveTextContent('確認の仕組みを書いている')
+    expect(first).not.toHaveTextContent('まだ分かっていません')
+    expect(first).not.toHaveTextContent('.tsx')
+    expect(first).not.toHaveTextContent('SHA')
+
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_a-2')).getByRole('button'),
+    )
+    const second = screen.getByTestId('garden-inspect')
+    expect(second).toHaveTextContent('確認の仕組みを書いている')
+    expect(second).not.toHaveTextContent('働きの画面を直している')
+    expect(second).not.toHaveTextContent('まだ分かっていません')
+    expect(second).not.toHaveTextContent('Grok Build')
+  })
+
+  it('does not add a second walker for leftover hooks or inferred git', () => {
+    renderGarden(
+      overviewOf([
+        repository(
+          'repo_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              displayName: 'Grok Build',
+              title: '働きの画面を直している',
+              status: 'running',
+              activity: 'working',
+            }),
+            session({
+              id: 'fake',
+              source: 'claude-code',
+              displayName: 'Claude Code',
+              title: 'Claude Codeがファイルを扱っています',
+              surface: 'unknown',
+              status: 'running',
+              activity: 'working',
+            }),
+            session({
+              id: 'git',
+              source: 'git',
+              displayName: '変更元不明',
+              title: '変更元不明の作業',
+              attributionConfidence: 'inferred',
+            }),
+          ],
+          4,
+        ),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getAllByRole('listitem')).toHaveLength(1)
+    expect(within(residents).getByText('hataraki番')).toBeVisible()
+    expect(within(residents).getByText('働きの画面を直している')).toBeVisible()
+    expect(within(residents).queryByText(ANOTHER_LIVE_WORK)).toBeNull()
+    expect(within(residents).queryByText('Claude Code')).toBeNull()
+    expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
   })
 
   it('keeps one character per registered place even when idle', () => {

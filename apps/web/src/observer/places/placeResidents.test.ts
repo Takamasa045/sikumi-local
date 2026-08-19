@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
 import type { Workspace } from '@sikumi-local/core'
 import {
+  ANOTHER_LIVE_WORK,
   assignGardenGroundPlots,
   collectGardenActors,
   collectPlaceResidents,
@@ -455,6 +456,194 @@ describe('collectGardenActors', () => {
     expect(leftover?.implementationLook).toBeNull()
     expect(JSON.stringify(leftover)).not.toMatch(
       /まだ分かっていません|変更元不明|feat:|作業中のファイル|Codexの作業が始まりました/,
+    )
+  })
+
+  it('makes a second walker when two live non-generic streams share one place', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [
+          session({
+            id: 'grok',
+            source: 'grok-build',
+            displayName: 'Grok Build',
+            title: '働きの画面を直している',
+            status: 'running',
+            activity: 'working',
+            lastObservedLabel: '1分前',
+          }),
+          session({
+            id: 'codex',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '確認の仕組みを書いている',
+            status: 'running',
+            activity: 'working',
+            lastObservedAt: '2026-08-19T00:08:00.000Z',
+            lastObservedLabel: '2分前',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.map((actor) => actor.placeName)).toEqual([
+      'hataraki番',
+      'hataraki番',
+    ])
+    expect(actors.map((actor) => actor.workSummary).sort()).toEqual([
+      '働きの画面を直している',
+      '確認の仕組みを書いている',
+    ])
+    expect(new Set(actors.map((actor) => actor.key)).size).toBe(2)
+    expect(new Set(actors.map((actor) => actor.groundX.toFixed(1))).size).toBe(
+      2,
+    )
+    expect(actors.every((actor) => actor.tone === 'working')).toBe(true)
+    const grok = actors.find(
+      (actor) => actor.workSummary === '働きの画面を直している',
+    )
+    const other = actors.find(
+      (actor) => actor.workSummary === '確認の仕組みを書いている',
+    )
+    expect(grok?.nowText).toContain('働きの画面を直している')
+    expect(grok?.nowText).not.toContain('確認の仕組みを書いている')
+    expect(other?.nowText).toContain('確認の仕組みを書いている')
+    expect(other?.nowText).not.toContain('働きの画面を直している')
+    expect(other?.nowText).not.toContain('途中の仕事')
+    expect(
+      actors.every((actor) =>
+        JSON.stringify(actor).match(/まだ分かっていません|SHA|\.tsx|\.css/) ===
+        null,
+      ),
+    ).toBe(true)
+  })
+
+  it('keeps one character when only one live stream is real', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              displayName: 'Grok Build',
+              title: '働きの画面を直している',
+              status: 'running',
+              activity: 'working',
+            }),
+            session({
+              id: 'fake',
+              source: 'claude-code',
+              displayName: 'Claude Code',
+              title: 'Claude Codeがファイルを扱っています',
+              surface: 'unknown',
+              status: 'running',
+              activity: 'working',
+            }),
+            session({
+              id: 'start',
+              source: 'codex',
+              displayName: 'Codex',
+              title: 'Codexの作業が始まりました',
+              status: 'running',
+              activity: 'working',
+            }),
+            session({
+              id: 'git',
+              source: 'git',
+              displayName: '変更元不明',
+              title: '変更元不明の作業',
+              attributionConfidence: 'inferred',
+            }),
+          ],
+          { changedFileCount: 4 },
+        ),
+      ]),
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]?.placeName).toBe('hataraki番')
+    expect(actors[0]?.workSummary).toBe('働きの画面を直している')
+    expect(actors[0]?.streamIndex).toBe(0)
+    expect(actors[0]?.nowText).not.toContain('Claude Code')
+    expect(JSON.stringify(actors[0])).not.toMatch(
+      /ファイルを扱っています|変更元不明|まだ分かっていません/,
+    )
+  })
+
+  it('does not spawn a second walker from a stale Codex start', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_sikumi', 'ws_sikumi', 'sikumi-local', [
+          session({
+            id: 'live',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '庭の並列を直している',
+            status: 'active',
+            activity: 'editing',
+          }),
+          session({
+            id: 'start',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'Codexの作業が始まりました',
+            status: 'running',
+            activity: 'working',
+            lastObservedAt: '2026-08-18T20:00:00.000Z',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]?.placeName).toBe(SHIKUMI_PLACE_NAME)
+    expect(actors[0]?.workSummary).toBe('庭の並列を直している')
+    expect(actors[0]?.workSummary).not.toBe(ANOTHER_LIVE_WORK)
+  })
+
+  it('names a second untitled live stream as another job, not an invented title', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'hataraki', [
+          session({
+            id: 'desk-a',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '作業中',
+            status: 'running',
+            activity: 'working',
+          }),
+          session({
+            id: 'desk-b',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '作業中',
+            status: 'running',
+            activity: 'working',
+            lastObservedAt: '2026-08-19T00:09:00.000Z',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(actors).toHaveLength(2)
+    const summaries = actors.map((actor) => actor.workSummary).sort()
+    expect(summaries).toEqual(['動いている', ANOTHER_LIVE_WORK])
+    expect(actors.some((actor) => actor.placeName === 'hataraki 2')).toBe(false)
+    expect(
+      actors.every((actor) => actor.nowText && !actor.nowText.includes('feat:')),
+    ).toBe(true)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /まだ分かっていません|SHA|article|働きの直し/,
     )
   })
 })

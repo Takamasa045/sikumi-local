@@ -47,6 +47,17 @@ const EVERYDAY_INSPECT_AREAS: Readonly<Record<string, string>> = {
 }
 
 export const LEFTOVER_WORK_REMAINING = '途中の仕事が残っている'
+export const ANOTHER_LIVE_WORK = 'もう一つの仕事が動いている'
+
+const HOOK_LEFTOVER_TITLE_PATTERNS = [
+  /の作業が始まりました$/,
+  /の作業が終わりました$/,
+  /の様子が届きました$/,
+  /が確認を待っています$/,
+  /がファイルを扱っています$/,
+  /が道具を使っています$/,
+  /のサブエージェントが始まりました$/,
+]
 
 export const GARDEN_GROUND = {
   minX: 36,
@@ -96,6 +107,11 @@ export type PlaceInspectCopy = {
   readonly driverNote: string | null
 }
 
+type GardenActorSource = PlaceResident & {
+  readonly key: string
+  readonly streamIndex: number
+}
+
 export type GardenPlaceActor = {
   readonly key: string
   readonly repositoryId: string
@@ -115,6 +131,7 @@ export type GardenPlaceActor = {
   readonly slot: number
   readonly jitterX: number
   readonly jitterY: number
+  readonly streamIndex: number
 }
 
 export function mentionsShikumi(value: string): boolean {
@@ -230,33 +247,170 @@ export function collectPlaceResidents(
   return [...fromOverview, ...extras]
 }
 
+function gardenPlotKey(resident: {
+  readonly repositoryId: string
+  readonly key?: string
+}): string {
+  return resident.key ?? resident.repositoryId
+}
+
+export function isParallelLiveWorkStream(
+  session: OverviewSession,
+  nowMs: number,
+): boolean {
+  if (!shouldShowGardenDog(session, nowMs)) {
+    return false
+  }
+  const title = session.title?.trim() ?? ''
+  if (isHookLeftoverTitle(title)) {
+    return false
+  }
+  if (isGenericWorkTitle(title) && !isConfirmedTool(session)) {
+    return false
+  }
+  return true
+}
+
+function isHookLeftoverTitle(title: string): boolean {
+  return HOOK_LEFTOVER_TITLE_PATTERNS.some((pattern) => pattern.test(title))
+}
+
+function expandGardenActorSources(
+  residents: readonly PlaceResident[],
+  overview: TodayOverview | null,
+): GardenActorSource[] {
+  const nowMs = parseOverviewNow(overview)
+  const repositories = new Map(
+    (overview?.repositories ?? []).map((repository) => [
+      repository.repositoryId,
+      repository,
+    ]),
+  )
+  const sources: GardenActorSource[] = []
+  for (const resident of residents) {
+    const streams = parallelLiveStreams(
+      repositories.get(resident.repositoryId)?.sessions ?? [],
+      nowMs,
+    )
+    if (streams.length <= 1) {
+      sources.push({
+        ...resident,
+        key: resident.repositoryId,
+        streamIndex: 0,
+      })
+      continue
+    }
+    const drafts = streams.map((session, streamIndex) =>
+      residentForLiveStream(resident, session, streamIndex, nowMs),
+    )
+    const summaries = drafts.map((draft) => describeVisibleFacts(draft))
+    const needDisambiguate = new Set(summaries).size < summaries.length
+    for (const [streamIndex, draft] of drafts.entries()) {
+      sources.push({
+        ...draft,
+        placeName: needDisambiguate
+          ? disambiguatedPlaceName(resident.placeName, streamIndex)
+          : resident.placeName,
+      })
+    }
+  }
+  return sources
+}
+
+function parallelLiveStreams(
+  sessions: readonly OverviewSession[],
+  nowMs: number,
+): OverviewSession[] {
+  return sessions
+    .filter((session) => isParallelLiveWorkStream(session, nowMs))
+    .sort(compareObservedAt)
+}
+
+function residentForLiveStream(
+  resident: PlaceResident,
+  session: OverviewSession,
+  streamIndex: number,
+  nowMs: number,
+): GardenActorSource {
+  const tone = resolveTone(session.status, session.activity)
+  const spoken = streamSpokenTitle(session)
+  const primary = streamIndex === 0
+  return {
+    ...resident,
+    key: `${resident.repositoryId}:${session.id}`,
+    working: tone === 'working',
+    waiting: tone === 'waiting',
+    lastObservedWork:
+      spoken ?? (primary ? '' : ANOTHER_LIVE_WORK),
+    lastObservedLabel: session.lastObservedLabel,
+    lastObservedWorkLabel: session.lastObservedLabel,
+    lastObservedAt: session.lastObservedAt,
+    workStory: primary ? resident.workStory : null,
+    changedFileCount: primary ? resident.changedFileCount : 0,
+    outgoingCount: primary ? resident.outgoingCount : null,
+    incomingCount: primary ? resident.incomingCount : null,
+    areas: primary ? resident.areas : [],
+    latestRecordTitle: primary ? resident.latestRecordTitle : null,
+    driverNote: describeObservedDriver([session], nowMs),
+    streamIndex,
+  }
+}
+
+function streamSpokenTitle(session: OverviewSession): string | null {
+  const title = spokenRecordTitle(session.title)
+  if (title) {
+    return title
+  }
+  const named = spokenRecordTitle(session.displayName)
+  const sourceLabel = knownSourceLabel(session.source)
+  if (
+    named &&
+    named !== sourceLabel &&
+    named.toLowerCase() !== sourceKey(session.source)
+  ) {
+    return named
+  }
+  return null
+}
+
+function disambiguatedPlaceName(placeName: string, streamIndex: number): string {
+  if (streamIndex === 0) {
+    return placeName
+  }
+  const base = placeName.replace(/番$/, '').trim() || placeName
+  return `${base} ${streamIndex + 1}`
+}
+
 export function collectGardenActors(
   overview: TodayOverview | null,
   workspaces: readonly Workspace[] = [],
 ): GardenPlaceActor[] {
-  const residents = collectPlaceResidents(overview, workspaces)
-  const plots = assignGardenGroundPlots(residents)
-  return residents
-    .map((resident) => {
-      const hash = stableHash(resident.repositoryId)
-      const tone: GardenPlaceTone = resident.waiting
+  const sources = expandGardenActorSources(
+    collectPlaceResidents(overview, workspaces),
+    overview,
+  )
+  const plots = assignGardenGroundPlots(sources)
+  return sources
+    .map((source) => {
+      const hash = stableHash(source.key)
+      const tone: GardenPlaceTone = source.waiting
         ? 'waiting'
-        : resident.working
+        : source.working
           ? 'working'
           : 'observing'
-      const inspect = describePlaceInspect(resident)
-      const plot = plots.get(resident.repositoryId)
+      const inspect = describePlaceInspect(source)
+      const plot = plots.get(gardenPlotKey(source))
       return {
-        key: resident.repositoryId,
-        repositoryId: resident.repositoryId,
-        placeName: resident.placeName,
-        repositoryName: resident.repositoryName,
-        workSummary: describeVisibleFacts(resident),
+        key: source.key,
+        repositoryId: source.repositoryId,
+        placeName: source.placeName,
+        repositoryName: source.repositoryName,
+        workSummary: describeVisibleFacts(source),
         nowText: inspect.nowText,
         implementationLook: inspect.implementationLook,
         nextStep: inspect.nextStep,
         driverNote: inspect.driverNote,
-        station: plot?.station ?? stationForResident(resident),
+        station: plot?.station ?? stationForResident(source),
         tone,
         groundX: plot?.x ?? REST_POINT.x,
         groundY: plot?.y ?? REST_POINT.y,
@@ -265,6 +419,7 @@ export function collectGardenActors(
         slot: plot?.slot ?? 0,
         jitterX: ((hash % 7) - 3) * 0.18,
         jitterY: (((hash >>> 4) % 5) - 2) * 0.14,
+        streamIndex: source.streamIndex,
       }
     })
     .sort((left, right) => left.key.localeCompare(right.key))
@@ -285,8 +440,10 @@ export function hasUnfinishedGardenWork(
 
 export function stationForResident(
   resident: Pick<PlaceResident, 'waiting' | 'working' | 'repositoryId'> &
-    Partial<Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'>>,
-  hash = stableHash(resident.repositoryId),
+    Partial<Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'>> & {
+      readonly key?: string
+    },
+  hash = stableHash(gardenPlotKey(resident)),
 ): GardenPlaceStation {
   if (resident.waiting) return 'waiting'
   if (resident.working) return 'workbench'
@@ -299,7 +456,9 @@ export function assignGardenGroundPlots(
     PlaceResident,
     'repositoryId' | 'waiting' | 'working'
   > &
-    Partial<Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'>>)[],
+    Partial<Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'>> & {
+      readonly key?: string
+    })[],
 ): ReadonlyMap<
   string,
   {
@@ -321,7 +480,7 @@ export function assignGardenGroundPlots(
     }
   >()
   const ordered = [...residents].sort((left, right) =>
-    left.repositoryId.localeCompare(right.repositoryId),
+    gardenPlotKey(left).localeCompare(gardenPlotKey(right)),
   )
 
   function takeClosest(target: { readonly x: number; readonly y: number }) {
@@ -342,7 +501,7 @@ export function assignGardenGroundPlots(
 
   for (const resident of ordered.filter((item) => item.waiting)) {
     const { plot, slot } = takeClosest(WAITING_POINT)
-    assigned.set(resident.repositoryId, {
+    assigned.set(gardenPlotKey(resident), {
       x: plot.x,
       y: plot.y,
       station: 'waiting',
@@ -353,7 +512,7 @@ export function assignGardenGroundPlots(
     (item) => !item.waiting && item.working,
   )) {
     const { plot, slot } = takeClosest(WORKBENCH_POINT)
-    assigned.set(resident.repositoryId, {
+    assigned.set(gardenPlotKey(resident), {
       x: plot.x,
       y: plot.y,
       station: 'workbench',
@@ -364,7 +523,7 @@ export function assignGardenGroundPlots(
     (item) => !item.waiting && !item.working && hasUnfinishedGardenWork(item),
   )) {
     const { plot, slot } = takeClosest(REST_POINT)
-    assigned.set(resident.repositoryId, {
+    assigned.set(gardenPlotKey(resident), {
       x: plot.x,
       y: plot.y,
       station: unfinishedQuietStationForPlot(plot),
@@ -376,7 +535,7 @@ export function assignGardenGroundPlots(
   )) {
     const plotIndex = unused.shift() ?? 0
     const plot = plots[plotIndex] ?? REST_POINT
-    assigned.set(resident.repositoryId, {
+    assigned.set(gardenPlotKey(resident), {
       x: plot.x,
       y: plot.y,
       station: quietStationForPlot(plot),

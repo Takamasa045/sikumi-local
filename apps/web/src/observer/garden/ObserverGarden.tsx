@@ -296,7 +296,11 @@ function ObserverGardenActor({
         .join(' ')}
       role="listitem"
       aria-label={actorAriaLabel(actor, repoLabel)}
-      data-testid={`garden-place-${actor.repositoryId}`}
+      data-testid={
+        actor.streamIndex > 0
+          ? `garden-place-${actor.repositoryId}-${actor.streamIndex + 1}`
+          : `garden-place-${actor.repositoryId}`
+      }
       data-status={actor.tone}
       data-station={actor.station}
       data-walk-stop={walkStation}

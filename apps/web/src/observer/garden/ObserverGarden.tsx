@@ -35,14 +35,6 @@ const STATION_IDS = [
   'rest',
 ] as const
 
-const STATION_SLOT_OFFSETS = [
-  [-12, 0],
-  [12, 0],
-  [-7, 11],
-  [7, 11],
-  [0, -10],
-] as const
-
 type StationId = (typeof STATION_IDS)[number]
 
 type ObserverGardenProps = {
@@ -73,14 +65,10 @@ function actorAriaLabel(actor: GardenPlaceActor): string {
   return [actor.placeName, actor.workSummary].join('、')
 }
 
-function actorOffset(actor: GardenPlaceActor): { x: number; y: number } {
-  const slot =
-    STATION_SLOT_OFFSETS[actor.slot % STATION_SLOT_OFFSETS.length] ??
-    STATION_SLOT_OFFSETS[0]!
-  const lap = Math.floor(actor.slot / STATION_SLOT_OFFSETS.length)
+function actorPoint(actor: GardenPlaceActor): { x: number; y: number } {
   return {
-    x: slot[0] + actor.jitterX + lap * 3,
-    y: slot[1] + actor.jitterY + lap * 2,
+    x: actor.groundX + actor.jitterX,
+    y: actor.groundY + actor.jitterY,
   }
 }
 
@@ -214,6 +202,10 @@ export function ObserverGarden({
                       station: actor.station,
                       traveling: actorTravel[actor.key] === true,
                       summary: actor.workSummary,
+                      nowText: actor.nowText,
+                      implementationLook: actor.implementationLook,
+                      nextStep: actor.nextStep,
+                      driverNote: actor.driverNote,
                     })
                   }}
                 />
@@ -249,12 +241,7 @@ function ObserverGardenActor({
   readonly onSelect: () => void
   readonly onTravelingChange: (traveling: boolean) => void
 }) {
-  const point = stationPoint(world.stations, actor.station)
-  const offset = actorOffset(actor)
-  const destination = {
-    x: point.x + offset.x,
-    y: point.y + offset.y,
-  }
+  const destination = actorPoint(actor)
   const {
     point: travelPoint,
     traveling,
@@ -309,6 +296,8 @@ function ObserverGardenActor({
       data-testid={`garden-place-${actor.repositoryId}`}
       data-status={actor.tone}
       data-station={actor.station}
+      data-ground-x={String(Math.round(actor.groundX))}
+      data-ground-y={String(Math.round(actor.groundY))}
       data-gesture={gesture}
       data-traveling={traveling ? 'true' : 'false'}
       style={actorStyle}

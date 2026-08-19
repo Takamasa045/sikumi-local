@@ -388,6 +388,107 @@ describe('AdapterSettings', () => {
       screen.queryByRole('button', { name: 'この場所につなぐ' }),
     ).toBeNull()
   })
+
+  it('does not treat preview-only ok as a successful Grok Build connect', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return json({ token: 't' })
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return json({ workspaces: [] })
+      }
+      if (url.endsWith('/api/observer/adapters')) {
+        return json({
+          adapters: [
+            {
+              id: 'grok-build',
+              source: 'grok-build',
+              displayName: 'Grok Build',
+              enabled: false,
+              installationStatus: 'needs_review',
+              lastEventAt: null,
+              health: {
+                ok: false,
+                status: 'needs_review',
+                warnings: [
+                  '設定は見つかりましたが、Sikumiがhook eventを受信した記録はありません',
+                ],
+                errors: [],
+              },
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/install')) {
+        return json({
+          result: {
+            ok: true,
+            changed: false,
+            applied: false,
+            requiresConfirm: true,
+            message: 'つなぐ準備ができました',
+          },
+        })
+      }
+      return json({ error: { message: 'not found' } }, 404)
+    })
+    render(<AdapterSettings />)
+    await userEvent.click(await screen.findByRole('button', { name: 'つなぐ' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('つなぎ直せませんでした')
+    expect(screen.queryByText('つながりました')).toBeNull()
+    expect(screen.queryByText('つなぐ準備ができました')).toBeNull()
+    expect(
+      screen.queryByText(
+        '設定は見つかりましたが、Sikumiがhook eventを受信した記録はありません',
+      ),
+    ).toBeNull()
+  })
+
+  it('does not show Unexpected server error when Grok Build connect fails', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return json({ token: 't' })
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return json({ workspaces: [] })
+      }
+      if (url.endsWith('/api/observer/adapters')) {
+        return json({
+          adapters: [
+            {
+              id: 'grok-build',
+              source: 'grok-build',
+              displayName: 'Grok Build',
+              enabled: false,
+              installationStatus: 'needs_review',
+              lastEventAt: null,
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/install')) {
+        return json(
+          {
+            error: {
+              code: 'INTERNAL_ERROR',
+              message: 'Unexpected server error',
+            },
+          },
+          500,
+        )
+      }
+      return json({ error: { message: 'not found' } }, 404)
+    })
+    render(<AdapterSettings />)
+    await userEvent.click(await screen.findByRole('button', { name: 'つなぐ' }))
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('つなぎ直せませんでした')
+    expect(alert).not.toHaveTextContent('Unexpected server error')
+    expect(screen.queryByText('つながりました')).toBeNull()
+  })
 })
 
 function json(body: unknown, status = 200): Response {

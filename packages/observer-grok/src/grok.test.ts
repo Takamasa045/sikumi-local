@@ -17,7 +17,10 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { observerInboxDir } from '@sikumi-local/observer-bridge'
 import { parseSemver } from '@sikumi-local/observer-core'
-import { createGrokObserverAdapter } from './adapter.js'
+import {
+  createGrokObserverAdapter,
+  GROK_CLI_MISSING_WARNING,
+} from './adapter.js'
 import { runGrokObserverHook } from './cli.js'
 import { discoverGrokHooks, missingGrokEvents } from './discovery.js'
 import {
@@ -458,6 +461,36 @@ describe('grok install and health', () => {
     expect(health.warnings.join(' ')).toContain('Git観測')
   })
 
+  it('treats a missing grok CLI as a warning after settings are written', async () => {
+    const home = createTemp()
+    const adapter = createGrokObserverAdapter()
+    const preview = await adapter.install({ homeDir: home })
+    const applied = await adapter.install({
+      homeDir: home,
+      confirm: true,
+      confirmationToken: preview.confirmationToken!,
+      planDigest: preview.planDigest!,
+    })
+    expect(applied.ok).toBe(true)
+    expect(applied.applied).toBe(true)
+    const health = await adapter.healthCheck({
+      homeDir: home,
+      env: { PATH: home, HOME: home },
+    })
+    expect(health.status).toBe('needs_review')
+    expect(health.errors).toEqual([])
+    expect(health.warnings).toContain(GROK_CLI_MISSING_WARNING)
+    await expect(
+      adapter.healthCheck({
+        homeDir: home,
+        env: { PATH: '', HOME: home },
+      }),
+    ).resolves.toMatchObject({
+      status: 'needs_review',
+      errors: [],
+    })
+  })
+
   it('refuses real-user apply, symlink escape, and stale digest', async () => {
     const adapter = createGrokObserverAdapter()
     const refused = await adapter.install({ confirm: true })
@@ -589,13 +622,12 @@ describe('grok hook CLI', () => {
 
 describe('grok plugin discovery', () => {
   it('validates the official plugin component inventory', () => {
-    const validated = spawnSync(
-      'grok',
-      ['plugin', 'validate', resolveGrokPluginSourceDir()],
-      { encoding: 'utf8' },
-    )
-    if (validated.error) {
-      expect(validated.error.message).not.toContain('ENOENT')
+    const validated = spawnGrokIfPresent([
+      'plugin',
+      'validate',
+      resolveGrokPluginSourceDir(),
+    ])
+    if (!validated) {
       return
     }
     expect(validated.status).toBe(0)
@@ -614,15 +646,13 @@ describe('grok plugin discovery', () => {
           sha: readFileSync(realConfig, 'utf8'),
         }
       : null
-    const validated = spawnSync(
-      'grok',
+    const validated = spawnGrokIfPresent(
       ['plugin', 'validate', resolveGrokPluginSourceDir()],
-      {
-        encoding: 'utf8',
-        env: isolatedEnv(grokHome, isolatedHome),
-      },
+      { env: isolatedEnv(grokHome, isolatedHome) },
     )
-    expect(validated.error).toBeUndefined()
+    if (!validated) {
+      return
+    }
     expect(validated.status).toBe(0)
     expect(validated.stdout).toMatch(/hooks/)
 
@@ -676,6 +706,21 @@ describe('grok plugin discovery', () => {
     }
   })
 })
+
+function spawnGrokIfPresent(
+  args: readonly string[],
+  options: { readonly env?: NodeJS.ProcessEnv; readonly cwd?: string } = {},
+) {
+  const result = spawnSync('grok', [...args], {
+    encoding: 'utf8',
+    ...(options.env ? { env: options.env } : {}),
+    ...(options.cwd ? { cwd: options.cwd } : {}),
+  })
+  if (result.error?.message.includes('ENOENT')) {
+    return null
+  }
+  return result
+}
 
 function isolatedEnv(grokHome: string, home: string): NodeJS.ProcessEnv {
   return {

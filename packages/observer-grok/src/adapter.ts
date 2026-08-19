@@ -8,6 +8,7 @@ import {
   type ObserverAdapter,
   type ObserverHealth,
   type ObserverInstallOptions,
+  type ObserverInstallResult,
 } from '@sikumi-local/observer-core'
 import { discoverGrokHooks, missingGrokEvents } from './discovery.js'
 import {
@@ -24,13 +25,25 @@ export function createGrokObserverAdapter(): ObserverAdapter {
     displayName: displayNameForSource('grok-build'),
     capabilities: DIRECT_HOOK_CAPABILITIES,
     async healthCheck(options) {
-      return inspectGrokHealth(options)
+      try {
+        return await inspectGrokHealth(options)
+      } catch {
+        return unavailableHealth({
+          status: 'degraded',
+          warnings: [GROK_HEALTH_UNAVAILABLE_WARNING],
+          errors: [],
+        })
+      }
     },
     async install(options) {
-      return applyGrokHookMutation('install', options ?? {})
+      return markGrantedGrokApply(
+        applyGrokHookMutation('install', options ?? {}),
+      )
     },
     async uninstall(options) {
-      return applyGrokHookMutation('uninstall', options ?? {})
+      return markGrantedGrokApply(
+        applyGrokHookMutation('uninstall', options ?? {}),
+      )
     },
     normalize(input) {
       return normalizeGrokEvent(input)
@@ -62,8 +75,9 @@ export async function inspectGrokHealth(
       options.lastEventAt,
     )
   }
-  const version = await inspectGrokVersion(options.env)
+  const version = await inspectGrokVersionSafe(options.env)
   const detectedVersion = version.version ?? 'grok-hooks'
+  const cliWarning = version.version ? [] : [GROK_CLI_MISSING_WARNING]
   if (!installedHookCommandExists(options, GROK_HOOK_COMMAND_NAME, command)) {
     return rememberAdapterObservation(
       {
@@ -72,7 +86,7 @@ export async function inspectGrokHealth(
         detectedVersion,
         supportedRange,
         lastEventAt: null,
-        warnings: discovery.evidence,
+        warnings: [...discovery.evidence, ...cliWarning],
         errors: ['Hookコマンドの実行ファイルが見つかりません'],
       },
       options.lastEventAt,
@@ -88,6 +102,7 @@ export async function inspectGrokHealth(
         lastEventAt: null,
         warnings: [
           ...discovery.evidence,
+          ...cliWarning,
           `検出version ${detectedVersion} は検証済み範囲 ${GROK_SUPPORTED_VERSION_RANGE.label} の外です。Git観測は続けます。`,
         ],
         errors: [],
@@ -106,6 +121,7 @@ export async function inspectGrokHealth(
         lastEventAt: null,
         warnings: [
           ...discovery.evidence,
+          ...cliWarning,
           `未設定のイベント: ${missing.join(', ')}`,
         ],
         errors: [],
@@ -122,6 +138,7 @@ export async function inspectGrokHealth(
       lastEventAt: null,
       warnings: [
         ...discovery.evidence,
+        ...cliWarning,
         '設定は見つかりましたが、Sikumiがhook eventを受信した記録はありません',
         '設定ファイルだけでは ready としません。実event受信が必要です',
       ],
@@ -129,4 +146,36 @@ export async function inspectGrokHealth(
     },
     options.lastEventAt,
   )
+}
+
+export const GROK_CLI_MISSING_WARNING =
+  'Grok CLI が見つかりません。設定は書き込み済みです。Grok が入っていると様子を送れます。'
+
+export const GROK_HEALTH_UNAVAILABLE_WARNING =
+  'Grok の状態を確認できませんでした。設定があれば庭へのつなぎはそのままです。'
+
+function markGrantedGrokApply(
+  result: ObserverInstallResult,
+): ObserverInstallResult {
+  if (!result.ok || result.requiresConfirm === true) {
+    return result
+  }
+  return {
+    ...result,
+    applied: true,
+  }
+}
+
+async function inspectGrokVersionSafe(
+  env?: NodeJS.ProcessEnv,
+): Promise<Awaited<ReturnType<typeof inspectGrokVersion>>> {
+  try {
+    return await inspectGrokVersion(env)
+  } catch {
+    return {
+      version: null,
+      classification: 'unknown',
+      supportedRange: GROK_SUPPORTED_VERSION_RANGE.label,
+    }
+  }
 }

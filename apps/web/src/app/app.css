@@ -2562,7 +2562,7 @@ footer span {
   right: 18px;
   bottom: 18px;
   z-index: 9;
-  width: min(280px, 52vw);
+  width: min(300px, 56vw);
   padding: 12px 12px 10px;
   color: #36372f;
   background: linear-gradient(
@@ -2616,6 +2616,12 @@ footer span {
 .garden-inspect__facts dd {
   margin: 0;
   font-size: 13px;
+}
+.garden-inspect__driver {
+  display: block;
+  margin-top: 2px;
+  color: #6f6c5e;
+  font-size: 12px;
 }
 .garden-inspect__meaning,
 .garden-inspect__occupants,

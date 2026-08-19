@@ -452,19 +452,11 @@ function expandGardenActorSources(
       })
       continue
     }
-    const drafts = streams.map((session, streamIndex) =>
-      residentForLiveStream(resident, session, streamIndex, nowMs),
+    sources.push(
+      ...streams.map((session, streamIndex) =>
+        residentForLiveStream(resident, session, streamIndex, nowMs),
+      ),
     )
-    const summaries = drafts.map((draft) => describeVisibleFacts(draft))
-    const needDisambiguate = new Set(summaries).size < summaries.length
-    for (const [streamIndex, draft] of drafts.entries()) {
-      sources.push({
-        ...draft,
-        placeName: needDisambiguate
-          ? disambiguatedPlaceName(resident.placeName, streamIndex)
-          : resident.placeName,
-      })
-    }
   }
   return sources
 }
@@ -487,17 +479,19 @@ function residentForLiveStream(
   const tone = resolveTone(session.status, session.activity)
   const spoken = streamSpokenTitle(session)
   const primary = streamIndex === 0
+  const sharedWork = hasSharedEverydayWork(resident)
   return {
     ...resident,
     key: `${resident.repositoryId}:${session.id}`,
     working: tone === 'working',
     waiting: tone === 'waiting',
-    lastObservedWork: spoken ?? (primary ? '' : ANOTHER_LIVE_WORK),
+    lastObservedWork:
+      spoken ?? (primary || sharedWork ? '' : ANOTHER_LIVE_WORK),
     lastObservedLabel: session.lastObservedLabel,
     lastObservedWorkLabel: session.lastObservedLabel,
     lastObservedAt: session.lastObservedAt,
-    workStory: primary ? resident.workStory : null,
-    placeIntro: primary ? resident.placeIntro : null,
+    workStory: primary || sharedWork ? resident.workStory : null,
+    placeIntro: primary || sharedWork ? resident.placeIntro : null,
     articleTitles: primary ? resident.articleTitles : [],
     workTitles: primary ? resident.workTitles : [],
     goal: sessionGoal(session) ?? (primary ? resident.goal : null),
@@ -510,6 +504,10 @@ function residentForLiveStream(
     workTool: everydayWorkTool(session, nowMs),
     streamIndex,
   }
+}
+
+function hasSharedEverydayWork(resident: PlaceResident): boolean {
+  return Boolean(resident.workStory || placeWorkLook(resident.placeIntro))
 }
 
 function streamSpokenTitle(session: OverviewSession): string | null {
@@ -527,17 +525,6 @@ function streamSpokenTitle(session: OverviewSession): string | null {
     return named
   }
   return null
-}
-
-function disambiguatedPlaceName(
-  placeName: string,
-  streamIndex: number,
-): string {
-  if (streamIndex === 0) {
-    return placeName
-  }
-  const base = placeName.replace(/番$/, '').trim() || placeName
-  return `${base} ${streamIndex + 1}`
 }
 
 export function collectGardenActors(

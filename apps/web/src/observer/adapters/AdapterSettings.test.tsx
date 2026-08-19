@@ -6,154 +6,162 @@ import { AdapterSettings } from './AdapterSettings'
 const fetchMock = vi.fn()
 
 beforeEach(() => {
-  fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
-    if (url.endsWith('/api/session')) {
-      return json({ token: 't' })
-    }
-    if (url.endsWith('/api/workspaces')) {
-      return json({
-        workspaces: [
-          {
-            id: 'ws_1',
-            name: 'demo',
-            defaultProviderId: null,
-            worldPackId: 'dog-office',
-            createdAt: 't',
-            updatedAt: 't',
-            repository: {
-              id: 'repo_1',
-              absolutePath: '/tmp/project',
-              displayName: 'demo-repo',
-              currentBranch: 'main',
-              remoteName: null,
-              remoteUrl: null,
-              readable: true,
-            },
-          },
-        ],
-      })
-    }
-    if (url.endsWith('/api/observer/adapters')) {
-      return json({
-        adapters: [
-          {
-            id: 'codex',
-            source: 'codex',
-            displayName: 'Codex',
-            enabled: false,
-            installationStatus: 'not_installed',
-            lastEventAt: null,
-            health: {
-              ok: false,
-              status: 'not_installed',
-              warnings: [],
-              errors: ['Codex Hooks はまだ導入されていません'],
-            },
-          },
-          {
-            id: 'claude-code',
-            source: 'claude-code',
-            displayName: 'Claude Code',
-            enabled: true,
-            installationStatus: 'needs_review',
-            lastEventAt: null,
-            health: {
-              ok: false,
-              status: 'needs_review',
-              warnings: ['設定は見つかりましたが、Sikumiがhook eventを受信した記録はありません'],
-              errors: [],
-            },
-          },
-          {
-            id: 'cursor',
-            source: 'cursor',
-            displayName: 'Cursor',
-            enabled: false,
-            installationStatus: 'not_installed',
-            lastEventAt: null,
-            health: {
-              ok: false,
-              status: 'not_installed',
-              warnings: [],
-              errors: ['Cursor Hooks はまだ導入されていません'],
-            },
-          },
-          {
-            id: 'grok-build',
-            source: 'grok-build',
-            displayName: 'Grok Build',
-            enabled: false,
-            installationStatus: 'not_installed',
-            lastEventAt: null,
-            health: {
-              ok: false,
-              status: 'not_installed',
-              warnings: [],
-              errors: ['Grok Build Hooks / Plugin はまだ導入されていません'],
-            },
-          },
-          {
-            id: 'claude-desktop',
-            source: 'claude-desktop',
-            displayName: 'Claudeアプリ',
-            enabled: false,
-            installationStatus: 'not_installed',
-            lastEventAt: null,
-            health: {
-              ok: false,
-              status: 'not_installed',
-              warnings: ['制限付きの協調報告です'],
-              errors: ['Claudeアプリ向けの協調報告パッケージはまだ生成されていません'],
-            },
-          },
-        ],
-      })
-    }
-    if (
-      (url.endsWith('/install') || url.endsWith('/uninstall')) &&
-      init?.method === 'POST'
-    ) {
-      const action = url.endsWith('/uninstall') ? 'uninstall' : 'install'
-      const body = JSON.parse(String(init.body ?? '{}')) as {
-        confirm?: boolean
-        confirmationToken?: string
-        planDigest?: string
-        scope?: string
-        repositoryId?: string
+  fetchMock.mockImplementation(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return json({ token: 't' })
       }
-      if (body.confirm) {
+      if (url.endsWith('/api/workspaces')) {
+        return json({
+          workspaces: [
+            {
+              id: 'ws_1',
+              name: 'demo',
+              defaultProviderId: null,
+              worldPackId: 'dog-office',
+              createdAt: 't',
+              updatedAt: 't',
+              repository: {
+                id: 'repo_1',
+                absolutePath: '/tmp/project',
+                displayName: 'demo-repo',
+                currentBranch: 'main',
+                remoteName: null,
+                remoteUrl: null,
+                readable: true,
+              },
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/api/observer/adapters')) {
+        return json({
+          adapters: [
+            {
+              id: 'codex',
+              source: 'codex',
+              displayName: 'Codex',
+              enabled: false,
+              installationStatus: 'not_installed',
+              lastEventAt: null,
+              health: {
+                ok: false,
+                status: 'not_installed',
+                warnings: [],
+                errors: ['Codex Hooks はまだ導入されていません'],
+              },
+            },
+            {
+              id: 'claude-code',
+              source: 'claude-code',
+              displayName: 'Claude Code',
+              enabled: true,
+              installationStatus: 'needs_review',
+              lastEventAt: null,
+              health: {
+                ok: false,
+                status: 'needs_review',
+                warnings: [
+                  '設定は見つかりましたが、Sikumiがhook eventを受信した記録はありません',
+                ],
+                errors: [],
+              },
+            },
+            {
+              id: 'cursor',
+              source: 'cursor',
+              displayName: 'Cursor',
+              enabled: false,
+              installationStatus: 'not_installed',
+              lastEventAt: null,
+              health: {
+                ok: false,
+                status: 'not_installed',
+                warnings: [],
+                errors: ['Cursor Hooks はまだ導入されていません'],
+              },
+            },
+            {
+              id: 'grok-build',
+              source: 'grok-build',
+              displayName: 'Grok Build',
+              enabled: false,
+              installationStatus: 'not_installed',
+              lastEventAt: null,
+              health: {
+                ok: false,
+                status: 'not_installed',
+                warnings: [],
+                errors: ['Grok Build Hooks / Plugin はまだ導入されていません'],
+              },
+            },
+            {
+              id: 'claude-desktop',
+              source: 'claude-desktop',
+              displayName: 'Claudeアプリ',
+              enabled: false,
+              installationStatus: 'not_installed',
+              lastEventAt: null,
+              health: {
+                ok: false,
+                status: 'not_installed',
+                warnings: ['制限付きの協調報告です'],
+                errors: [
+                  'Claudeアプリ向けの協調報告パッケージはまだ生成されていません',
+                ],
+              },
+            },
+          ],
+        })
+      }
+      if (
+        (url.endsWith('/install') || url.endsWith('/uninstall')) &&
+        init?.method === 'POST'
+      ) {
+        const action = url.endsWith('/uninstall') ? 'uninstall' : 'install'
+        const body = JSON.parse(String(init.body ?? '{}')) as {
+          confirm?: boolean
+          confirmationToken?: string
+          planDigest?: string
+          scope?: string
+          repositoryId?: string
+        }
+        if (body.confirm) {
+          return json({
+            result: {
+              ok: true,
+              changed: true,
+              applied: true,
+              message:
+                action === 'uninstall'
+                  ? '表示した対象から Hooks を外しました。'
+                  : '表示した対象へ Hooks を書きました。',
+              targetRoot:
+                body.scope === 'repo' ? '/tmp/project' : '/Users/example',
+            },
+          })
+        }
         return json({
           result: {
             ok: true,
-            changed: true,
-            applied: true,
-            message:
+            changed: false,
+            requiresConfirm: true,
+            confirmationToken: 'preview-digest',
+            planDigest: 'preview-digest',
+            targetRoot:
+              body.scope === 'repo' ? '/tmp/project' : '/Users/example',
+            message: '差分を確認しました。この操作ではまだ書き込みません。',
+            preview:
               action === 'uninstall'
-                ? '表示した対象から Hooks を外しました。'
-                : '表示した対象へ Hooks を書きました。',
-            targetRoot: body.scope === 'repo' ? '/tmp/project' : '/Users/example',
+                ? 'remove /Users/example/.codex/hooks.json'
+                : 'create /Users/example/.codex/hooks.json',
           },
         })
       }
-      return json({
-        result: {
-          ok: true,
-          changed: false,
-          requiresConfirm: true,
-          confirmationToken: 'preview-digest',
-          planDigest: 'preview-digest',
-          targetRoot: body.scope === 'repo' ? '/tmp/project' : '/Users/example',
-          message: '差分を確認しました。この操作ではまだ書き込みません。',
-          preview:
-            action === 'uninstall'
-              ? 'remove /Users/example/.codex/hooks.json'
-              : 'create /Users/example/.codex/hooks.json',
-        },
-      })
-    }
-    return json({ error: { message: 'not found' } }, 404)
-  })
+      return json({ error: { message: 'not found' } }, 404)
+    },
+  )
   vi.stubGlobal('fetch', fetchMock)
 })
 
@@ -164,22 +172,28 @@ afterEach(() => {
 describe('AdapterSettings', () => {
   it('shows a preview first and only applies after explicit confirm with the digest', async () => {
     render(<AdapterSettings />)
-    expect(await screen.findByRole('heading', { name: '庭につなぐ道具' })).toBeVisible()
-    expect(await screen.findByTestId('observer-adapter-codex')).toHaveTextContent(
-      'まだつながっていない',
-    )
-    expect(screen.getByTestId('observer-adapter-claude-code')).toHaveTextContent(
-      '要確認',
-    )
+    expect(
+      await screen.findByRole('heading', { name: '庭につなぐ道具' }),
+    ).toBeVisible()
+    expect(
+      await screen.findByTestId('observer-adapter-codex'),
+    ).toHaveTextContent('まだつながっていない')
+    expect(
+      screen.getByTestId('observer-adapter-claude-code'),
+    ).toHaveTextContent('要確認')
     expect(screen.queryByText('観測するAIアプリ')).toBeNull()
     expect(screen.queryByText('未導入')).toBeNull()
     expect(screen.queryByRole('button', { name: '導入差分' })).toBeNull()
     expect(screen.queryByRole('button', { name: '解除差分' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'この場所につなぐ' })).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'この場所につなぐ' }),
+    ).toBeNull()
     expect(screen.getByText(/一度つなぎます/)).toBeVisible()
     await userEvent.click(screen.getAllByRole('button', { name: 'つなぐ' })[0]!)
     expect(
-      await screen.findByText(/このパソコン全体で、Codex が庭に様子を知らせるようにします/),
+      await screen.findByText(
+        /このパソコン全体で、Codex が庭に様子を知らせるようにします/,
+      ),
     ).toBeVisible()
     const details = screen.getByText('くわしく見る').closest('details')
     expect(details).not.toBeNull()
@@ -211,7 +225,9 @@ describe('AdapterSettings', () => {
 
   it('keeps the same Claude Code repository scope on preview and apply', async () => {
     render(<AdapterSettings />)
-    expect(await screen.findByLabelText('Claude Code のつなぐ範囲')).toBeVisible()
+    expect(
+      await screen.findByLabelText('Claude Code のつなぐ範囲'),
+    ).toBeVisible()
     await userEvent.selectOptions(
       screen.getByLabelText('Claude Code のつなぐ範囲'),
       'repo',
@@ -220,11 +236,11 @@ describe('AdapterSettings', () => {
       screen.getByLabelText('Claude Code の場所'),
       'repo_1',
     )
-    await userEvent.click(
-      screen.getAllByRole('button', { name: 'つなぐ' })[1]!,
-    )
+    await userEvent.click(screen.getAllByRole('button', { name: 'つなぐ' })[1]!)
     expect(
-      await screen.findByText(/demo-repo だけで、Claude Code が庭に様子を知らせるようにします/),
+      await screen.findByText(
+        /demo-repo だけで、Claude Code が庭に様子を知らせるようにします/,
+      ),
     ).toBeVisible()
     const previewCall = fetchMock.mock.calls.find(([input, init]) => {
       return (
@@ -256,9 +272,9 @@ describe('AdapterSettings', () => {
 
   it('offers Cursor and Grok Build connect actions with repo scope', async () => {
     render(<AdapterSettings />)
-    expect(await screen.findByTestId('observer-adapter-cursor')).toHaveTextContent(
-      'まだつながっていない',
-    )
+    expect(
+      await screen.findByTestId('observer-adapter-cursor'),
+    ).toHaveTextContent('まだつながっていない')
     expect(screen.getByTestId('observer-adapter-grok-build')).toHaveTextContent(
       'まだつながっていない',
     )
@@ -279,12 +295,18 @@ describe('AdapterSettings', () => {
     const card = await screen.findByTestId('observer-adapter-claude-desktop')
     expect(card).toHaveTextContent('自分から知らせてくれた分だけ')
     expect(card).toHaveTextContent('全部を自動で見ることはできません')
-    expect(screen.getByRole('button', { name: 'パッケージをつくる' })).toBeVisible()
-    await userEvent.click(screen.getByRole('button', { name: 'パッケージをつくる' }))
+    expect(
+      screen.getByRole('button', { name: 'パッケージをつくる' }),
+    ).toBeVisible()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'パッケージをつくる' }),
+    )
     expect(
       await screen.findByRole('button', { name: 'このパッケージをつくる' }),
     ).toBeVisible()
-    expect(screen.getByText(/Claude Desktop の設定から、自分で入れてください/)).toBeVisible()
+    expect(
+      screen.getByText(/Claude Desktop の設定から自分で入れてください/),
+    ).toBeVisible()
     expect(
       screen.queryByRole('button', { name: 'この場所につなぐ' }),
     ).toBeNull()
@@ -295,7 +317,9 @@ describe('AdapterSettings', () => {
     await screen.findByTestId('observer-adapter-codex')
     await userEvent.click(screen.getAllByRole('button', { name: 'はずす' })[0]!)
     expect(
-      await screen.findByText(/このパソコン全体で、Codex から庭への知らせをやめます/),
+      await screen.findByText(
+        /このパソコン全体で、Codex から庭への知らせをやめます/,
+      ),
     ).toBeVisible()
     const details = screen.getByText('くわしく見る').closest('details')
     expect(details).toHaveTextContent('remove /Users/example/.codex/hooks.json')

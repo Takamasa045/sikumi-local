@@ -43,7 +43,11 @@ export function AdapterSettings() {
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : '道具の一覧を読めませんでした')
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : '道具の一覧を読めませんでした',
+          )
         }
       })
     return () => {
@@ -66,7 +70,9 @@ export function AdapterSettings() {
     if (selected.scope === 'repo') {
       return {
         scope: 'repo',
-        ...(selected.repositoryId ? { repositoryId: selected.repositoryId } : {}),
+        ...(selected.repositoryId
+          ? { repositoryId: selected.repositoryId }
+          : {}),
       }
     }
     return { scope: 'user' }
@@ -85,9 +91,16 @@ export function AdapterSettings() {
     }
   }
 
-  async function handlePreview(source: string, action: 'install' | 'uninstall') {
+  async function handlePreview(
+    source: string,
+    action: 'install' | 'uninstall',
+  ) {
     const target = targetFor(source)
-    if (supportsRepoScope(source) && target.scope === 'repo' && !target.repositoryId) {
+    if (
+      supportsRepoScope(source) &&
+      target.scope === 'repo' &&
+      !target.repositoryId
+    ) {
       setError('この場所だけにつなぐには、登録した場所を選んでください')
       return
     }
@@ -107,7 +120,9 @@ export function AdapterSettings() {
         },
       }))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'つなぐ準備ができませんでした')
+      setError(
+        cause instanceof Error ? cause.message : 'つなぐ準備ができませんでした',
+      )
     } finally {
       setBusySource(null)
     }
@@ -124,7 +139,9 @@ export function AdapterSettings() {
     try {
       const result = await applyObserverAdapterAction(source, plan.action, {
         scope: plan.scope,
-        ...(plan.repositoryId === undefined ? {} : { repositoryId: plan.repositoryId }),
+        ...(plan.repositoryId === undefined
+          ? {}
+          : { repositoryId: plan.repositoryId }),
         ...(plan.confirmationToken
           ? { confirmationToken: plan.confirmationToken }
           : {}),
@@ -143,7 +160,9 @@ export function AdapterSettings() {
       }))
       await refresh()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'つなぎ直せませんでした')
+      setError(
+        cause instanceof Error ? cause.message : 'つなぎ直せませんでした',
+      )
     } finally {
       setBusySource(null)
     }
@@ -155,7 +174,8 @@ export function AdapterSettings() {
       <p>
         フォルダを登録したあと、Codex や Claude Code
         が庭に様子を知らせるには、一度つなぎます。つないだら、そのフォルダでいつもどおり動かせば庭が反応します。Cursor
-        と Grok Build も同じです。Claudeアプリは、自分から知らせてくれた分だけ届きます。
+        と Grok Build
+        も同じです。Claudeアプリは、自分から知らせてくれた分だけ届きます。
       </p>
       {error ? (
         <p className="repository-panel__error" role="alert">
@@ -166,7 +186,10 @@ export function AdapterSettings() {
         {adapters.map((adapter) => {
           const plan = plans[adapter.source]
           return (
-            <li key={adapter.id} data-testid={`observer-adapter-${adapter.source}`}>
+            <li
+              key={adapter.id}
+              data-testid={`observer-adapter-${adapter.source}`}
+            >
               <header>
                 <strong>{adapter.displayName}</strong>
                 <span>{statusLabel(adapter.installationStatus)}</span>
@@ -181,7 +204,9 @@ export function AdapterSettings() {
                     <span>つなぐ範囲</span>
                     <select
                       aria-label={`${adapter.displayName} のつなぐ範囲`}
-                      value={(scopes[adapter.source] ?? { scope: 'user' }).scope}
+                      value={
+                        (scopes[adapter.source] ?? { scope: 'user' }).scope
+                      }
                       onChange={(event) => {
                         const scope =
                           event.target.value === 'repo' ? 'repo' : 'user'
@@ -322,7 +347,9 @@ export function AdapterSettings() {
 }
 
 function supportsRepoScope(source: string): boolean {
-  return source === 'claude-code' || source === 'cursor' || source === 'grok-build'
+  return (
+    source === 'claude-code' || source === 'cursor' || source === 'grok-build'
+  )
 }
 
 function canInstall(source: string): boolean {
@@ -391,8 +418,9 @@ function placeLabel(
   if (plan.scope !== 'repo') {
     return 'このパソコン全体'
   }
-  const name = repositories.find((repository) => repository.id === plan.repositoryId)
-    ?.displayName
+  const name = repositories.find(
+    (repository) => repository.id === plan.repositoryId,
+  )?.displayName
   return name ? `${name} だけ` : 'この場所だけ'
 }
 
@@ -404,7 +432,7 @@ function planConfirmation(
   if (adapter.source === 'claude-desktop') {
     if (plan.action === 'install') {
       return plan.applied && plan.ok
-        ? 'パッケージを作りました。Claude Desktop の設定から、自分で入れてください。'
+        ? 'パッケージを作りました。Claude Desktop の設定から自分で入れてください。'
         : 'Claudeアプリ用の小さな道具を作ります。できたファイルは、Claude Desktop の設定から自分で入れてください。'
     }
     return plan.applied && plan.ok

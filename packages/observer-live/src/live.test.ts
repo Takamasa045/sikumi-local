@@ -19,7 +19,11 @@ import { discoverLiveSessions } from './discover.js'
 import { identifyLiveAgent } from './identify.js'
 import { resetPlaceIdentityCache, sameRepoIdentity } from './identity.js'
 import { isBindableCwd, matchRegisteredRoot } from './match.js'
-import { encodeClaudeProjectDir } from './session-files.js'
+import {
+  listCurrentUserLiveProcesses,
+  liveProcessDiscoveryMode,
+} from './processes.js'
+import { encodeClaudeProjectDir, sessionHomeRoots } from './session-files.js'
 import { acceptStoredTitle } from './titles.js'
 import type { LiveProcessRow, RegisteredLiveRoot } from './types.js'
 
@@ -42,7 +46,10 @@ describe('identifyLiveAgent', () => {
       identifyLiveAgent({ command: 'claude', args: 'claude --resume' }),
     ).toEqual({ source: 'claude-code', surface: 'cli' })
     expect(
-      identifyLiveAgent({ command: 'Cursor', args: '/Applications/Cursor.app/Contents/MacOS/Cursor' }),
+      identifyLiveAgent({
+        command: 'Cursor',
+        args: '/Applications/Cursor.app/Contents/MacOS/Cursor',
+      }),
     ).toEqual({ source: 'cursor', surface: 'ide' })
     expect(
       identifyLiveAgent({ command: 'cursor-agent', args: 'cursor-agent' }),
@@ -238,6 +245,33 @@ describe('discoverLiveSessions', () => {
     expect(JSON.stringify(sightings)).not.toContain('this prompt must vanish')
   })
 
+  it('binds a session file to a Windows-style registered folder from the home sessions dir', () => {
+    const home = track(createTempDir('home-'))
+    const registered = 'C:\\Users\\mei\\Projects\\blog'
+    writeCodexSession(home, {
+      id: 'sess-win',
+      cwd: 'C:/Users/mei/Projects/blog',
+      mtime: NOW - 10_000,
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-blog', 'ws-blog', registered)],
+      listProcesses: () => [],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      kind: 'session-file',
+      repositoryId: 'repo-blog',
+      cwd: 'C:/Users/mei/Projects/blog',
+      ingestionMethod: 'session-file',
+    })
+  })
+
   it('attaches a session title to a live process without inventing one', () => {
     const home = track(createTempDir('home-'))
     const blog = track(createTempDir('blog-'))
@@ -312,16 +346,10 @@ describe('matchRegisteredRoot', () => {
   it('does not treat a same-leaf nested folder as the registered place without the same repo', () => {
     const roots = [root('repo', 'ws', '/Users/takamasa/Projects/hataraki')]
     expect(
-      matchRegisteredRoot(
-        '/Users/takamasa/Projects/*開発/hataraki',
-        roots,
-      ),
+      matchRegisteredRoot('/Users/takamasa/Projects/*開発/hataraki', roots),
     ).toBeNull()
     expect(
-      matchRegisteredRoot(
-        '/Users/takamasa/Projects/*開発/hataraki/src',
-        roots,
-      ),
+      matchRegisteredRoot('/Users/takamasa/Projects/*開発/hataraki/src', roots),
     ).toBeNull()
     expect(matchRegisteredRoot('/Users/other/hataraki', roots)).toBeNull()
     expect(
@@ -352,9 +380,67 @@ describe('matchRegisteredRoot', () => {
     expect(matchRegisteredRoot(olderSikumi, roots)).toBeNull()
     expect(matchRegisteredRoot(join(olderSikumi, 'src'), roots)).toBeNull()
     expect(matchRegisteredRoot(trueTwin, roots)?.repositoryId).toBe('repo')
-    expect(matchRegisteredRoot(join(trueTwin, 'src'), roots)?.repositoryId).toBe(
-      'repo',
+    expect(
+      matchRegisteredRoot(join(trueTwin, 'src'), roots)?.repositoryId,
+    ).toBe('repo')
+  })
+
+  it('matches Windows drive paths in both slash styles and refuses a sibling', () => {
+    const roots = [root('repo', 'ws', 'C:\\Users\\mei\\project')]
+    expect(
+      matchRegisteredRoot('C:\\Users\\mei\\project', roots)?.repositoryId,
+    ).toBe('repo')
+    expect(
+      matchRegisteredRoot('C:/Users/mei/project/src', roots)?.repositoryId,
+    ).toBe('repo')
+    expect(
+      matchRegisteredRoot('C:\\Users\\mei\\project-other', roots),
+    ).toBeNull()
+    expect(isBindableCwd('C:\\')).toBe(false)
+    expect(isBindableCwd('C:')).toBe(false)
+    expect(matchRegisteredRoot('C:\\', roots)).toBeNull()
+  })
+
+  it('does not treat a Windows * nested folder as the registered place', () => {
+    const roots = [root('repo', 'ws', 'C:\\Users\\mei\\Projects\\hataraki')]
+    expect(
+      matchRegisteredRoot('C:\\Users\\mei\\Projects\\*開発\\hataraki', roots),
+    ).toBeNull()
+    expect(matchRegisteredRoot('C:/Users/other/hataraki', roots)).toBeNull()
+  })
+})
+
+describe('session home roots', () => {
+  it('joins Codex, Claude, and Cursor folders under a Windows home', () => {
+    expect(sessionHomeRoots('C:\\Users\\mei')).toEqual({
+      codexSessions: 'C:\\Users\\mei\\.codex\\sessions',
+      claudeProjects: 'C:\\Users\\mei\\.claude\\projects',
+      cursorChats: 'C:\\Users\\mei\\.cursor\\chats',
+      grokSessions: 'C:\\Users\\mei\\.grok\\sessions',
+    })
+    expect(sessionHomeRoots('C:/Users/mei').codexSessions).toBe(
+      'C:\\Users\\mei\\.codex\\sessions',
     )
+  })
+
+  it('still joins POSIX homes with path.join semantics', () => {
+    expect(sessionHomeRoots('/Users/mei').codexSessions).toBe(
+      '/Users/mei/.codex/sessions',
+    )
+  })
+})
+
+describe('Windows process discovery', () => {
+  it('does not scan Unix process tables on Windows', () => {
+    expect(liveProcessDiscoveryMode('win32')).toBe('session-files-only')
+    expect(liveProcessDiscoveryMode('darwin')).toBe('process-scan')
+    expect(
+      listCurrentUserLiveProcesses({
+        platform: 'win32',
+        currentUser: 'mei',
+        hasProcFs: true,
+      }),
+    ).toEqual([])
   })
 })
 

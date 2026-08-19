@@ -31,7 +31,7 @@ describe('RepositoryPanel', () => {
     expect(screen.getByText(/「フォルダを選ぶ」から登録します/)).toBeVisible()
     expect(screen.getByLabelText('場所のパス')).toHaveAttribute(
       'placeholder',
-      '/Users/example/Projects/my-website',
+      '例：自分のプロジェクトのフォルダ',
     )
   })
 

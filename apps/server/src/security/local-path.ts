@@ -1,6 +1,7 @@
 import { homedir } from 'node:os'
-import { isAbsolute, resolve } from 'node:path'
+import { isAbsolute, resolve, win32 } from 'node:path'
 import { AppError } from '@sikumi-local/core'
+import { looksWindowsAbsolutePath } from '@sikumi-local/observer-core'
 import { assertNoPathTraversal } from '@sikumi-local/process-runtime'
 
 const MAX_PATH_LENGTH = 4096
@@ -21,7 +22,7 @@ export function resolveRegisteredPath(input: string): string {
   const decoded = decodeRegisteredPath(trimmed)
   const expanded = expandHomeDirectory(decoded)
   decodeRegisteredPath(expanded.normalize('NFKC'))
-  if (!isAbsolute(expanded)) {
+  if (!isAbsolute(expanded) && !looksWindowsAbsolutePath(expanded)) {
     throw new AppError(
       'REPOSITORY_NOT_FOUND',
       'Repository path must be absolute',
@@ -29,7 +30,11 @@ export function resolveRegisteredPath(input: string): string {
     )
   }
 
-  const resolved = resolve(expanded)
+  const resolved = looksWindowsAbsolutePath(expanded)
+    ? process.platform === 'win32'
+      ? resolve(expanded)
+      : win32.normalize(expanded)
+    : resolve(expanded)
   decodeRegisteredPath(resolved)
   return resolved
 }
@@ -69,7 +74,7 @@ function expandHomeDirectory(input: string): string {
     return homedir()
   }
   if (input.startsWith('~/') || input.startsWith('~\\')) {
-    return resolve(homedir(), input.slice(2))
+    return resolve(homedir(), ...input.slice(2).split(/[/\\]/).filter(Boolean))
   }
   return input
 }

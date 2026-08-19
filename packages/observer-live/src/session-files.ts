@@ -113,7 +113,11 @@ function readCodexTitleIndex(homeDir: string): Map<string, string> {
   for (const line of raw.split(/\r?\n/)) {
     const parsed = parseJsonObject(line)
     const id = readString(parsed?.id)
-    const title = firstExplicitTitle(parsed, ['thread_name', 'threadName', 'title'])
+    const title = firstExplicitTitle(parsed, [
+      'thread_name',
+      'threadName',
+      'title',
+    ])
     if (id && title) {
       titles.set(id, title)
     }
@@ -157,11 +161,7 @@ function readClaudeSessions(
       records.push({
         source: 'claude-code',
         cwd,
-        title: firstExplicitTitle(head, [
-          'customTitle',
-          'sessionName',
-          'name',
-        ]),
+        title: firstExplicitTitle(head, ['customTitle', 'sessionName', 'name']),
         lastObservedAt: new Date(fileMtime(file) ?? now).toISOString(),
         externalSessionId: `live:claude-code:${id}`,
       })
@@ -256,7 +256,9 @@ export function encodeClaudeProjectDir(cwd: string): string {
 }
 
 export function claudeProjectDirNames(cwd: string): string[] {
-  return uniqueStrings(pathVariants(cwd).map((item) => encodeClaudeProjectDir(item)))
+  return uniqueStrings(
+    pathVariants(cwd).map((item) => encodeClaudeProjectDir(item)),
+  )
 }
 
 export function cursorWorkspaceKeyHashes(absolutePath: string): string[] {
@@ -286,7 +288,10 @@ function pathVariants(path: string): string[] {
   return [...variants]
 }
 
-function firstExistingJoin(root: string, names: readonly string[]): string | null {
+function firstExistingJoin(
+  root: string,
+  names: readonly string[],
+): string | null {
   for (const name of names) {
     const candidate = safeJoinUnderRoot(root, name)
     if (candidate && existsSync(candidate)) {

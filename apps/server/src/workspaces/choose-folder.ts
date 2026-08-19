@@ -23,7 +23,7 @@ export type FolderPickerInvocation = {
 
 const WINDOWS_FOLDER_PICKER_SCRIPT = [
   "$ErrorActionPreference = 'Stop'",
-  "Add-Type -AssemblyName System.Windows.Forms",
+  'Add-Type -AssemblyName System.Windows.Forms',
   '[System.Windows.Forms.Application]::EnableVisualStyles()',
   '$dialog = New-Object System.Windows.Forms.FolderBrowserDialog',
   "$dialog.Description = '観測する場所を選んでください'",
@@ -133,9 +133,7 @@ export function isFolderPickerCancel(error: unknown): boolean {
     readonly message?: string
   }
   const text = `${record.stderr ?? ''} ${record.message ?? ''}`
-  return /user canceled|user cancelled|-128|operation cancelled|operation canceled/i.test(
-    text,
-  )
+  return /user cancel+ed|operation (was )?cancel+ed|-128/i.test(text)
 }
 
 async function defaultRunner(

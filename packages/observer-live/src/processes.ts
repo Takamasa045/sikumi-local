@@ -182,9 +182,7 @@ function readDarwinProcesses(currentUser: string): LiveProcessRow[] {
 function parsePsLine(
   line: string,
 ): Omit<LiveProcessRow, 'cwd' | 'childCwds'> | null {
-  const match = line
-    .trim()
-    .match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(.*)$/)
+  const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(.*)$/)
   if (!match) {
     return null
   }

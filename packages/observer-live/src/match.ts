@@ -17,7 +17,7 @@ export function isBindableCwd(cwd: string | null | undefined): boolean {
     return false
   }
   const normalized = normalizeComparablePath(cwd)
-  if (UNBINDABLE_CWDS.has(normalized) || /^[a-z]:$/.test(normalized)) {
+  if (UNBINDABLE_CWDS.has(normalized) || /^[a-z]:$/i.test(normalized)) {
     return false
   }
   return true

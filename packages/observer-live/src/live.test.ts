@@ -15,11 +15,11 @@ import { discoverLiveSessions } from './discover.js'
 import { identifyLiveAgent } from './identify.js'
 import { resetPlaceIdentityCache, sameRepoIdentity } from './identity.js'
 import { isBindableCwd, matchRegisteredRoot } from './match.js'
-import { listCurrentUserLiveProcesses, liveProcessDiscoveryMode } from './processes.js'
 import {
-  encodeClaudeProjectDir,
-  sessionHomeRoots,
-} from './session-files.js'
+  listCurrentUserLiveProcesses,
+  liveProcessDiscoveryMode,
+} from './processes.js'
+import { encodeClaudeProjectDir, sessionHomeRoots } from './session-files.js'
 import { acceptStoredTitle } from './titles.js'
 import type { LiveProcessRow, RegisteredLiveRoot } from './types.js'
 
@@ -42,7 +42,10 @@ describe('identifyLiveAgent', () => {
       identifyLiveAgent({ command: 'claude', args: 'claude --resume' }),
     ).toEqual({ source: 'claude-code', surface: 'cli' })
     expect(
-      identifyLiveAgent({ command: 'Cursor', args: '/Applications/Cursor.app/Contents/MacOS/Cursor' }),
+      identifyLiveAgent({
+        command: 'Cursor',
+        args: '/Applications/Cursor.app/Contents/MacOS/Cursor',
+      }),
     ).toEqual({ source: 'cursor', surface: 'ide' })
     expect(
       identifyLiveAgent({ command: 'cursor-agent', args: 'cursor-agent' }),
@@ -339,16 +342,10 @@ describe('matchRegisteredRoot', () => {
   it('does not treat a same-leaf nested folder as the registered place without the same repo', () => {
     const roots = [root('repo', 'ws', '/Users/takamasa/Projects/hataraki')]
     expect(
-      matchRegisteredRoot(
-        '/Users/takamasa/Projects/*開発/hataraki',
-        roots,
-      ),
+      matchRegisteredRoot('/Users/takamasa/Projects/*開発/hataraki', roots),
     ).toBeNull()
     expect(
-      matchRegisteredRoot(
-        '/Users/takamasa/Projects/*開発/hataraki/src',
-        roots,
-      ),
+      matchRegisteredRoot('/Users/takamasa/Projects/*開発/hataraki/src', roots),
     ).toBeNull()
     expect(matchRegisteredRoot('/Users/other/hataraki', roots)).toBeNull()
     expect(
@@ -379,9 +376,9 @@ describe('matchRegisteredRoot', () => {
     expect(matchRegisteredRoot(olderSikumi, roots)).toBeNull()
     expect(matchRegisteredRoot(join(olderSikumi, 'src'), roots)).toBeNull()
     expect(matchRegisteredRoot(trueTwin, roots)?.repositoryId).toBe('repo')
-    expect(matchRegisteredRoot(join(trueTwin, 'src'), roots)?.repositoryId).toBe(
-      'repo',
-    )
+    expect(
+      matchRegisteredRoot(join(trueTwin, 'src'), roots)?.repositoryId,
+    ).toBe('repo')
   })
 
   it('matches Windows drive paths in both slash styles and refuses a sibling', () => {
@@ -392,7 +389,9 @@ describe('matchRegisteredRoot', () => {
     expect(
       matchRegisteredRoot('C:/Users/mei/project/src', roots)?.repositoryId,
     ).toBe('repo')
-    expect(matchRegisteredRoot('C:\\Users\\mei\\project-other', roots)).toBeNull()
+    expect(
+      matchRegisteredRoot('C:\\Users\\mei\\project-other', roots),
+    ).toBeNull()
     expect(isBindableCwd('C:\\')).toBe(false)
     expect(isBindableCwd('C:')).toBe(false)
     expect(matchRegisteredRoot('C:\\', roots)).toBeNull()
@@ -401,14 +400,9 @@ describe('matchRegisteredRoot', () => {
   it('does not treat a Windows * nested folder as the registered place', () => {
     const roots = [root('repo', 'ws', 'C:\\Users\\mei\\Projects\\hataraki')]
     expect(
-      matchRegisteredRoot(
-        'C:\\Users\\mei\\Projects\\*開発\\hataraki',
-        roots,
-      ),
+      matchRegisteredRoot('C:\\Users\\mei\\Projects\\*開発\\hataraki', roots),
     ).toBeNull()
-    expect(
-      matchRegisteredRoot('C:/Users/other/hataraki', roots),
-    ).toBeNull()
+    expect(matchRegisteredRoot('C:/Users/other/hataraki', roots)).toBeNull()
   })
 })
 

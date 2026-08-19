@@ -142,11 +142,11 @@ describe('isFolderPickerCancel', () => {
   })
 
   it('recognizes a Windows dialog cancel without treating a missing binary as cancel', () => {
-    expect(isFolderPickerCancel({ message: 'The operation was canceled' })).toBe(
-      true,
-    )
     expect(
-      isFolderPickerCancel({ message: 'spawn powershell ENOENT' }),
-    ).toBe(false)
+      isFolderPickerCancel({ message: 'The operation was canceled.' }),
+    ).toBe(true)
+    expect(isFolderPickerCancel({ message: 'spawn powershell ENOENT' })).toBe(
+      false,
+    )
   })
 })

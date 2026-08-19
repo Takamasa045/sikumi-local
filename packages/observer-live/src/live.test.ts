@@ -651,6 +651,37 @@ describe('desktop and alias discovery', () => {
       currentUser: 'mei',
       now: NOW,
       roots: [root('repo-hataraki', 'ws-hataraki', hataraki)],
+      listProcesses: () => [],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      surface: 'desktop-app',
+      kind: 'session-file',
+      cwd: hataraki,
+      repositoryId: 'repo-hataraki',
+      ingestionMethod: 'session-file',
+    })
+  })
+
+  it('binds Desktop at / through a huge session file when child cwds are not unique', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = '/Users/takamasa/Projects/hataraki'
+    writeCodexSession(home, {
+      id: '01a01863-16b8-7972-b137-89bc593e6a40',
+      cwd: hataraki,
+      mtime: NOW - 20_000,
+      originator: 'Codex Desktop',
+      clientSource: 'vscode',
+      firstLineBytes: 48_000,
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', hataraki)],
       listProcesses: () => [
         processRow({
           pid: 91,
@@ -667,10 +698,10 @@ describe('desktop and alias discovery', () => {
     expect(sightings[0]).toMatchObject({
       source: 'codex',
       surface: 'desktop-app',
-      kind: 'session-file',
+      kind: 'process',
       cwd: hataraki,
       repositoryId: 'repo-hataraki',
-      ingestionMethod: 'session-file',
+      ingestionMethod: 'process-scan',
     })
   })
 

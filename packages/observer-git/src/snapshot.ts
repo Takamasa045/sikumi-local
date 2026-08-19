@@ -44,6 +44,11 @@ export interface ChangedFileRecord {
   readonly hash: string | null
 }
 
+export interface GitSyncCounts {
+  readonly outgoingCount: number | null
+  readonly incomingCount: number | null
+}
+
 export interface GitRepositorySnapshot {
   readonly available: boolean
   readonly reason: string | null
@@ -52,6 +57,9 @@ export interface GitRepositorySnapshot {
   readonly branch: string | null
   readonly headCommit: string | null
   readonly baseCommit: string | null
+  readonly latestRecordTitle: string | null
+  readonly outgoingCount: number | null
+  readonly incomingCount: number | null
   readonly worktrees: readonly GitWorktreeSnapshot[]
   readonly changedFiles: readonly ChangedFileRecord[]
   readonly scannedAt: string
@@ -71,6 +79,9 @@ export function snapshotGitRepository(
     branch: null,
     headCommit: null,
     baseCommit: null,
+    latestRecordTitle: null,
+    outgoingCount: null,
+    incomingCount: null,
     worktrees: [],
     changedFiles: [],
     scannedAt,
@@ -103,6 +114,8 @@ export function snapshotGitRepository(
   const branch = emptyToNull(runGit(root, ['branch', '--show-current']))
   const headCommit = emptyToNull(runGit(root, ['rev-parse', 'HEAD']))
   const baseCommit = resolveRepositoryBaseCommit(root, headCommit)
+  const latestRecordTitle = readLatestRecordTitle(root)
+  const sync = readSyncCounts(root)
   const worktreeOutput = runGit(root, ['worktree', 'list', '--porcelain']) ?? ''
   const listed = parseWorktreeList(worktreeOutput)
   const worktrees =
@@ -126,6 +139,9 @@ export function snapshotGitRepository(
     branch,
     headCommit,
     baseCommit,
+    latestRecordTitle,
+    outgoingCount: sync.outgoingCount,
+    incomingCount: sync.incomingCount,
     worktrees,
     changedFiles: worktrees.flatMap((worktree) => [...worktree.changedFiles]),
     scannedAt,
@@ -176,6 +192,29 @@ function toRecord(file: ChangedPath): ChangedFileRecord {
     ...file,
     category: area.category,
     label: area.label,
+  }
+}
+
+export function readLatestRecordTitle(cwd: string): string | null {
+  return emptyToNull(runGit(cwd, ['log', '-1', '--format=%s']))
+}
+
+export function readSyncCounts(cwd: string): GitSyncCounts {
+  const output = runGit(
+    cwd,
+    ['rev-list', '--left-right', '--count', '@{upstream}...HEAD'],
+    { allowedFailure: true },
+  )
+  if (!output) {
+    return { outgoingCount: null, incomingCount: null }
+  }
+  const match = /^(\d+)\s+(\d+)$/.exec(output)
+  if (!match) {
+    return { outgoingCount: null, incomingCount: null }
+  }
+  return {
+    incomingCount: Number.parseInt(match[1]!, 10),
+    outgoingCount: Number.parseInt(match[2]!, 10),
   }
 }
 

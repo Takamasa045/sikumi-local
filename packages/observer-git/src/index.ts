@@ -12,9 +12,12 @@ export {
   sanitizeRepoPath,
 } from './paths.js'
 export {
+  readLatestRecordTitle,
+  readSyncCounts,
   snapshotGitRepository,
   type ChangedFileRecord,
   type GitRepositorySnapshot,
+  type GitSyncCounts,
   type GitWorktreeSnapshot,
 } from './snapshot.js'
 export {

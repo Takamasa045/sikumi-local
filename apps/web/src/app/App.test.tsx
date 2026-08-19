@@ -626,7 +626,7 @@ describe('Shikumi Local garden', () => {
       screen.getByText((content) => content === 'my-project'),
     ).toBeVisible()
     expect(screen.queryByText('まだ分かっていません')).toBeNull()
-    expect(screen.getByText(/作業中のファイルが1/)).toBeVisible()
+    expect(screen.getByText(/まだしまっていない変更が1/)).toBeVisible()
     expect(screen.queryByText('Codexが変更中')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: '仕事を頼む' }),
@@ -873,7 +873,7 @@ describe('Shikumi Local garden', () => {
     expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
     expect(screen.getByText('kept-project番')).toBeVisible()
     expect(screen.queryByText('まだ分かっていません')).toBeNull()
-    expect(screen.getByText(/作業中のファイルが1/)).toBeVisible()
+    expect(screen.getByText(/まだしまっていない変更が1/)).toBeVisible()
     expect(
       screen.getByRole('button', { name: 'この場所を追加' }),
     ).toBeVisible()

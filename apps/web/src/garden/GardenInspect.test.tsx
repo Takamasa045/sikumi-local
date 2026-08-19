@@ -68,8 +68,8 @@ describe('GardenInspect', () => {
           station: 'rest',
           traveling: false,
           summary: '',
-          nowText: '作業中のファイルが1 / 画面あたり',
-          implementationLook: '作業中のファイルが1 / 画面あたり',
+          nowText: 'まだしまっていない変更が1 / 画面あたり',
+          implementationLook: 'まだしまっていない変更が1 / 画面あたり',
           nextStep: null,
           live: false,
         }}
@@ -78,7 +78,7 @@ describe('GardenInspect', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('作業中のファイルが1')
+    expect(inspect).toHaveTextContent('まだしまっていない変更が1')
     expect(inspect).toHaveTextContent('画面あたり')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).not.toHaveTextContent('次に動かすまで待つ')

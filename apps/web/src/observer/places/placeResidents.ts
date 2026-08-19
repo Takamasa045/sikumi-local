@@ -2,6 +2,7 @@ import type { GardenStationId, Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
 import {
   describeGardenWork,
+  isEverydayRecordTitle,
   isGenericWorkTitle,
   knownSourceLabel,
   resolveTone,
@@ -57,6 +58,9 @@ export type PlaceResident = {
   readonly changedFileCount: number
   readonly areas: readonly string[]
   readonly conflictCount: number
+  readonly latestRecordTitle: string | null
+  readonly outgoingCount: number | null
+  readonly incomingCount: number | null
   readonly driverNote: string | null
 }
 
@@ -165,6 +169,9 @@ export function collectPlaceResidents(
       changedFileCount: repository.changedFileCount,
       areas: lookAreas(repository),
       conflictCount: repository.conflicts.length,
+      latestRecordTitle: everydayRecordTitle(repository.latestRecordTitle),
+      outgoingCount: repository.outgoingCount ?? null,
+      incomingCount: repository.incomingCount ?? null,
       driverNote: describeObservedDriver(observed, nowMs),
     }
   })
@@ -188,6 +195,9 @@ export function collectPlaceResidents(
       changedFileCount: 0,
       areas: [],
       conflictCount: 0,
+      latestRecordTitle: null,
+      outgoingCount: null,
+      incomingCount: null,
       driverNote: null,
     }))
   return [...fromOverview, ...extras]
@@ -410,17 +420,27 @@ export function describeVisibleFacts(resident: PlaceResident): string {
     parts.push('確認待ち')
   }
   const work = resident.lastObservedWork.trim()
-  if (work && !isGenericWorkTitle(work) && work !== UNKNOWN_PLACE_WORK) {
+  if (work && isEverydayRecordTitle(work) && work !== UNKNOWN_PLACE_WORK) {
     parts.push(work)
   }
   if (resident.changedFileCount > 0) {
-    parts.push(`作業中のファイルが${resident.changedFileCount}`)
+    parts.push(
+      resident.working || resident.waiting
+        ? `作業中のファイルが${resident.changedFileCount}`
+        : `まだしまっていない変更が${resident.changedFileCount}`,
+    )
   }
   const area = uniqueLabels(resident.areas).find(
     (item) => item && item !== '作業中のファイル',
   )
   if (area) {
     parts.push(`${area}あたり`)
+  }
+  if ((resident.outgoingCount ?? 0) > 0) {
+    parts.push('送っていない')
+  }
+  if ((resident.incomingCount ?? 0) > 0) {
+    parts.push('取り込み待ち')
   }
   if (resident.lastObservedWorkLabel) {
     parts.push(`最後に見えたのは${resident.lastObservedWorkLabel}`)
@@ -451,14 +471,14 @@ function describePlaceWork(
   const ranked = [...current].sort(compareObservedAt)
   for (const session of ranked) {
     const title = session.title?.trim()
-    if (title && !isGenericWorkTitle(title) && title !== UNKNOWN_PLACE_WORK) {
+    if (title && isEverydayRecordTitle(title) && title !== UNKNOWN_PLACE_WORK) {
       return title
     }
     const named = session.displayName?.trim()
     const sourceLabel = knownSourceLabel(session.source)
     if (
       named &&
-      !isGenericWorkTitle(named) &&
+      isEverydayRecordTitle(named) &&
       named !== sourceLabel &&
       named !== UNKNOWN_PLACE_WORK &&
       named.toLowerCase() !== sourceKey(session.source)
@@ -473,13 +493,13 @@ function describePlaceWork(
       described &&
       described !== UNKNOWN_GARDEN_WORK &&
       described !== UNKNOWN_PLACE_WORK &&
-      !isGenericWorkTitle(described) &&
+      isEverydayRecordTitle(described) &&
       !described.endsWith('が対象です')
     ) {
       return described
     }
   }
-  return ''
+  return everydayRecordTitle(repository.latestRecordTitle) ?? ''
 }
 
 function describeImplementationLook(resident: PlaceResident): string | null {
@@ -492,7 +512,11 @@ function describeImplementationLook(resident: PlaceResident): string | null {
     return null
   }
   const filesPhrase =
-    count > 0 ? `作業中のファイルが${count}` : null
+    count > 0
+      ? resident.working || resident.waiting
+        ? `作業中のファイルが${count}`
+        : `まだしまっていない変更が${count}`
+      : null
   if (!filesPhrase) {
     return shown.length === 1
       ? `${shown[0]}あたり`
@@ -582,6 +606,14 @@ export function isConfirmedTool(session: OverviewSession): boolean {
     !isGenericWorkTitle(title) &&
     title !== UNKNOWN_PLACE_WORK
   )
+}
+
+function everydayRecordTitle(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed || !isEverydayRecordTitle(trimmed)) {
+    return null
+  }
+  return trimmed
 }
 
 function uniqueLabels(values: readonly string[]): string[] {

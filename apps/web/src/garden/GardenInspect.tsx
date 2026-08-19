@@ -189,6 +189,8 @@ function knownLine(value: string | null | undefined): boolean {
     trimmed.includes('変更元不明') ||
     trimmed.includes('の作業が始まりました') ||
     trimmed.includes('がファイルを扱っています') ||
+    /^[0-9a-f]{7,40}$/i.test(trimmed) ||
+    /\b(SHA|commit|HEAD|origin)\b/i.test(trimmed) ||
     trimmed === '作業中' ||
     trimmed === '作業' ||
     trimmed === 'いまの作業の続き' ||

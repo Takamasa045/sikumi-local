@@ -80,6 +80,26 @@ describe('snapshotGitRepository', () => {
     expect(snapshot.available).toBe(true)
     expect(snapshot.baseCommit).toBeNull()
     expect(snapshot.worktrees[0]?.baseCommit).toBeNull()
+    expect(snapshot.latestRecordTitle).toBe('init')
+    expect(snapshot.outgoingCount).toBeNull()
+    expect(snapshot.incomingCount).toBeNull()
+  })
+
+  it('reads the latest record title and everyday sync counts', () => {
+    const repo = createGitRepo()
+    const bare = join(createTemp(), 'origin.git')
+    execFileSync('git', ['init', '--bare', bare])
+    execFileSync('git', ['remote', 'add', 'origin', bare], { cwd: repo })
+    execFileSync('git', ['push', '-u', 'origin', 'HEAD'], { cwd: repo })
+    writeFileSync(join(repo, 'src/auth.ts'), 'export const a = 3\n')
+    execFileSync('git', ['add', 'src/auth.ts'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'ログイン画面の直し'], { cwd: repo })
+
+    const snapshot = snapshotGitRepository(repo)
+    expect(snapshot.latestRecordTitle).toBe('ログイン画面の直し')
+    expect(snapshot.outgoingCount).toBe(1)
+    expect(snapshot.incomingCount).toBe(0)
+    expect(snapshot.headCommit).not.toBe('ログイン画面の直し')
   })
 
   it('uses merge-base of worktree branches without mutating git', () => {

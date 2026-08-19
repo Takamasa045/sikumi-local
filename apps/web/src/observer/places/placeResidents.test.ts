@@ -505,9 +505,11 @@ describe('describePlaceInspect', () => {
     )
 
     const inspect = describePlaceInspect(resident!)
-    expect(inspect.nowText).toBe('作業中のファイルが1 / ログイン状態あたり')
+    expect(inspect.nowText).toBe(
+      'まだしまっていない変更が1 / ログイン状態あたり',
+    )
     expect(inspect.implementationLook).toBe(
-      '作業中のファイルが1 / ログイン状態あたり',
+      'まだしまっていない変更が1 / ログイン状態あたり',
     )
     expect(inspect.nextStep).toBeNull()
     expect(inspect.driverNote).toBeNull()
@@ -579,6 +581,61 @@ describe('describePlaceInspect', () => {
     )
   })
 
+  it('uses the latest record title and everyday git status', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_a',
+          'ws_a',
+          'hataraki',
+          [
+            session({
+              id: 'git',
+              source: 'git',
+              displayName: '変更元不明',
+              title: '変更元不明の作業',
+              attributionConfidence: 'inferred',
+            }),
+          ],
+          {
+            changedFileCount: 2,
+            areas: ['画面'],
+            latestRecordTitle: 'ログイン画面の直し',
+            outgoingCount: 1,
+            incomingCount: 1,
+          },
+        ),
+      ]),
+    )
+
+    expect(resident?.lastObservedWork).toBe('ログイン画面の直し')
+    expect(describePlaceInspect(resident!)).toEqual({
+      nowText:
+        'ログイン画面の直し / まだしまっていない変更が2 / 画面あたり / 送っていない / 取り込み待ち',
+      implementationLook: 'まだしまっていない変更が2 / 画面あたり',
+      nextStep: null,
+      driverNote: null,
+    })
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
+      /SHA|commit|HEAD|origin|まだ分かっていません|Claude Code/,
+    )
+  })
+
+  it('does not use a SHA or git jargon as the record title', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'hataraki', [], {
+          latestRecordTitle: 'a1b2c3d',
+          outgoingCount: 0,
+          incomingCount: 0,
+        }),
+      ]),
+    )
+
+    expect(resident?.lastObservedWork).toBe('')
+    expect(describePlaceInspect(resident!).nowText).toBeNull()
+  })
+
   it('names Codex only when the desktop app is confirmed', () => {
     const [resident] = collectPlaceResidents(
       overviewOf([
@@ -625,6 +682,9 @@ function repository(
     readonly areas?: readonly string[]
     readonly conflictCount?: number
     readonly lastChangedAt?: string | null
+    readonly latestRecordTitle?: string | null
+    readonly outgoingCount?: number | null
+    readonly incomingCount?: number | null
   } = {},
 ): RepositoryView {
   return {
@@ -637,6 +697,9 @@ function repository(
     changedFileCount: extras.changedFileCount ?? 0,
     lastChangedAt: extras.lastChangedAt ?? null,
     lastChangedLabel: null,
+    latestRecordTitle: extras.latestRecordTitle ?? null,
+    outgoingCount: extras.outgoingCount ?? null,
+    incomingCount: extras.incomingCount ?? null,
     sessions,
     worktrees: [],
     conflicts: Array.from(

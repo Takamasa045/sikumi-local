@@ -48,6 +48,8 @@ import {
 } from '@sikumi-local/observer-bridge'
 import {
   createGitObserverAdapter,
+  readLatestRecordTitle,
+  readSyncCounts,
   snapshotGitRepository,
   type ChangedFileRecord,
 } from '@sikumi-local/observer-git'
@@ -945,14 +947,21 @@ function latestSnapshotView(
     }
     return snapshotGitRepository(repository.absolutePath)
   }
+  const root = latest[0]?.worktreePath ?? null
+  const sync = root
+    ? readSyncCounts(root)
+    : { outgoingCount: null, incomingCount: null }
   return {
     available: true,
     reason: null,
-    repositoryRoot: latest[0]?.worktreePath ?? null,
+    repositoryRoot: root,
     displayName: store.getRegisteredRepository(repositoryId)?.displayName ?? null,
     branch: latest.find((item) => item.worktreePath)?.branch ?? null,
     headCommit: latest[0]?.headCommit ?? null,
     baseCommit: latest[0]?.baseCommit ?? null,
+    latestRecordTitle: root ? readLatestRecordTitle(root) : null,
+    outgoingCount: sync.outgoingCount,
+    incomingCount: sync.incomingCount,
     worktrees: latest.map((item, index) => {
       const files = item.changedFiles as ChangedFileRecord[]
       const status = item.status as {

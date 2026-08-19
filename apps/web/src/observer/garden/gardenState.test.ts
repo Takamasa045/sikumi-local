@@ -4,6 +4,7 @@ import {
   GARDEN_ACTIVE_WINDOW_MS,
   UNKNOWN_GARDEN_WORK,
   describeGardenWork,
+  isEverydayRecordTitle,
   isGenericWorkTitle,
   shouldShowGardenDog,
   stationForTone,
@@ -191,6 +192,13 @@ describe('describeGardenWork', () => {
     expect(isGenericWorkTitle('Grok Buildが確認を待っています')).toBe(true)
     expect(isGenericWorkTitle('作業中')).toBe(true)
     expect(isGenericWorkTitle('APIを直している')).toBe(false)
+  })
+
+  it('keeps everyday record titles and drops SHA or git jargon', () => {
+    expect(isEverydayRecordTitle('ログイン画面の直し')).toBe(true)
+    expect(isEverydayRecordTitle('a1b2c3d')).toBe(false)
+    expect(isEverydayRecordTitle('Merge branch main')).toBe(false)
+    expect(isEverydayRecordTitle('init')).toBe(false)
   })
 })
 

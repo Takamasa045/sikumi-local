@@ -58,6 +58,8 @@ describe('ObserverGarden', () => {
             source: 'cursor',
             displayName: 'Cursor',
             title: 'alphaの修正',
+            status: 'running',
+            activity: 'working',
           }),
         ]),
         repository('repo_b', 'beta', [
@@ -66,6 +68,8 @@ describe('ObserverGarden', () => {
             source: 'cursor',
             displayName: 'Cursor',
             title: 'betaの修正',
+            status: 'running',
+            activity: 'working',
           }),
         ]),
       ]),
@@ -91,6 +95,8 @@ describe('ObserverGarden', () => {
               source: 'grok',
               displayName: 'Grok Build',
               title: '庭を整えている',
+              status: 'running',
+              activity: 'working',
             }),
             session({
               id: 'git',
@@ -201,6 +207,8 @@ describe('ObserverGarden', () => {
             source: 'mystery-bot',
             displayName: '実験用ツール',
             title: '未知の作業',
+            status: 'running',
+            activity: 'working',
           }),
         ]),
       ]),
@@ -315,10 +323,91 @@ describe('ObserverGarden', () => {
     expect(inspect).toHaveTextContent('作業中')
     expect(inspect).toHaveTextContent('APIを直している')
     expect(inspect).toHaveTextContent('作業台')
+    expect(inspect).not.toHaveTextContent('望遠鏡')
     expect(screen.getByTestId('garden-employee')).toHaveTextContent('サグル')
     expect(
       screen.queryByRole('heading', { name: 'いま何が、どこで起きているか' }),
     ).toBeNull()
+  })
+
+  it('hides idle sessions and does not put live dogs on the observatory', () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'alpha', [
+          session({
+            id: 'kids',
+            source: 'cursor',
+            displayName: 'エージェントワークフローキッズ版',
+            title: '作業',
+            status: 'idle',
+            activity: 'idle',
+          }),
+          session({
+            id: 'live',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'Codexの作業が始まりました',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+
+    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
+    expect(within(agents).queryByText('エージェントワークフローキッズ版')).toBeNull()
+    expect(within(agents).getByText('alphaが対象です')).toBeVisible()
+    expect(within(agents).queryByText('Codexの作業が始まりました')).toBeNull()
+    expect(screen.getByRole('listitem')).toHaveAttribute('data-station', 'workbench')
+    expect(screen.queryByRole('listitem', { name: /望遠鏡/ })).toBeNull()
+  })
+
+  it('says the work is unknown when no real title or repository remains', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', '', [
+          session({
+            id: 's1',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'Codexの様子が届きました',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+
+    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
+    expect(within(agents).getByText('仕事の内容はまだ分かっていません')).toBeVisible()
+    await userEvent.click(within(agents).getByRole('button'))
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      '仕事の内容はまだ分かっていません',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('作業台')
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
+  })
+
+  it('names the waiting place in picture words', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'alpha', [
+          session({
+            id: 'wait',
+            source: 'claude-desktop',
+            displayName: 'Claudeアプリ',
+            title: '承認が必要',
+            status: 'idle',
+            activity: 'waiting',
+          }),
+        ]),
+      ]),
+    )
+
+    await userEvent.click(within(screen.getByRole('listitem')).getByRole('button'))
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認の場所')
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('確認札')
   })
 
   it('keeps Saguru put when the station does not change', async () => {

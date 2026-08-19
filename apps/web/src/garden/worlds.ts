@@ -8,16 +8,16 @@ export type WorldPackId = 'dog-office' | 'craft-workshop'
 
 export const gardenStationLabels: Record<GardenStationId, string> = {
   archive: '資料棚',
-  observatory: '望遠鏡',
+  observatory: '縁側',
   workbench: '作業台',
-  waiting: '確認札',
+  waiting: '確認の場所',
   delivery: '納品台',
   rest: '縁側',
 }
 
 export const gardenStationMeanings: Record<GardenStationId, string> = {
   archive: 'この工房の資料を読む場所',
-  observatory: '外の世界を調べる場所',
+  observatory: '縁側で、外の様子を見る場所',
   workbench: '整理や作業をする場所',
   waiting: 'あなたの確認を待つ場所',
   delivery: '成果を届ける場所',
@@ -71,7 +71,7 @@ export const worldPacks: readonly WorldPack[] = [
     backgroundUrl: dogBackground,
     stations: {
       archive: { x: 13, y: 22 },
-      observatory: { x: 15, y: 68 },
+      observatory: { x: 20, y: 80 },
       workbench: { x: 49, y: 38 },
       waiting: { x: 78, y: 44 },
       delivery: { x: 69, y: 27 },
@@ -96,7 +96,7 @@ export const worldPacks: readonly WorldPack[] = [
     backgroundUrl: craftBackground,
     stations: {
       archive: { x: 18, y: 28 },
-      observatory: { x: 22, y: 70 },
+      observatory: { x: 24, y: 80 },
       workbench: { x: 56, y: 53 },
       waiting: { x: 76, y: 42 },
       delivery: { x: 72, y: 24 },

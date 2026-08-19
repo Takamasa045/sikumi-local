@@ -184,6 +184,65 @@ describe('ObserverGarden', () => {
     expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
   })
 
+  it('does not stack two working places on the same walk stop', () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_hataraki', 'hataraki', [
+          session({
+            id: 'grok',
+            source: 'grok-build',
+            displayName: 'Grok Build',
+            title: '働きの画面を直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+        repository('repo_sikumi', 'sikumi-local', [
+          session({
+            id: 'codex',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '庭の並列を直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    const walkers = within(residents).getAllByRole('listitem')
+    expect(walkers).toHaveLength(2)
+    expect(within(residents).getByText('hataraki番')).toBeVisible()
+    expect(within(residents).getByText('しくみローカル番')).toBeVisible()
+    const groundXs = walkers.map((item) =>
+      Number(item.getAttribute('data-ground-x')),
+    )
+    const walkXs = walkers.map((item) =>
+      Number(item.getAttribute('data-walk-x')),
+    )
+    expect(Math.abs(groundXs[0]! - groundXs[1]!)).toBeGreaterThanOrEqual(
+      WORKING_WALK_LANE_X,
+    )
+    expect(
+      `${walkers[0]?.getAttribute('data-walk-x')},${walkers[0]?.getAttribute('data-walk-y')}`,
+    ).not.toBe(
+      `${walkers[1]?.getAttribute('data-walk-x')},${walkers[1]?.getAttribute('data-walk-y')}`,
+    )
+    if (
+      walkers[0]?.getAttribute('data-walk-stop') ===
+      walkers[1]?.getAttribute('data-walk-stop')
+    ) {
+      expect(Math.abs(walkXs[0]! - walkXs[1]!)).toBeGreaterThanOrEqual(
+        WORKING_WALK_LANE_X - 1,
+      )
+    } else {
+      expect(Math.abs(walkXs[0]! - walkXs[1]!)).toBeGreaterThanOrEqual(2)
+    }
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+  })
+
   it('keeps one character per registered place even when idle', () => {
     renderGarden(
       overviewOf([

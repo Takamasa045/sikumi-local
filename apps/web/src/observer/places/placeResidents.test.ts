@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
 import type { Workspace } from '@sikumi-local/core'
 import {
+  WORKING_WALK_LANE_X,
+  WORKING_WALK_STOPS,
+  workingWalkPoint,
+} from '../garden/gardenWalk'
+import {
   ANOTHER_LIVE_WORK,
   assignGardenGroundPlots,
   collectGardenActors,
@@ -457,6 +462,50 @@ describe('collectGardenActors', () => {
     expect(JSON.stringify(leftover)).not.toMatch(
       /まだ分かっていません|変更元不明|feat:|作業中のファイル|Codexの作業が始まりました/,
     )
+  })
+
+  it('keeps two working places apart at the same walk stop and on the ground', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [
+          session({
+            id: 'grok',
+            source: 'grok-build',
+            displayName: 'Grok Build',
+            title: '働きの画面を直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+        repository('repo_sikumi', 'ws_sikumi', 'sikumi-local', [
+          session({
+            id: 'codex',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '庭の並列を直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.every((actor) => actor.streamIndex === 0)).toBe(true)
+    expect(actors.every((actor) => actor.tone === 'working')).toBe(true)
+    expect(new Set(actors.map((actor) => actor.slot)).size).toBe(2)
+    expect(
+      Math.abs((actors[0]?.groundX ?? 0) - (actors[1]?.groundX ?? 0)),
+    ).toBeGreaterThanOrEqual(WORKING_WALK_LANE_X)
+    for (const stop of WORKING_WALK_STOPS) {
+      const first = workingWalkPoint(stop, actors[0]!)
+      const second = workingWalkPoint(stop, actors[1]!)
+      expect(Math.abs(first.x - second.x)).toBeGreaterThanOrEqual(
+        WORKING_WALK_LANE_X - 1,
+      )
+      expect(first).not.toEqual(second)
+    }
   })
 
   it('makes a second walker when two live non-generic streams share one place', () => {

@@ -56,6 +56,31 @@ describe('gardenWalk', () => {
     }
   })
 
+  it('shifts different places on the same stop by slot, even when both are stream 0', () => {
+    expect(Math.abs(walkLaneOffset({ streamIndex: 0, slot: 1 }).x)).toBe(
+      WORKING_WALK_LANE_X,
+    )
+    for (const stop of WORKING_WALK_STOPS) {
+      const hataraki = workingWalkPoint(stop, {
+        jitterX: 0.18,
+        jitterY: 0.14,
+        streamIndex: 0,
+        slot: 0,
+      })
+      const sikumi = workingWalkPoint(stop, {
+        jitterX: -0.18,
+        jitterY: -0.14,
+        streamIndex: 0,
+        slot: 1,
+      })
+      expect(Math.abs(sikumi.x - hataraki.x)).toBeGreaterThanOrEqual(
+        WORKING_WALK_LANE_X - 1,
+      )
+      expect(Math.abs(sikumi.x - hataraki.x)).toBeGreaterThan(2)
+      expect(hataraki).not.toEqual(sikumi)
+    }
+  })
+
   it('shows the repository name only when the place name does not already name it', () => {
     expect(placeRepoLabel('alpha番', 'alpha')).toBeNull()
     expect(placeRepoLabel('ブログ番', 'my-blog')).toBe('my-blog')

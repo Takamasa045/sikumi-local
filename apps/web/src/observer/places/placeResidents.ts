@@ -393,7 +393,7 @@ export function collectGardenActors(
     overview,
   )
   const plots = assignGardenGroundPlots(sources)
-  return separateSharedPlaceActors(
+  return separateCrowdedGardenActors(
     sources.map((source) => {
       const hash = stableHash(source.key)
       const tone: GardenPlaceTone = source.waiting
@@ -404,10 +404,13 @@ export function collectGardenActors(
       const inspect = describePlaceInspect(source)
       const plot = plots.get(gardenPlotKey(source))
       const slot = plot?.slot ?? 0
-      const lane = walkLaneOffset({
-        streamIndex: source.streamIndex,
-        slot,
-      })
+      const lane =
+        source.streamIndex > 0
+          ? walkLaneOffset({
+              streamIndex: source.streamIndex,
+              slot,
+            })
+          : { x: 0, y: 0 }
       return {
         key: source.key,
         repositoryId: source.repositoryId,
@@ -441,52 +444,67 @@ export function collectGardenActors(
   ).sort((left, right) => left.key.localeCompare(right.key))
 }
 
-function separateSharedPlaceActors(
+function separateCrowdedGardenActors(
   actors: readonly GardenPlaceActor[],
 ): GardenPlaceActor[] {
   const next = [...actors]
   const indexesByPlace = new Map<string, number[]>()
+  const working: number[] = []
   next.forEach((actor, index) => {
     const indexes = indexesByPlace.get(actor.repositoryId) ?? []
     indexes.push(index)
     indexesByPlace.set(actor.repositoryId, indexes)
+    if (actor.tone === 'working') {
+      working.push(index)
+    }
   })
   for (const indexes of indexesByPlace.values()) {
-    if (indexes.length < 2) {
+    separateActorsAlongX(next, indexes)
+  }
+  separateActorsAlongX(next, working)
+  return next
+}
+
+function separateActorsAlongX(
+  actors: GardenPlaceActor[],
+  indexes: readonly number[],
+): void {
+  if (indexes.length < 2) {
+    return
+  }
+  const ordered = [...indexes].sort((left, right) => {
+    if (actors[left]!.slot !== actors[right]!.slot) {
+      return actors[left]!.slot - actors[right]!.slot
+    }
+    return actors[left]!.groundX - actors[right]!.groundX
+  })
+  for (let index = 1; index < ordered.length; index += 1) {
+    const previous = actors[ordered[index - 1]!]!
+    const current = actors[ordered[index]!]!
+    const gap = current.groundX - previous.groundX
+    if (Math.abs(gap) >= WORKING_WALK_LANE_X) {
       continue
     }
-    indexes.sort(
-      (left, right) => next[left]!.streamIndex - next[right]!.streamIndex,
+    const direction = gap >= 0 ? 1 : -1
+    const pushed = clamp(
+      previous.groundX + direction * WORKING_WALK_LANE_X,
+      GARDEN_GROUND.minX,
+      GARDEN_GROUND.maxX,
     )
-    for (let index = 1; index < indexes.length; index += 1) {
-      const previous = next[indexes[index - 1]!]!
-      const current = next[indexes[index]!]!
-      const gap = current.groundX - previous.groundX
-      if (Math.abs(gap) >= WORKING_WALK_LANE_X) {
-        continue
-      }
-      const direction = gap >= 0 ? 1 : -1
-      const pushed = clamp(
-        previous.groundX + direction * WORKING_WALK_LANE_X,
+    actors[ordered[index]!] = { ...current, groundX: pushed }
+    const still = actors[ordered[index]!]!
+    if (Math.abs(still.groundX - previous.groundX) >= WORKING_WALK_LANE_X) {
+      continue
+    }
+    actors[ordered[index - 1]!] = {
+      ...previous,
+      groundX: clamp(
+        still.groundX - direction * WORKING_WALK_LANE_X,
         GARDEN_GROUND.minX,
         GARDEN_GROUND.maxX,
-      )
-      next[indexes[index]!] = { ...current, groundX: pushed }
-      const still = next[indexes[index]!]!
-      if (Math.abs(still.groundX - previous.groundX) >= WORKING_WALK_LANE_X) {
-        continue
-      }
-      next[indexes[index - 1]!] = {
-        ...previous,
-        groundX: clamp(
-          still.groundX - direction * WORKING_WALK_LANE_X,
-          GARDEN_GROUND.minX,
-          GARDEN_GROUND.maxX,
-        ),
-      }
+      ),
     }
   }
-  return next
 }
 
 export function hasUnfinishedGardenWork(

@@ -28,16 +28,16 @@ export const WORKING_WALK_LANE_Y = 4
 export function walkLaneOffset(
   actor: Partial<Pick<GardenPlaceActor, 'slot' | 'streamIndex'>>,
 ): { readonly x: number; readonly y: number } {
-  const order = actor.streamIndex ?? 0
+  const order = actor.slot ?? 0
   if (order <= 0) {
     return { x: 0, y: 0 }
   }
   const sign = order % 2 === 1 ? 1 : -1
   const rank = Math.ceil(order / 2)
-  const slotTilt = (actor.slot ?? 0) % 2 === 0 ? 1 : -1
+  const tilt = ((actor.streamIndex ?? 0) + order) % 2 === 0 ? 1 : -1
   return {
     x: sign * rank * WORKING_WALK_LANE_X,
-    y: slotTilt * WORKING_WALK_LANE_Y,
+    y: tilt * WORKING_WALK_LANE_Y,
   }
 }
 

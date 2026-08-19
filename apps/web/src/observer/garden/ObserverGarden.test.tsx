@@ -150,16 +150,22 @@ describe('ObserverGarden', () => {
   it('opens current work in place without turning a tool into an employee', async () => {
     renderGarden(
       overviewOf([
-        repository('repo_a', 'alpha', [
-          session({
-            id: 's1',
-            source: 'codex',
-            displayName: 'Codex',
-            title: 'APIを直している',
-            status: 'running',
-            activity: 'working',
-          }),
-        ]),
+        repository(
+          'repo_a',
+          'alpha',
+          [
+            session({
+              id: 's1',
+              source: 'codex',
+              displayName: 'Codex',
+              title: 'APIを直している',
+              status: 'running',
+              activity: 'working',
+            }),
+          ],
+          2,
+          ['画面'],
+        ),
       ]),
     )
 
@@ -168,9 +174,17 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('alpha番')
-    expect(inspect).toHaveTextContent('APIを直している')
+    expect(inspect).toHaveTextContent('いま')
+    expect(inspect).toHaveTextContent('動いている。APIを直している')
+    expect(inspect).toHaveTextContent('実装の様子')
+    expect(inspect).toHaveTextContent('作業中のファイル')
+    expect(inspect).toHaveTextContent('これから')
+    expect(inspect).toHaveTextContent('いまの作業の続き')
+    expect(inspect).toHaveTextContent('Codexが動かしている')
     expect(inspect).toHaveTextContent('作業台')
-    expect(inspect).not.toHaveTextContent('Codex')
+    expect(inspect.querySelector('.garden-inspect__title')).toHaveTextContent(
+      'alpha番',
+    )
     expect(inspect).not.toHaveTextContent('望遠鏡')
     expect(screen.queryByTestId('garden-employee')).toBeNull()
     expect(
@@ -245,6 +259,9 @@ describe('ObserverGarden', () => {
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       'まだ分かっていません',
     )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'いまの作業の続き',
+    )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
   })
 
@@ -280,7 +297,13 @@ describe('ObserverGarden', () => {
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認の場所')
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('承認が必要')
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      '確認待ち。承認が必要',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認が必要')
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'Claudeアプリが動かしている',
+    )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('確認札')
     expect(screen.getByTestId('garden-place-repo_a')).toHaveAttribute(
@@ -322,6 +345,7 @@ function repository(
   displayName: string,
   sessions: SessionView[],
   changedFileCount = 0,
+  areas: readonly string[] = [],
 ): RepositoryView {
   return {
     repositoryId,
@@ -335,7 +359,7 @@ function repository(
     sessions,
     worktrees: [],
     conflicts: [],
-    areas: [],
+    areas: [...areas],
   }
 }
 

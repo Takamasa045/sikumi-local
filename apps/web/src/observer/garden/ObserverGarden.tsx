@@ -214,6 +214,10 @@ export function ObserverGarden({
                       station: actor.station,
                       traveling: actorTravel[actor.key] === true,
                       summary: actor.workSummary,
+                      nowText: actor.nowText,
+                      implementationLook: actor.implementationLook,
+                      nextStep: actor.nextStep,
+                      driverNote: actor.driverNote,
                     })
                   }}
                 />

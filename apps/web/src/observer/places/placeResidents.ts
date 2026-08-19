@@ -32,6 +32,18 @@ export type PlaceResident = {
   readonly waiting: boolean
   readonly lastObservedWork: string
   readonly lastObservedLabel: string | null
+  readonly lastObservedWorkLabel: string | null
+  readonly changedFileCount: number
+  readonly areas: readonly string[]
+  readonly conflictCount: number
+  readonly driverNote: string | null
+}
+
+export type PlaceInspectCopy = {
+  readonly nowText: string
+  readonly implementationLook: string
+  readonly nextStep: string
+  readonly driverNote: string | null
 }
 
 export type GardenPlaceActor = {
@@ -39,6 +51,10 @@ export type GardenPlaceActor = {
   readonly repositoryId: string
   readonly placeName: string
   readonly workSummary: string
+  readonly nowText: string
+  readonly implementationLook: string
+  readonly nextStep: string
+  readonly driverNote: string | null
   readonly station: GardenPlaceStation
   readonly tone: GardenPlaceTone
   readonly column: number
@@ -96,6 +112,7 @@ export function collectPlaceResidents(
         session.attributionConfidence !== 'inferred',
     )
     const latest = latestSession(repository.sessions ?? [])
+    const latestObserved = latestSession(observed)
     return {
       repositoryId: repository.repositoryId,
       workspaceId: repository.workspaceId,
@@ -116,6 +133,11 @@ export function collectPlaceResidents(
       ),
       lastObservedWork: describePlaceWork(observed, repository, nowMs),
       lastObservedLabel: latest?.lastObservedLabel ?? null,
+      lastObservedWorkLabel: latestObserved?.lastObservedLabel ?? null,
+      changedFileCount: repository.changedFileCount,
+      areas: lookAreas(repository),
+      conflictCount: repository.conflicts.length,
+      driverNote: describeObservedDriver(observed, nowMs),
     }
   })
   const extras = workspaces
@@ -132,6 +154,11 @@ export function collectPlaceResidents(
       waiting: false,
       lastObservedWork: UNKNOWN_PLACE_WORK,
       lastObservedLabel: null,
+      lastObservedWorkLabel: null,
+      changedFileCount: 0,
+      areas: [],
+      conflictCount: 0,
+      driverNote: null,
     }))
   return [...fromOverview, ...extras]
 }
@@ -150,11 +177,16 @@ export function collectGardenActors(
         : resident.working
           ? 'working'
           : 'observing'
+      const inspect = describePlaceInspect(resident)
       return {
         key: resident.repositoryId,
         repositoryId: resident.repositoryId,
         placeName: resident.placeName,
         workSummary: resident.lastObservedWork,
+        nowText: inspect.nowText,
+        implementationLook: inspect.implementationLook,
+        nextStep: inspect.nextStep,
+        driverNote: inspect.driverNote,
         station: stationForResident(resident, hash),
         tone,
         column: hash % ATLAS_COLUMNS,
@@ -194,6 +226,23 @@ export function placeActivityLabel(resident: PlaceResident): string {
   return '静か'
 }
 
+export function describePlaceInspect(
+  resident: PlaceResident,
+): PlaceInspectCopy {
+  const activity = placeActivityLabel(resident)
+  const work = resident.lastObservedWork.trim() || UNKNOWN_PLACE_WORK
+  const when =
+    work !== UNKNOWN_PLACE_WORK && resident.lastObservedWorkLabel
+      ? `（${resident.lastObservedWorkLabel}）`
+      : ''
+  return {
+    nowText: `${activity}。${work}${when}`,
+    implementationLook: describeImplementationLook(resident),
+    nextStep: describeNextStep(resident),
+    driverNote: resident.driverNote,
+  }
+}
+
 function describePlaceWork(
   sessions: readonly OverviewSession[],
   repository: OverviewRepository,
@@ -231,6 +280,103 @@ function describePlaceWork(
     }
   }
   return UNKNOWN_PLACE_WORK
+}
+
+function describeImplementationLook(resident: PlaceResident): string {
+  const count = resident.changedFileCount
+  const named = uniqueLabels(resident.areas).filter(
+    (area) => area !== '作業中のファイル',
+  )
+  const shown = named.slice(0, 2)
+  if (count <= 0 && shown.length === 0) {
+    return UNKNOWN_PLACE_WORK
+  }
+  const filesPhrase =
+    count === 1 ? '作業中のファイルが1つある' : '作業中のファイルがいくつかある'
+  if (count <= 0) {
+    return shown.length === 1
+      ? `${shown[0]}あたりの様子が見えています`
+      : `${shown[0]}や${shown[1]}あたりの様子が見えています`
+  }
+  if (shown.length === 0) {
+    return filesPhrase
+  }
+  if (shown.length === 1) {
+    return `${filesPhrase}。${shown[0]}あたりです`
+  }
+  return `${filesPhrase}。${shown[0]}や${shown[1]}あたりです`
+}
+
+function describeNextStep(
+  resident: Pick<PlaceResident, 'waiting' | 'working' | 'conflictCount'>,
+): string {
+  if (resident.waiting || resident.conflictCount > 0) {
+    return '確認が必要'
+  }
+  if (resident.working) {
+    return 'いまの作業の続き'
+  }
+  return '次に動かすまで待つ'
+}
+
+function lookAreas(repository: OverviewRepository): string[] {
+  if (repository.areas.length > 0) {
+    return uniqueLabels(repository.areas)
+  }
+  const fromFiles: string[] = []
+  for (const worktree of repository.worktrees) {
+    for (const file of worktree.files) {
+      const label = file.areaLabel.trim()
+      if (label) {
+        fromFiles.push(label)
+      }
+    }
+  }
+  return uniqueLabels(fromFiles)
+}
+
+function describeObservedDriver(
+  sessions: readonly OverviewSession[],
+  nowMs: number,
+): string | null {
+  const labels: string[] = []
+  for (const session of sessions) {
+    const tone = resolveTone(session.status, session.activity)
+    const live =
+      tone === 'waiting' ||
+      (tone === 'working' && shouldShowGardenDog(session, nowMs))
+    if (!live) {
+      continue
+    }
+    const label = knownSourceLabel(session.source)
+    if (label && !labels.includes(label)) {
+      labels.push(label)
+    }
+  }
+  if (labels.length === 0) {
+    return null
+  }
+  if (labels.length === 1) {
+    return `${labels[0]}が動かしている`
+  }
+  if (labels.length === 2) {
+    return `${labels[0]}と${labels[1]}が動かしている`
+  }
+  return `${labels[0]}と${labels[1]}などが動かしている`
+}
+
+function uniqueLabels(values: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const labels: string[] = []
+  for (const value of values) {
+    const trimmed = value.trim()
+    if (!trimmed || seen.has(trimmed)) {
+      continue
+    }
+    seen.add(trimmed)
+    labels.push(trimmed)
+  }
+  return labels
 }
 
 function latestSession(

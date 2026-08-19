@@ -15,6 +15,10 @@ export type GardenInspectSubject =
       readonly traveling: boolean
       readonly summary: string
       readonly jobTitle?: string
+      readonly nowText?: string
+      readonly implementationLook?: string
+      readonly nextStep?: string
+      readonly driverNote?: string | null
     }
   | {
       readonly kind: 'station'
@@ -82,9 +86,13 @@ function CharacterBody({
   readonly subject: Extract<GardenInspectSubject, { kind: 'character' }>
 }) {
   const place = gardenStationLabels[subject.station]
+  const hasProgress =
+    subject.nowText !== undefined &&
+    subject.implementationLook !== undefined &&
+    subject.nextStep !== undefined
   return (
     <dl className="garden-inspect__facts">
-      {subject.role ? (
+      {subject.role && !hasProgress ? (
         <>
           <dt>役割</dt>
           <dd>{subject.role}</dd>
@@ -94,14 +102,34 @@ function CharacterBody({
       <dd>
         {subject.traveling ? `${place}へ向かっています` : `${place}にいます`}
       </dd>
-      {subject.jobTitle ? (
+      {hasProgress ? (
         <>
-          <dt>仕事</dt>
-          <dd>{subject.jobTitle}</dd>
+          <dt>いま</dt>
+          <dd>
+            {subject.nowText}
+            {subject.driverNote ? (
+              <span className="garden-inspect__driver">
+                {subject.driverNote}
+              </span>
+            ) : null}
+          </dd>
+          <dt>実装の様子</dt>
+          <dd>{subject.implementationLook}</dd>
+          <dt>これから</dt>
+          <dd>{subject.nextStep}</dd>
         </>
-      ) : null}
-      <dt>要約</dt>
-      <dd>{subject.summary}</dd>
+      ) : (
+        <>
+          {subject.jobTitle ? (
+            <>
+              <dt>仕事</dt>
+              <dd>{subject.jobTitle}</dd>
+            </>
+          ) : null}
+          <dt>要約</dt>
+          <dd>{subject.summary}</dd>
+        </>
+      )}
     </dl>
   )
 }

@@ -294,7 +294,19 @@ describe('Shikumi Local garden', () => {
       'my-project番',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      'APIを直している',
+      '動いている。APIを直している',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      '作業中のファイルがいくつかある',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'いまの作業の続き',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'Codexが動かしている',
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
+      '変更元不明の作業',
     )
     expect(
       screen.queryByRole('button', { name: '仕事を頼む' }),

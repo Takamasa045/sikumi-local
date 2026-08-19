@@ -1503,6 +1503,120 @@ describe('describeVisibleFacts', () => {
     expect(describePlaceInspect(unknown!).nextStep).toBeNull()
   })
 
+  it('uses a Japanese README intro as the place contents for leftover work', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [], {
+          placeIntro: 'AIセッションが、働く姿になる。',
+          changedFileCount: 4,
+          areas: ['確認用の仕組み', '作業中のファイル'],
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(resident!).placeIntro).toBe(
+      'AIセッションが、働く姿になる。',
+    )
+    expect(describeVisibleFacts(resident!)).toBe('働く姿の途中が残っている')
+    expect(describePlaceInspect(resident!).nowText).toBe(
+      '働く姿の途中が残っています。',
+    )
+    expect(describePlaceInspect(resident!).nextStep).toBe(
+      '働く姿の途中を続ける',
+    )
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
+      /確認用の仕組み|作業中のファイル|仕組みと途中|README/,
+    )
+  })
+
+  it('speaks tsugite leftover and live work as video, not leftover confirmation areas', () => {
+    const leftoverAreas = ['設定', '確認用の仕組み', '画面']
+    const [leftover] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_tsugite', 'ws_tsugite', 'tsugite', [], {
+          placeIntro: '継。ローカルで動画を作る工房です。',
+          changedFileCount: 18,
+          areas: leftoverAreas,
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(leftover!).placeIntro).toBe(
+      '継。ローカルで動画を作る工房です。',
+    )
+    expect(describeVisibleFacts(leftover!)).toBe('動画の途中が残っている')
+    expect(describeVisibleFacts(leftover!)).not.toMatch(
+      /仕組みと途中|確認用の仕組み|作業中のファイル/,
+    )
+    expect(describePlaceInspect(leftover!).nowText).toBe(
+      '動画の途中が残っています。',
+    )
+    expect(describePlaceInspect(leftover!).nextStep).toBe(
+      '動画の途中を続ける',
+    )
+    expect(JSON.stringify(describePlaceInspect(leftover!))).not.toMatch(
+      /仕組みと途中|確認用の仕組み|作業中のファイル|設定や確認|README/,
+    )
+
+    const [working] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_tsugite_live',
+          'ws_tsugite_live',
+          'tsugite',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cursor-agent',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          {
+            placeIntro: '動画を作る場所',
+            changedFileCount: 18,
+            areas: leftoverAreas,
+          },
+        ),
+      ]),
+    )
+    expect(describeVisibleFacts(working!)).toBe('動画を作っている')
+    expect(describePlaceInspect(working!).nowText).toContain('動画を作っている')
+    expect(describePlaceInspect(working!).nowText).toContain(
+      '最後に見えたのはたった今',
+    )
+    expect(describePlaceInspect(working!).nextStep).toBe('動画の途中を続ける')
+    expect(describePlaceInspect(working!).nowText).not.toMatch(
+      /仕組みと途中|確認用の仕組み|確認の仕組み/,
+    )
+    expect(describePlaceInspect(working!).goal).toBeNull()
+  })
+
+  it('speaks しくみローカル leftover as the garden when the intro was read', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_sikumi', 'ws_sikumi', 'sikumi-local', [], {
+          placeIntro: '観測の庭で、仕事の様子を見る場所です。',
+          changedFileCount: 8,
+          areas: ['確認用の仕組み', '設定'],
+        }),
+      ]),
+    )
+    expect(resident?.placeName).toBe(SHIKUMI_PLACE_NAME)
+    expect(describeVisibleFacts(resident!)).toBe('観測の庭の途中が残っている')
+    expect(describePlaceInspect(resident!).nowText).toBe(
+      '観測の庭の途中が残っています。',
+    )
+    expect(describePlaceInspect(resident!).nextStep).toBe(
+      '観測の庭の途中を続ける',
+    )
+    expect(describePlaceInspect(resident!).nowText).not.toContain(
+      '確認用の仕組み',
+    )
+  })
+
   it('does not treat hook leftovers or fake-claude as a goal', () => {
     const [resident] = collectPlaceResidents(
       overviewOf([

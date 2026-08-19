@@ -617,6 +617,43 @@ describe('ObserverGarden', () => {
     )
   })
 
+  it('speaks tsugite leftover as video work when the place intro was read', async () => {
+    renderGarden(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'tsugite',
+          [],
+          18,
+          ['設定', '確認用の仕組み', '画面'],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getByText('動画の途中が残っている')).toBeVisible()
+    expect(within(residents).queryByText(/仕組みと途中/)).toBeNull()
+    expect(within(residents).queryByText(/確認用の仕組み/)).toBeNull()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_tsugite')).getByRole(
+        'button',
+      ),
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('この場所は何の仕事か')
+    expect(inspect).toHaveTextContent('継。ローカルで動画を作る工房です。')
+    expect(inspect).toHaveTextContent('動画の途中が残っています。')
+    expect(inspect).toHaveTextContent('動画の途中を続ける')
+    expect(inspect).not.toHaveTextContent('仕組みと途中')
+    expect(inspect).not.toHaveTextContent('確認用の仕組み')
+    expect(inspect).not.toHaveTextContent('確認の仕組みと画面')
+    expect(inspect).not.toHaveTextContent('縁側')
+    expect(inspect).not.toHaveTextContent('README')
+  })
+
   it('walks hataraki when grok is live and swaps old confirmation-wait copy', async () => {
     const first = renderGarden(
       overviewOf([

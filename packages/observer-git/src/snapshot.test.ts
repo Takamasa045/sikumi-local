@@ -148,6 +148,22 @@ describe('snapshotGitRepository', () => {
     expect(snapshot.placeIntro).not.toContain('README.md')
   })
 
+  it('prefers README.ja.md when the English README has no Japanese', () => {
+    const repo = createGitRepo()
+    writeFileSync(
+      join(repo, 'README.md'),
+      ['# Tsugite', '', 'A local video-production workshop.', ''].join('\n'),
+    )
+    writeFileSync(
+      join(repo, 'README.ja.md'),
+      ['# 継', '', 'ローカルで動画を作る工房です。', ''].join('\n'),
+    )
+    const snapshot = snapshotGitRepository(repo)
+    expect(snapshot.placeIntro).toBe('継。ローカルで動画を作る工房です。')
+    expect(snapshot.placeIntro).not.toContain('README.md')
+    expect(snapshot.placeIntro).not.toContain('video-production')
+  })
+
   it('extracts a blog article title from articles.log when the place is a kit', () => {
     const repo = createGitRepo()
     writeFileSync(join(repo, 'BLOG_WORKSPACE.md'), '# blog\n')

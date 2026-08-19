@@ -62,6 +62,90 @@ const LEFTOVER_KIND_AREAS: Readonly<Record<string, string>> = {
   記事: '記事',
 }
 
+const VAGUE_LEFTOVER_AREAS = new Set([
+  GENERIC_AREA_LABEL,
+  '確認',
+  '確認用の仕組み',
+  '確認の仕組み',
+  '設定',
+])
+
+type PlaceWorkLook = {
+  readonly working: string
+  readonly leftover: string
+  readonly leftoverNow: string
+  readonly next: string
+}
+
+const PLACE_WORK_LOOKS: ReadonlyArray<{
+  readonly pattern: RegExp
+  readonly look: PlaceWorkLook
+}> = [
+  {
+    pattern: /動画/,
+    look: {
+      working: '動画を作っている',
+      leftover: '動画の途中が残っている',
+      leftoverNow: '動画の途中が残っています。',
+      next: '動画の途中を続ける',
+    },
+  },
+  {
+    pattern: /記事|ブログ/,
+    look: {
+      working: '記事を書いている',
+      leftover: '記事の途中が残っている',
+      leftoverNow: '記事の途中が残っています。',
+      next: '記事の途中を続ける',
+    },
+  },
+  {
+    pattern: /観測の庭/,
+    look: {
+      working: '観測の庭を見ている',
+      leftover: '観測の庭の途中が残っている',
+      leftoverNow: '観測の庭の途中が残っています。',
+      next: '観測の庭の途中を続ける',
+    },
+  },
+  {
+    pattern: /働く姿/,
+    look: {
+      working: '働く姿になっている',
+      leftover: '働く姿の途中が残っている',
+      leftoverNow: '働く姿の途中が残っています。',
+      next: '働く姿の途中を続ける',
+    },
+  },
+  {
+    pattern: /セッション/,
+    look: {
+      working: 'セッションをしている',
+      leftover: 'セッションの途中が残っている',
+      leftoverNow: 'セッションの途中が残っています。',
+      next: 'セッションの途中を続ける',
+    },
+  },
+  {
+    pattern: /働きの画面/,
+    look: {
+      working: '働きの画面を整えている',
+      leftover: '働きの画面の途中が残っている',
+      leftoverNow: '働きの画面の途中が残っています。',
+      next: '働きの画面の途中を続ける',
+    },
+  },
+  {
+    pattern: /観測/,
+    look: {
+      working: '観測している',
+      leftover: '観測の途中が残っている',
+      leftoverNow: '観測の途中が残っています。',
+      next: '観測の途中を続ける',
+    },
+  },
+]
+
 const BUBBLE_GOAL_MAX = 36
 
 export const LEFTOVER_WORK_REMAINING = '途中の仕事が残っている'
@@ -846,11 +930,15 @@ export function placeActivityLabel(resident: PlaceResident): string {
 export function describeVisibleFacts(resident: PlaceResident): string {
   const spoken = spokenWorkTitle(resident)
   const area = liveWorkArea(resident)
+  const placeWork = placeWorkLook(resident.placeIntro)
   if (resident.working && spoken && spoken.length <= BUBBLE_GOAL_MAX) {
     return spoken
   }
   if (resident.working && resident.workStory) {
     return resident.workStory
+  }
+  if (resident.working && placeWork) {
+    return placeWork.working
   }
   if (resident.working && area) {
     return `${shortAreaForBubble(area)}まわりを直している`
@@ -935,6 +1023,8 @@ function inspectNowLines(resident: PlaceResident): string[] {
   const leftoverKinds = leftover ? leftoverKindAreas(resident) : []
   const leftoverSentence = leftover ? leftoverKindsSentence(resident) : null
   const areaWork = resident.working ? describeLiveAreaWork(resident) : null
+  const placeWork = placeWorkLook(resident.placeIntro)
+  const hideLeftoverAreas = hidesLeftoverAreaCopy(resident)
 
   if (resident.waiting && !resident.working) {
     lines.push('確認待ち')
@@ -950,6 +1040,8 @@ function inspectNowLines(resident: PlaceResident): string[] {
       lines.push(resident.goal)
     } else if (spoken && spoken !== '確認待ち') {
       lines.push(spoken)
+    } else if (placeWork) {
+      lines.push(placeWork.working)
     } else if (areaWork) {
       lines.push(areaWork)
     } else {
@@ -957,6 +1049,8 @@ function inspectNowLines(resident: PlaceResident): string[] {
     }
   } else if (resident.workStory && leftover) {
     lines.push(resident.workStory)
+  } else if (placeWork && leftover) {
+    lines.push(placeWork.leftoverNow)
   } else if (
     spoken &&
     spoken !== '確認待ち' &&
@@ -969,6 +1063,7 @@ function inspectNowLines(resident: PlaceResident): string[] {
   if (
     leftover &&
     leftoverSentence &&
+    !hideLeftoverAreas &&
     !storyImpliesLeftover(resident.workStory) &&
     !lines.includes(leftoverSentence) &&
     !hidesConfirmationLeftover(resident.working, leftoverKinds)
@@ -976,9 +1071,29 @@ function inspectNowLines(resident: PlaceResident): string[] {
     lines.push(leftoverSentence)
   } else if (
     leftover &&
+    !hideLeftoverAreas &&
     leftoverKinds.length === 0 &&
     !storyImpliesLeftover(resident.workStory) &&
     !lines.some((line) => line.includes('途中の仕事'))
+  ) {
+    lines.push(LEFTOVER_WORK_REMAINING)
+  } else if (
+    leftover &&
+    !resident.working &&
+    leftoverKinds.length > 0 &&
+    leftoverKinds.every((area) => isVagueLeftoverArea(area)) &&
+    !hideLeftoverAreas &&
+    !storyImpliesLeftover(resident.workStory) &&
+    !lines.some((line) => line.includes('途中の仕事'))
+  ) {
+    lines.push(LEFTOVER_WORK_REMAINING)
+  } else if (
+    leftover &&
+    !resident.working &&
+    hideLeftoverAreas &&
+    !placeWork &&
+    !resident.workStory &&
+    !lines.some((line) => line.includes('途中'))
   ) {
     lines.push(LEFTOVER_WORK_REMAINING)
   }
@@ -1080,10 +1195,13 @@ function spokenWorkTitle(
 }
 
 function leftoverKindsSentence(
-  resident: Pick<PlaceResident, 'areas' | 'workStory'>,
+  resident: Pick<PlaceResident, 'areas' | 'workStory' | 'placeIntro'>,
 ): string | null {
   const named = leftoverKindAreas(resident)
   const shown = named.slice(0, 2)
+  if (shown.length > 0 && shown.every((area) => isVagueLeftoverArea(area))) {
+    return null
+  }
   if (shown.length === 2) {
     return `${shown[0]}と${shown[1]}の途中が残っています。`
   }
@@ -1094,17 +1212,30 @@ function leftoverKindsSentence(
 }
 
 function leftoverKindAreas(
-  resident: Pick<PlaceResident, 'areas' | 'workStory'>,
+  resident: Pick<PlaceResident, 'areas' | 'workStory' | 'placeIntro'>,
 ): string[] {
-  const labels = mapEverydayAreas(resident.areas, LEFTOVER_KIND_AREAS)
-  if (resident.workStory && !labels.includes('記事')) {
-    return ['記事', ...labels].slice(0, 2)
+  if (hidesLeftoverAreaCopy(resident)) {
+    return []
   }
-  return labels.slice(0, 2)
+  const labels = mapEverydayAreas(resident.areas, LEFTOVER_KIND_AREAS)
+  const withArticle =
+    resident.workStory && !labels.includes('記事')
+      ? ['記事', ...labels]
+      : labels
+  return withArticle.slice(0, 2)
 }
 
-function leftoverWorkSummary(resident: Pick<PlaceResident, 'areas'>): string {
+function leftoverWorkSummary(
+  resident: Pick<PlaceResident, 'areas' | 'placeIntro'>,
+): string {
+  const look = placeWorkLook(resident.placeIntro)
+  if (look) {
+    return look.leftover
+  }
   const named = namedAreas(resident.areas).map(shortAreaForBubble)
+  if (named.length === 0 || named.every((area) => isVagueLeftoverArea(area))) {
+    return '途中の仕事がある'
+  }
   const shown = named.slice(0, 2)
   if (shown.length === 2) {
     return `${shown[0]}や${shown[1]}まわりに、途中の仕事がある`
@@ -1113,6 +1244,29 @@ function leftoverWorkSummary(resident: Pick<PlaceResident, 'areas'>): string {
     return `${shown[0]}まわりに、途中の仕事がある`
   }
   return '途中の仕事がある'
+}
+
+function placeWorkLook(value: string | null | undefined): PlaceWorkLook | null {
+  const intro = everydayPlaceIntro(value)
+  if (!intro) {
+    return null
+  }
+  for (const item of PLACE_WORK_LOOKS) {
+    if (item.pattern.test(intro)) {
+      return item.look
+    }
+  }
+  return null
+}
+
+function hidesLeftoverAreaCopy(
+  resident: Pick<PlaceResident, 'placeIntro' | 'workStory'>,
+): boolean {
+  return Boolean(everydayPlaceIntro(resident.placeIntro)) && !resident.workStory
+}
+
+function isVagueLeftoverArea(area: string): boolean {
+  return VAGUE_LEFTOVER_AREAS.has(area)
 }
 
 function namedAreas(areas: readonly string[]): string[] {
@@ -1169,6 +1323,7 @@ function describeNextStep(
     | 'conflictCount'
     | 'areas'
     | 'workStory'
+    | 'placeIntro'
     | 'changedFileCount'
     | 'outgoingCount'
     | 'incomingCount'
@@ -1177,13 +1332,22 @@ function describeNextStep(
   if (resident.waiting || resident.conflictCount > 0) {
     return '確認が必要'
   }
+  const look = placeWorkLook(resident.placeIntro)
+  if (look && resident.changedFileCount > 0 && !resident.workStory) {
+    return look.next
+  }
   const leftoverKinds =
     resident.changedFileCount > 0 ? leftoverKindAreas(resident) : []
   if (leftoverKinds.length === 2) {
     return `${leftoverKinds[0]}と${leftoverKinds[1]}の途中を続ける`
   }
-  if (leftoverKinds.length === 1) {
-    return `${leftoverKinds[0]}の途中を続ける`
+  const leftoverKind = leftoverKinds[0]
+  if (
+    leftoverKinds.length === 1 &&
+    leftoverKind &&
+    !isVagueLeftoverArea(leftoverKind)
+  ) {
+    return `${leftoverKind}の途中を続ける`
   }
   if (resident.changedFileCount > 0) {
     return '途中の仕事を続ける'

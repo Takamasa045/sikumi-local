@@ -1,7 +1,12 @@
 export { discoverLiveSessions } from './discover.js'
 export { liveSightingToEvent } from './events.js'
 export { identifyLiveAgent } from './identify.js'
-export { matchRegisteredRoot } from './match.js'
+export {
+  isBindableCwd,
+  isSameLeafAlias,
+  matchRegisteredPlace,
+  matchRegisteredRoot,
+} from './match.js'
 export { listCurrentUserLiveProcesses } from './processes.js'
 export {
   encodeClaudeProjectDir,

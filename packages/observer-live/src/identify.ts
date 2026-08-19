@@ -46,6 +46,9 @@ function identifyToken(
   if (exact === 'codex' || exact === 'codex-exec') {
     return { source: 'codex', surface: 'cli' }
   }
+  if (exact === 'chatgpt') {
+    return { source: 'codex', surface: 'desktop-app' }
+  }
   if (exact === 'claude') {
     return { source: 'claude-code', surface: 'cli' }
   }

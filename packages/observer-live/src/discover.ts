@@ -1,6 +1,7 @@
 import { nowIso } from '@sikumi-local/observer-core'
 import { identifyLiveAgent } from './identify.js'
-import { matchRegisteredRoot } from './match.js'
+import { locateLiveProcess, sightingFromLocatedProcess } from './locate.js'
+import { matchRegisteredPlace } from './match.js'
 import { listCurrentUserLiveProcesses } from './processes.js'
 import {
   listRecentSessionRecords,
@@ -19,6 +20,11 @@ export function discoverLiveSessions(
   }
   const now = input.now ?? Date.now()
   const nowStamp = nowIso(new Date(now))
+  const sessionRecords = listRecentSessionRecords({
+    homeDir: input.homeDir,
+    roots: input.roots,
+    now,
+  })
   const byKey = new Map<string, LiveSighting>()
 
   for (const process of listCurrentUserLiveProcesses({
@@ -26,32 +32,37 @@ export function discoverLiveSessions(
     ...(input.listProcesses ? { listRaw: input.listProcesses } : {}),
   })) {
     const identified = identifyLiveAgent(process)
-    const matched = matchRegisteredRoot(process.cwd, input.roots)
-    if (!identified || !matched || !process.cwd) {
+    if (!identified) {
       continue
     }
-    const sighting: LiveSighting = {
+    const located = locateLiveProcess({
+      process,
+      roots: input.roots,
+      sessionCwds: sessionRecords
+        .filter((record) => record.source === identified.source)
+        .map((record) => record.cwd),
+    })
+    if (!located) {
+      continue
+    }
+    const title = titleForLocatedPlace(
+      sessionRecords,
+      identified.source,
+      located.root.repositoryId,
+      input.roots,
+    )
+    const sighting = sightingFromLocatedProcess({
+      process,
       source: identified.source,
       surface: identified.surface,
-      kind: 'process',
-      cwd: process.cwd,
-      repositoryId: matched.repositoryId,
-      workspaceId: matched.workspaceId,
-      title: null,
+      located,
+      title,
       lastObservedAt: nowStamp,
-      attributionConfidence: 'verified',
-      ingestionMethod: 'process-scan',
-      externalSessionId: `live:${identified.source}:${matched.repositoryId}`,
-      pid: process.pid,
-    }
-    byKey.set(`${identified.source}:${matched.repositoryId}`, sighting)
+    })
+    byKey.set(`${identified.source}:${located.root.repositoryId}`, sighting)
   }
 
-  for (const record of listRecentSessionRecords({
-    homeDir: input.homeDir,
-    roots: input.roots,
-    now,
-  })) {
+  for (const record of sessionRecords) {
     const sighting = toLiveSighting(record, input.roots)
     if (!sighting) {
       continue
@@ -68,4 +79,23 @@ export function discoverLiveSessions(
   }
 
   return [...byKey.values()]
+}
+
+function titleForLocatedPlace(
+  records: readonly { readonly source: string; readonly cwd: string; readonly title: string | null }[],
+  source: string,
+  repositoryId: string,
+  roots: LiveDiscoveryInput['roots'],
+): string | null {
+  const titles = records
+    .filter(
+      (record) =>
+        record.source === source &&
+        record.title &&
+        matchRegisteredPlace(record.cwd, roots)?.root.repositoryId ===
+          repositoryId,
+    )
+    .map((record) => record.title)
+    .filter((title): title is string => Boolean(title))
+  return titles[0] ?? null
 }

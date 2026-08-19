@@ -1,4 +1,5 @@
-import { rmSync } from 'node:fs'
+import { mkdirSync, rmSync, writeFileSync, utimesSync } from 'node:fs'
+import { basename, dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { openDatabase } from '../storage/database.js'
 import { createStore } from '../storage/store.js'
@@ -103,7 +104,76 @@ describe('live discovery without hooks', () => {
       ),
     ).toBe(false)
   })
+
+  it('binds Codex Desktop at / to a registered place via a same-leaf twin session', async () => {
+    const { store, dataDirectory } = openIsolatedStore()
+    const registered = track(createTemporaryGitRepository())
+    const workspace = store.createWorkspace({
+      absolutePath: registered,
+      displayName: 'hataraki',
+      currentBranch: 'main',
+      remoteName: null,
+      remoteUrl: null,
+      readable: true,
+    })
+    const live = join(dirname(registered), '*開発', basename(registered))
+    const home = track(createTemporaryDirectory())
+    writeCodexRollout(home, live, 'sess-hataraki', Date.now() - 15_000)
+
+    const service = trackService(
+      createObserverService(store, dataDirectory, {
+        consistencyIntervalMs: 0,
+        liveHomeDir: home,
+        liveCurrentUser: 'mei',
+        listLiveProcesses: () => [
+          {
+            pid: 77,
+            user: 'mei',
+            command: 'ChatGPT',
+            args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+            cwd: '/',
+          },
+        ],
+      }),
+    )
+    await service.recover()
+
+    const overview = service.today()
+    const repository = overview.repositories.find(
+      (item) => item.repositoryId === workspace.repository.id,
+    )
+    const session = repository?.sessions.find((item) => item.source === 'codex')
+    expect(session).toMatchObject({
+      source: 'codex',
+      status: 'active',
+    })
+    expect(session?.title).not.toBe('変更元不明の作業')
+    expect(
+      store.listAdapters().find((adapter) => adapter.source === 'codex')
+        ?.lastEventAt,
+    ).toBeNull()
+  })
 })
+
+function writeCodexRollout(
+  home: string,
+  cwd: string,
+  id: string,
+  mtime: number,
+) {
+  const folder = join(home, '.codex', 'sessions', '2026', '08', '19')
+  mkdirSync(folder, { recursive: true })
+  const file = join(folder, `rollout-${id}.jsonl`)
+  writeFileSync(
+    file,
+    `${JSON.stringify({
+      type: 'session_meta',
+      payload: { id, cwd },
+    })}\n`,
+  )
+  const at = new Date(mtime)
+  utimesSync(file, at, at)
+}
 
 function openIsolatedStore(): {
   readonly store: ReturnType<typeof createStore>

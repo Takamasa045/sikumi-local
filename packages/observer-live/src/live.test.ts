@@ -7,12 +7,12 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { OBSERVER_LIVE_SESSION_MAX_AGE_MS } from '@sikumi-local/observer-core'
 import { discoverLiveSessions } from './discover.js'
 import { identifyLiveAgent } from './identify.js'
-import { matchRegisteredRoot } from './match.js'
+import { isBindableCwd, matchRegisteredRoot } from './match.js'
 import { encodeClaudeProjectDir } from './session-files.js'
 import { acceptStoredTitle } from './titles.js'
 import type { LiveProcessRow, RegisteredLiveRoot } from './types.js'
@@ -54,6 +54,18 @@ describe('identifyLiveAgent', () => {
       identifyLiveAgent({
         command: 'node',
         args: 'node sikumi-observer-codex.mjs',
+      }),
+    ).toBeNull()
+    expect(
+      identifyLiveAgent({
+        command: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+        args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+      }),
+    ).toEqual({ source: 'codex', surface: 'desktop-app' })
+    expect(
+      identifyLiveAgent({
+        command: 'ChatGPT Helper',
+        args: 'ChatGPT Helper (GPU)',
       }),
     ).toBeNull()
   })
@@ -244,6 +256,209 @@ describe('matchRegisteredRoot', () => {
       'repo',
     )
     expect(matchRegisteredRoot('/Users/mei/project-other', roots)).toBeNull()
+  })
+
+  it('treats a same-leaf nested twin as the registered place', () => {
+    const roots = [root('repo', 'ws', '/Users/takamasa/Projects/hataraki')]
+    expect(
+      matchRegisteredRoot(
+        '/Users/takamasa/Projects/*開発/hataraki',
+        roots,
+      )?.repositoryId,
+    ).toBe('repo')
+    expect(
+      matchRegisteredRoot(
+        '/Users/takamasa/Projects/*開発/hataraki/src',
+        roots,
+      )?.repositoryId,
+    ).toBe('repo')
+    expect(
+      matchRegisteredRoot('/Users/other/hataraki', roots),
+    ).toBeNull()
+    expect(
+      matchRegisteredRoot('/Users/takamasa/Documents/hataraki', roots),
+    ).toBeNull()
+    expect(isBindableCwd('/')).toBe(false)
+    expect(matchRegisteredRoot('/', roots)).toBeNull()
+  })
+})
+
+describe('desktop and alias discovery', () => {
+  it('binds a Codex process in a same-leaf twin folder to the registered place', () => {
+    const home = track(createTempDir('home-'))
+    const registered = '/Users/takamasa/Projects/hataraki'
+    const live = '/Users/takamasa/Projects/*開発/hataraki'
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', registered)],
+      listProcesses: () => [
+        processRow({
+          pid: 31,
+          user: 'mei',
+          command: 'codex',
+          args: 'codex',
+          cwd: live,
+        }),
+        processRow({
+          pid: 32,
+          user: 'mei',
+          command: 'codex',
+          args: 'codex',
+          cwd: '/Users/other/hataraki',
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      kind: 'process',
+      repositoryId: 'repo-hataraki',
+      cwd: live,
+    })
+  })
+
+  it('uses a child cwd when Codex Desktop is alive at /', () => {
+    const home = track(createTempDir('home-'))
+    const registered = '/Users/takamasa/Projects/hataraki'
+    const live = '/Users/takamasa/Projects/*開発/hataraki'
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', registered)],
+      listProcesses: () => [
+        processRow({
+          pid: 41,
+          user: 'mei',
+          command: 'ChatGPT',
+          args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+          cwd: '/',
+          childCwds: [live],
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      surface: 'desktop-app',
+      kind: 'process',
+      repositoryId: 'repo-hataraki',
+      cwd: live,
+      attributionConfidence: 'correlated',
+    })
+  })
+
+  it('uses a recent Codex session cwd when Desktop cwd is / and children do not help', () => {
+    const home = track(createTempDir('home-'))
+    const registered = '/Users/takamasa/Projects/hataraki'
+    const live = '/Users/takamasa/Projects/*開発/hataraki'
+    writeCodexSession(home, {
+      id: 'sess-hataraki',
+      cwd: live,
+      mtime: NOW - 20_000,
+    })
+    writeFileSync(
+      join(home, '.codex', 'session_index.jsonl'),
+      `${JSON.stringify({ id: 'sess-hataraki', thread_name: '働きの直し' })}\n`,
+    )
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', registered)],
+      listProcesses: () => [
+        processRow({
+          pid: 51,
+          user: 'mei',
+          command: 'ChatGPT',
+          args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+          cwd: '/',
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      kind: 'process',
+      repositoryId: 'repo-hataraki',
+      title: '働きの直し',
+      attributionConfidence: 'correlated',
+    })
+  })
+
+  it('binds Desktop at / through a real temp registered folder and a * twin session', () => {
+    const home = track(createTempDir('home-'))
+    const registered = track(createTempDir('hataraki-'))
+    const live = join(dirname(registered), '*開発', basename(registered))
+    writeCodexSession(home, {
+      id: 'sess-real',
+      cwd: live,
+      mtime: NOW - 20_000,
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', registered)],
+      listProcesses: () => [
+        processRow({
+          pid: 71,
+          user: 'mei',
+          command: 'ChatGPT',
+          args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+          cwd: '/',
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]?.repositoryId).toBe('repo-hataraki')
+    expect(sightings[0]?.kind).toBe('process')
+  })
+
+  it('does not invent a place when Desktop cwd is / and two registered folders have recent sessions', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = '/Users/takamasa/Projects/hataraki'
+    const notes = '/Users/takamasa/Projects/notes'
+    writeCodexSession(home, {
+      id: 'sess-a',
+      cwd: hataraki,
+      mtime: NOW - 10_000,
+    })
+    writeCodexSession(home, {
+      id: 'sess-b',
+      cwd: notes,
+      mtime: NOW - 15_000,
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [
+        root('repo-hataraki', 'ws-hataraki', hataraki),
+        root('repo-notes', 'ws-notes', notes),
+      ],
+      listProcesses: () => [
+        processRow({
+          pid: 61,
+          user: 'mei',
+          command: 'ChatGPT',
+          args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+          cwd: '/',
+        }),
+      ],
+    })
+
+    const processSightings = sightings.filter((item) => item.kind === 'process')
+    expect(processSightings).toHaveLength(0)
   })
 })
 

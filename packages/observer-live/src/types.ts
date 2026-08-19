@@ -27,6 +27,8 @@ export interface LiveProcessRow {
   readonly command: string
   readonly args: string
   readonly cwd: string | null
+  readonly ppid?: number | null
+  readonly childCwds?: readonly string[]
 }
 
 export interface LiveSighting {

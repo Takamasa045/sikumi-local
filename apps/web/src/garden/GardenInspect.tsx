@@ -6,8 +6,6 @@ import {
   gardenStationMeanings,
 } from './worlds'
 
-export const UNKNOWN_INSPECT_FACT = 'まだ分かっていません'
-
 export type GardenInspectSubject =
   | {
       readonly kind: 'character'
@@ -17,11 +15,11 @@ export type GardenInspectSubject =
       readonly traveling: boolean
       readonly summary: string
       readonly jobTitle?: string
-      readonly operatorSummary?: string | null
-      readonly repositoryLabel?: string
-      readonly stopped?: boolean
-      readonly progressSummary?: string | null
-      readonly nextStepSummary?: string | null
+      readonly nowText?: string
+      readonly implementationLook?: string
+      readonly nextStep?: string
+      readonly driverNote?: string | null
+      readonly live?: boolean
     }
   | {
       readonly kind: 'station'
@@ -89,56 +87,82 @@ function CharacterBody({
   readonly subject: Extract<GardenInspectSubject, { kind: 'character' }>
 }) {
   const place = gardenStationLabels[subject.station]
+  const hasProgress =
+    subject.nowText !== undefined &&
+    subject.implementationLook !== undefined &&
+    subject.nextStep !== undefined
+  const live = subject.live !== false
   return (
     <dl className="garden-inspect__facts">
-      {subject.role ? (
+      {subject.role && !hasProgress ? (
         <>
           <dt>役割</dt>
           <dd>{subject.role}</dd>
-        </>
-      ) : null}
-      {subject.repositoryLabel ? (
-        <>
-          <dt>リポジトリ</dt>
-          <dd>{subject.repositoryLabel}</dd>
         </>
       ) : null}
       <dt>場所</dt>
       <dd>
         {subject.traveling ? `${place}へ向かっています` : `${place}にいます`}
       </dd>
-      {subject.operatorSummary ? (
+      {hasProgress && live ? (
         <>
           <dt>いま</dt>
-          <dd>{subject.operatorSummary}</dd>
+          <dd>
+            {subject.nowText}
+            {subject.driverNote ? (
+              <span className="garden-inspect__driver">
+                {subject.driverNote}
+              </span>
+            ) : null}
+          </dd>
+          <dt>実装の様子</dt>
+          <dd>{subject.implementationLook}</dd>
+          <dt>これから</dt>
+          <dd>{subject.nextStep}</dd>
         </>
-      ) : null}
-      {subject.jobTitle ? (
-        <>
-          <dt>仕事</dt>
-          <dd>{subject.jobTitle}</dd>
-        </>
-      ) : null}
-      {subject.stopped ? (
+      ) : hasProgress ? (
         <>
           <dt>どこまでやったか</dt>
-          <dd>{knownFact(subject.progressSummary ?? subject.summary)}</dd>
+          <dd>
+            {describeStoppedLook(subject.nowText, subject.implementationLook)}
+            {subject.driverNote ? (
+              <span className="garden-inspect__driver">
+                {subject.driverNote}
+              </span>
+            ) : null}
+          </dd>
           <dt>次はこんな感じか</dt>
-          <dd>{knownFact(subject.nextStepSummary)}</dd>
+          <dd>{subject.nextStep}</dd>
         </>
       ) : (
         <>
-          <dt>いまの仕事</dt>
-          <dd>{knownFact(subject.summary)}</dd>
+          {subject.jobTitle ? (
+            <>
+              <dt>仕事</dt>
+              <dd>{subject.jobTitle}</dd>
+            </>
+          ) : null}
+          <dt>要約</dt>
+          <dd>{subject.summary}</dd>
         </>
       )}
     </dl>
   )
 }
 
-function knownFact(value: string | null | undefined): string {
-  const trimmed = value?.trim() ?? ''
-  return trimmed || UNKNOWN_INSPECT_FACT
+function describeStoppedLook(
+  nowText: string | undefined,
+  implementationLook: string | undefined,
+): string {
+  const now = nowText?.trim() ?? ''
+  const look = implementationLook?.trim() ?? ''
+  if (!look || now.includes(look)) {
+    return now
+  }
+  if (!now) {
+    return look
+  }
+  return `${now} ${look}`
 }
 
 function StationBody({

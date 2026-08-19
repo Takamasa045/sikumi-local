@@ -20,7 +20,7 @@ test.describe('garden visual QA', () => {
 
     await page.getByRole('link', { name: '今日の作業場' }).click()
     await expect(
-      page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+      page.getByRole('heading', { name: '登録した場所' }),
     ).toBeVisible()
     await page.screenshot({
       path: `${outputDir}/${suffix}-today.png`,

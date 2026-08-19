@@ -1,28 +1,30 @@
 import type { FormEvent } from 'react'
 import type { Workspace } from '@sikumi-local/core'
+import { confirmUnregisterPlace } from './confirmUnregisterPlace'
+import { PlaceAddForm } from './PlaceAddForm'
 
 interface RepositoryPanelProps {
   readonly workspace: Workspace | null
+  readonly workspaces?: readonly Workspace[]
   readonly busy: boolean
   readonly error: string | null
   readonly onRegister: (path: string, employeeName: string) => void
+  readonly onChooseFolder?: () => Promise<string | null>
+  readonly onUnregister?: (workspaceId: string) => void
   readonly onEmployeeNameChange?: ((employeeName: string) => void) | undefined
 }
 
 export function RepositoryPanel({
   workspace,
+  workspaces,
   busy,
   error,
   onRegister,
+  onChooseFolder,
+  onUnregister,
   onEmployeeNameChange,
 }: RepositoryPanelProps) {
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = new FormData(event.currentTarget)
-    const path = String(form.get('path') ?? '')
-    const employeeName = String(form.get('employeeName') ?? '').trim()
-    onRegister(path, employeeName)
-  }
+  const places = workspaces ?? (workspace ? [workspace] : [])
 
   function handleEmployeeNameSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -36,7 +38,7 @@ export function RepositoryPanel({
   return (
     <section
       className="repository-panel"
-      aria-label={workspace ? '登録済みRepository' : 'Repository登録'}
+      aria-label={places.length > 0 ? '登録した場所' : '場所の登録'}
     >
       {workspace ? (
         <>
@@ -46,11 +48,11 @@ export function RepositoryPanel({
             {workspace.repository.absolutePath}
           </p>
           <ul className="repository-checks">
-            <li>✓ Git Repository</li>
+            <li>✓ Gitの場所です</li>
             <li>
-              ✓ 現在のbranch: {workspace.repository.currentBranch ?? 'detached'}
+              ✓ いまの枝: {workspace.repository.currentBranch ?? 'detached'}
             </li>
-            <li>✓ remote: {workspace.repository.remoteName ?? 'なし'}</li>
+            <li>✓ 遠隔: {workspace.repository.remoteName ?? 'なし'}</li>
             <li>
               ✓{' '}
               {workspace.repository.readable ? '読み取り可能' : '読み取り不可'}
@@ -76,51 +78,48 @@ export function RepositoryPanel({
       ) : (
         <>
           <p className="section-kicker">最初の工房</p>
-          <h2>AI社員をどこで働かせますか？</h2>
+          <h2>どの場所を観測しますか？</h2>
         </>
       )}
 
-      <form onSubmit={handleSubmit}>
-        {!workspace ? (
-          <label>
-            <span>担当の名前（任意）</span>
-            <p className="repository-panel__help">
-              空欄ならRepository名から自動で決めます。登録後も変更できます。
-            </p>
-            <input
-              name="employeeName"
-              aria-label="担当の名前（任意）"
-              placeholder="例：ブログ番"
-              autoComplete="off"
-              maxLength={40}
-              disabled={busy}
-            />
-          </label>
-        ) : null}
-        <label>
-          <span>Repositoryの場所</span>
-          <p className="repository-panel__help">
-            AI社員に作業してもらいたいGitプロジェクトのフォルダを指定してください。Shikumi
-            Local自身のフォルダではありません。
-          </p>
-          <input
-            name="path"
-            aria-label="Repositoryの場所"
-            placeholder="/Users/example/Projects/my-website"
-            autoComplete="off"
-            spellCheck={false}
-            disabled={busy}
-          />
-        </label>
-        {error ? (
-          <p className="repository-panel__error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <button type="submit" disabled={busy}>
-          この工房に登録する
-        </button>
-      </form>
+      {places.length > 0 ? (
+        <ul className="repository-place-list" aria-label="登録した場所">
+          {places.map((place) => (
+            <li key={place.id}>
+              <div>
+                <strong>
+                  {place.employeeName ?? place.repository.displayName}
+                </strong>
+                <p className="repository-panel__path">
+                  {place.repository.absolutePath}
+                </p>
+              </div>
+              {onUnregister ? (
+                <button
+                  type="button"
+                  className="is-quiet"
+                  data-testid={`settings-place-unregister-${place.id}`}
+                  disabled={busy}
+                  onClick={() => {
+                    if (confirmUnregisterPlace()) {
+                      onUnregister(place.id)
+                    }
+                  }}
+                >
+                  この場所を外す
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      <PlaceAddForm
+        busy={busy}
+        error={error}
+        onRegister={onRegister}
+        {...(onChooseFolder ? { onChooseFolder } : {})}
+      />
     </section>
   )
 }

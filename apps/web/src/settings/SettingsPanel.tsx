@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import type { InstalledPack, ProviderId, Workspace } from '@sikumi-local/core'
 import type { ProviderAvailability } from '../api/providers'
 import type { ProviderLoadState } from '../providers/connection-summary'
@@ -20,10 +19,13 @@ interface PackPreview {
 
 interface SettingsPanelProps {
   readonly workspace: Workspace | null
+  readonly workspaces?: readonly Workspace[]
   readonly providers: readonly ProviderAvailability[]
   readonly busy: boolean
   readonly error: string | null
   readonly onRegister: (path: string, employeeName: string) => void
+  readonly onChooseFolder?: () => Promise<string | null>
+  readonly onUnregister?: (workspaceId: string) => void
   readonly onEmployeeNameChange?: ((employeeName: string) => void) | undefined
   readonly onWorkspaceProviderChange?: (providerId: ProviderId | null) => void
   readonly packs?: readonly InstalledPack[]
@@ -53,10 +55,13 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({
   workspace,
+  workspaces,
   providers,
   busy,
   error,
   onRegister,
+  onChooseFolder,
+  onUnregister,
   onEmployeeNameChange,
   onWorkspaceProviderChange,
   packs = [],
@@ -69,21 +74,32 @@ export function SettingsPanel({
   providerProbes,
   onRecheckProvider,
 }: SettingsPanelProps) {
-  const [showOptionalConnect, setShowOptionalConnect] = useState(false)
   return (
     <section className="settings-panel" id="settings" aria-label="設定">
       <p className="section-kicker">設定</p>
       <h2>工房の整え方</h2>
-      <p className="observer-lead">
-        普段は今日の作業場でフォルダを登録すれば十分です。そこで動かしている
-        AI は、つなぐ操作なしで庭に出ます。
-      </p>
+      <details className="settings-panel__optional">
+        <summary>道具をつなぐ（任意）</summary>
+        <p>
+          つなぐは必須ではありません。登録した場所の様子は、つないでいなくても見られます。
+        </p>
+        <AdapterSettings
+          key={
+            (workspaces ?? (workspace ? [workspace] : []))
+              .map((item) => item.id)
+              .join(',') || 'none'
+          }
+        />
+      </details>
       <RepositoryPanel
         workspace={workspace}
         busy={busy}
         error={error}
         onRegister={onRegister}
-        onEmployeeNameChange={onEmployeeNameChange}
+        {...(workspaces ? { workspaces } : {})}
+        {...(onChooseFolder ? { onChooseFolder } : {})}
+        {...(onUnregister ? { onUnregister } : {})}
+        {...(onEmployeeNameChange ? { onEmployeeNameChange } : {})}
       />
       {workspace && onWorkspaceProviderChange ? (
         <label className="settings-panel__tool">
@@ -236,16 +252,6 @@ export function SettingsPanel({
           ))}
         </ul>
       ) : null}
-      <details
-        className="settings-panel__optional"
-        data-testid="optional-connect"
-        onToggle={(event) => {
-          setShowOptionalConnect(event.currentTarget.open)
-        }}
-      >
-        <summary>つなぐ（任意）</summary>
-        {showOptionalConnect ? <AdapterSettings /> : null}
-      </details>
     </section>
   )
 }

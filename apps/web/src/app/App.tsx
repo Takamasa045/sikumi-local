@@ -42,8 +42,10 @@ import {
   type ProviderAvailability,
 } from '../api/providers'
 import {
+  chooseWorkspaceFolder,
   listWorkspaces,
   registerWorkspace,
+  unregisterWorkspace,
   updateWorkspace,
   updateWorkspaceEmployeeName,
 } from '../api/workspaces'
@@ -646,6 +648,58 @@ export function App() {
     }
   }
 
+  async function handleChooseFolder(): Promise<string | null> {
+    setBusy(true)
+    setError(null)
+    try {
+      return await chooseWorkspaceFolder()
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : 'フォルダを選べませんでした',
+      )
+      return null
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleUnregister(workspaceId: string) {
+    const removed = workspaces.find((item) => item.id === workspaceId)
+    setBusy(true)
+    setError(null)
+    try {
+      await unregisterWorkspace(workspaceId)
+      setWorkspaces((current) =>
+        current.filter((item) => item.id !== workspaceId),
+      )
+      if (removed && selectedRepositoryId === removed.repository.id) {
+        setSelectedRepositoryId(null)
+        setRepositoryActivity(null)
+      }
+      try {
+        setOverview(await getTodayOverview())
+      } catch {
+        setOverview((current) =>
+          current
+            ? {
+                ...current,
+                repositoryCount: Math.max(0, current.repositoryCount - 1),
+                repositories: current.repositories.filter(
+                  (item) => item.workspaceId !== workspaceId,
+                ),
+              }
+            : current,
+        )
+      }
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : '場所を外せませんでした',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function runConflictAction(action: () => Promise<ConflictView>) {
     setBusy(true)
     setError(null)
@@ -845,12 +899,6 @@ export function App() {
           >
             今日の作業場
           </a>
-          <a
-            aria-current={screen === 'settings' ? 'page' : undefined}
-            href="#settings"
-          >
-            設定
-          </a>
         </nav>
         <div
           className="connection-badge"
@@ -884,7 +932,9 @@ export function App() {
             <div>
               <span className="eyebrow">観測している場所</span>
               <strong>
-                {placeCount > 0 ? `${placeCount} 件の場所` : 'Repository未登録'}
+                {placeCount > 0
+                  ? `${placeCount} 件の場所`
+                  : '場所はまだありません'}
               </strong>
             </div>
             <div>
@@ -903,6 +953,10 @@ export function App() {
               error={error}
               onRegister={(path, employeeName) => {
                 void handleRegister(path, employeeName)
+              }}
+              onChooseFolder={handleChooseFolder}
+              onUnregister={(workspaceId) => {
+                void handleUnregister(workspaceId)
               }}
               onSelectRepository={(id) => {
                 setSelectedRepositoryId(id)
@@ -1047,11 +1101,16 @@ export function App() {
             <section className="garden-controls">
               <SettingsPanel
                 workspace={workspace}
+                workspaces={workspaces}
                 providers={providers}
                 busy={busy}
                 error={error}
                 onRegister={(path, employeeName) => {
                   void handleRegister(path, employeeName)
+                }}
+                onChooseFolder={handleChooseFolder}
+                onUnregister={(workspaceId) => {
+                  void handleUnregister(workspaceId)
                 }}
                 onEmployeeNameChange={(employeeName) => {
                   void handleEmployeeNameChange(employeeName)
@@ -1146,7 +1205,12 @@ export function App() {
         <p>
           登録した場所の様子を整理します。Gitの用語や、誰が直したかの断定はしません。
         </p>
-        <span>Shikumi Local · 127.0.0.1</span>
+        <div className="footer-meta">
+          <a href="#settings" className="footer-settings-link">
+            設定
+          </a>
+          <span>Shikumi Local · 127.0.0.1</span>
+        </div>
       </footer>
     </div>
   )

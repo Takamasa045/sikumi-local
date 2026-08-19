@@ -12,14 +12,14 @@ import {
   type GardenInspectSubject,
 } from '../../garden/GardenInspect'
 import { poseGesture } from '../../garden/motion'
-import { useGardenWander } from '../../garden/useGardenWander'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
-import { useStationTravel } from '../../garden/useStationTravel'
 import { gardenStationLabels, getWorldPack } from '../../garden/worlds'
 import {
   collectGardenActors,
   type GardenPlaceActor,
 } from '../places/placeResidents'
+import { placeRepoLabel } from './gardenWalk'
+import { useWorkingWalk } from './useWorkingWalk'
 
 const WORLD_ID = 'dog-office' as const
 const ATLAS_COLUMNS = 3
@@ -36,20 +36,13 @@ const STATION_IDS = [
   'rest',
 ] as const
 
-const STATION_SLOT_OFFSETS = [
-  [-12, 0],
-  [12, 0],
-  [-7, 11],
-  [7, 11],
-  [0, -10],
-] as const
-
 type StationId = (typeof STATION_IDS)[number]
 
 type ObserverGardenProps = {
   overview: TodayOverview | null
   workspaces?: readonly Workspace[]
   onOpenWorkshop: () => void
+  onOpenSettings: () => void
 }
 
 function atlasPosition(column: number, row: number): { x: string; y: string } {
@@ -69,32 +62,19 @@ function stationPoint(
   }
 }
 
-function actorAriaLabel(actor: GardenPlaceActor): string {
-  return [actor.placeName, actor.repositoryName, actor.workSummary].join('、')
-}
-
-export const GARDEN_EMPTY_NO_PLACES =
-  '登録した場所がまだありません。今日の作業場からフォルダを追加してください。'
-export const GARDEN_EMPTY_NO_LIVE =
-  'いま動いているエージェントはいません。リポの確認は今日の作業場からできます。'
-
-function gardenEmptyMessage(
-  overview: TodayOverview | null,
-  workspaces: readonly Workspace[],
+function actorAriaLabel(
+  actor: GardenPlaceActor,
+  repoLabel: string | null,
 ): string {
-  const registered =
-    workspaces.length > 0 || (overview?.repositories.length ?? 0) > 0
-  return registered ? GARDEN_EMPTY_NO_LIVE : GARDEN_EMPTY_NO_PLACES
+  return [actor.placeName, repoLabel, actor.workSummary]
+    .filter((part): part is string => Boolean(part))
+    .join('、')
 }
 
-function actorOffset(actor: GardenPlaceActor): { x: number; y: number } {
-  const slot =
-    STATION_SLOT_OFFSETS[actor.slot % STATION_SLOT_OFFSETS.length] ??
-    STATION_SLOT_OFFSETS[0]!
-  const lap = Math.floor(actor.slot / STATION_SLOT_OFFSETS.length)
+function actorPoint(actor: GardenPlaceActor): { x: number; y: number } {
   return {
-    x: slot[0] + actor.jitterX + lap * 3,
-    y: slot[1] + actor.jitterY + lap * 2,
+    x: actor.groundX + actor.jitterX,
+    y: actor.groundY + actor.jitterY,
   }
 }
 
@@ -102,6 +82,7 @@ export function ObserverGarden({
   overview,
   workspaces = [],
   onOpenWorkshop,
+  onOpenSettings,
 }: ObserverGardenProps) {
   const world = getWorldPack(WORLD_ID)
   const actors = collectGardenActors(overview, workspaces)
@@ -165,6 +146,13 @@ export function ObserverGarden({
             >
               今日の作業場
             </button>
+            <button
+              type="button"
+              className="observer-garden-nav-button observer-garden-nav-settings"
+              onClick={onOpenSettings}
+            >
+              設定
+            </button>
           </div>
         </header>
 
@@ -212,21 +200,19 @@ export function ObserverGarden({
                   onTravelingChange={(next) => {
                     handleActorTravel(actor.key, next)
                   }}
-                  onSelect={() => {
+                  onSelect={(presence) => {
                     setSelectedKey(actor.key)
                     setInspect({
                       kind: 'character',
                       name: actor.placeName,
-                      station: actor.station,
-                      traveling: actorTravel[actor.key] === true,
+                      station: presence.station,
+                      traveling: presence.traveling,
                       summary: actor.workSummary,
-                      repositoryLabel: actor.repositoryName,
-                      stopped: actor.stopped,
-                      progressSummary: actor.workSummary,
-                      nextStepSummary: null,
-                      ...(actor.operatorSummary
-                        ? { operatorSummary: actor.operatorSummary }
-                        : {}),
+                      nowText: actor.nowText,
+                      implementationLook: actor.implementationLook,
+                      nextStep: actor.nextStep,
+                      driverNote: actor.driverNote,
+                      live: actor.tone === 'working' || presence.traveling,
                     })
                   }}
                 />
@@ -234,7 +220,7 @@ export function ObserverGarden({
             </div>
           ) : (
             <p className="observer-garden-guide">
-              {gardenEmptyMessage(overview, workspaces)}
+              登録した場所がまだありません。今日の作業場からフォルダを追加してください。
             </p>
           )}
 
@@ -259,33 +245,28 @@ function ObserverGardenActor({
   readonly world: ReturnType<typeof getWorldPack>
   readonly reducedMotion: boolean
   readonly selected: boolean
-  readonly onSelect: () => void
+  readonly onSelect: (presence: {
+    readonly traveling: boolean
+    readonly station: GardenPlaceActor['station']
+  }) => void
   readonly onTravelingChange: (traveling: boolean) => void
 }) {
-  const point = stationPoint(world.stations, actor.station)
-  const offset = actorOffset(actor)
-  const home = {
-    x: point.x + offset.x,
-    y: point.y + offset.y,
-  }
-  const wandering = actor.tone === 'working' && !reducedMotion
-  const destination = useGardenWander(home, wandering, reducedMotion)
+  const home = actorPoint(actor)
   const {
     point: travelPoint,
     traveling,
     durationMs,
-  } = useStationTravel(destination, reducedMotion)
+    walkStation,
+  } = useWorkingWalk(actor, home, reducedMotion)
   const pose =
     actor.tone === 'waiting'
       ? 'waiting'
       : actor.tone === 'working'
         ? 'working'
         : 'idle'
-  const gesture = poseGesture(
-    pose,
-    (traveling || wandering) && !reducedMotion,
-  )
+  const gesture = poseGesture(pose, traveling && !reducedMotion)
   const atlas = atlasPosition(actor.column, actor.row)
+  const repoLabel = placeRepoLabel(actor.placeName, actor.repositoryName)
   const spriteStyle = {
     '--observer-atlas-x': atlas.x,
     '--observer-atlas-y': atlas.y,
@@ -323,10 +304,13 @@ function ObserverGardenActor({
         .filter(Boolean)
         .join(' ')}
       role="listitem"
-      aria-label={actorAriaLabel(actor)}
+      aria-label={actorAriaLabel(actor, repoLabel)}
       data-testid={`garden-place-${actor.repositoryId}`}
       data-status={actor.tone}
       data-station={actor.station}
+      data-walk-stop={walkStation}
+      data-ground-x={String(Math.round(actor.groundX))}
+      data-ground-y={String(Math.round(actor.groundY))}
       data-gesture={gesture}
       data-traveling={traveling ? 'true' : 'false'}
       style={actorStyle}
@@ -335,12 +319,17 @@ function ObserverGardenActor({
         type="button"
         className="observer-garden-actor-hit"
         aria-expanded={selected}
-        onClick={onSelect}
+        onClick={() => {
+          onSelect({ traveling, station: walkStation })
+        }}
       >
         <div className="observer-garden-actor-sprite" style={spriteStyle} />
       </button>
       <div className="observer-garden-bubble">
-        <p className="observer-garden-bubble-source">{actor.repositoryName}</p>
+        <p className="observer-garden-bubble-source">{actor.placeName}</p>
+        {repoLabel ? (
+          <p className="observer-garden-bubble-repo">{repoLabel}</p>
+        ) : null}
         <p className="observer-garden-bubble-title">{actor.workSummary}</p>
       </div>
     </article>

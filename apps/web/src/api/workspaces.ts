@@ -1,4 +1,6 @@
 import {
+  chooseWorkspaceFolderResponseSchema,
+  unregisterWorkspaceResponseSchema,
   workspaceSchema,
   type ProviderId,
   type Workspace,
@@ -59,6 +61,42 @@ export async function updateWorkspace(
     throw toApiError(body, response.status)
   }
   return workspaceResponseSchema.parse(body).workspace
+}
+
+export async function chooseWorkspaceFolder(): Promise<string | null> {
+  const response = await writeWithCsrfRetry((token) =>
+    fetch('/api/workspaces/choose-folder', {
+      method: 'POST',
+      credentials: 'include',
+      headers: authorizedHeaders(token),
+      body: JSON.stringify({}),
+    }),
+  )
+  const body: unknown = await response.json()
+  if (!response.ok) {
+    throw toApiError(body, response.status)
+  }
+  const parsed = chooseWorkspaceFolderResponseSchema.parse(body)
+  return parsed.cancelled ? null : parsed.path
+}
+
+export async function unregisterWorkspace(id: string): Promise<void> {
+  const response = await writeWithCsrfRetry((token) =>
+    fetch(`/api/workspaces/${id}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: authorizedHeaders(token),
+      body: JSON.stringify({}),
+    }),
+  )
+  if (response.status === 204) {
+    return
+  }
+  const body: unknown = await response.json()
+  if (!response.ok) {
+    throw toApiError(body, response.status)
+  }
+  unregisterWorkspaceResponseSchema.parse(body)
 }
 
 export async function updateWorkspaceEmployeeName(

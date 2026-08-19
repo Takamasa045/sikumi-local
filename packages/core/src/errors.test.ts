@@ -17,6 +17,7 @@ describe('AppError', () => {
 
   it('rejects unknown error codes', () => {
     expect(isErrorCode('REPOSITORY_NOT_GIT')).toBe(true)
+    expect(isErrorCode('FOLDER_PICKER_UNAVAILABLE')).toBe(true)
     expect(isErrorCode('PERMISSION_ESCALATION')).toBe(true)
     expect(isErrorCode('SECRET_LEAK')).toBe(false)
     expect(isAppError(new Error('nope'))).toBe(false)

@@ -596,6 +596,28 @@ main {
   color: #8a3b2b;
   font-size: 12px;
 }
+.repository-place-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.repository-place-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.repository-place-list .repository-panel__path {
+  margin: 4px 0 0;
+}
+.repository-panel button.is-quiet,
+.observer-add-repository button.is-quiet {
+  color: #5c5748;
+  background: #efe8d3;
+}
 
 .job-composer {
   display: grid;
@@ -1116,8 +1138,30 @@ footer {
 footer p {
   margin: 0;
 }
+.footer-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.footer-settings-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 footer span {
   font-family: 'SFMono-Regular', Consolas, monospace;
+}
+.settings-panel__optional {
+  margin: 0 0 22px;
+}
+.settings-panel__optional summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.settings-panel__optional > p {
+  margin: 8px 0 14px;
+  color: #6f6c5e;
 }
 
 @media (max-width: 820px) {
@@ -1367,20 +1411,38 @@ footer span {
   list-style: none;
 }
 .observer-place-row {
-  appearance: none;
-  width: 100%;
   display: grid;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
   padding: 14px 16px;
-  text-align: left;
   background: #f7f3e6;
   border: 1px solid #cfc6b0;
+}
+.observer-place-row.is-selected {
+  border-color: var(--copper);
+}
+.observer-place-row__select {
+  appearance: none;
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
-.observer-place-row.is-selected {
-  border-color: var(--copper);
+.observer-place-row__remove {
+  justify-self: end;
+  min-width: 0;
+  padding: 6px 10px;
+  color: #5c5748;
+  background: #efe8d3;
+  border: 1px solid #cfc6b0;
+  border-radius: 3px;
+  cursor: pointer;
 }
 .observer-place-row__name {
   font-size: 16px;
@@ -1455,6 +1517,9 @@ footer span {
   border: 0;
   border-radius: 3px;
   cursor: pointer;
+}
+.observer-add-repository button[type='button'] {
+  background: #4f6b4a;
 }
 .observer-adapters {
   display: grid;
@@ -2519,7 +2584,7 @@ footer span {
   right: 18px;
   bottom: 18px;
   z-index: 9;
-  width: min(280px, 52vw);
+  width: min(300px, 56vw);
   padding: 12px 12px 10px;
   color: #36372f;
   background: linear-gradient(
@@ -2573,6 +2638,12 @@ footer span {
 .garden-inspect__facts dd {
   margin: 0;
   font-size: 13px;
+}
+.garden-inspect__driver {
+  display: block;
+  margin-top: 2px;
+  color: #6f6c5e;
+  font-size: 12px;
 }
 .garden-inspect__meaning,
 .garden-inspect__occupants,

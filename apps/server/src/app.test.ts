@@ -1,4 +1,5 @@
-import { readFileSync, rmSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync } from 'node:fs'
+import { basename } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { buildApp } from './app.js'
 import {
@@ -141,6 +142,67 @@ describe('local server', () => {
     expect(fetched.json().workspace.repository.absolutePath).toBe(
       repositoryPath,
     )
+  })
+
+  it('unregisters a place without deleting the folder on disk', async () => {
+    const dataDirectory = track(createTemporaryDirectory())
+    const repositoryPath = track(createTemporaryGitRepository())
+    const app = createApp(dataDirectory)
+
+    const created = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/workspaces',
+      payload: { path: repositoryPath },
+    })
+    const workspace = created.json().workspace as { id: string }
+    expect(created.statusCode).toBe(201)
+
+    const removed = await injectAuthed(app, {
+      method: 'DELETE',
+      url: `/api/workspaces/${workspace.id}`,
+    })
+    const listed = await injectPublic(app, {
+      method: 'GET',
+      url: '/api/workspaces',
+    })
+    const missing = await injectPublic(app, {
+      method: 'GET',
+      url: `/api/workspaces/${workspace.id}`,
+    })
+    const unknown = await injectAuthed(app, {
+      method: 'DELETE',
+      url: '/api/workspaces/missing',
+    })
+
+    expect(removed.statusCode).toBe(200)
+    expect(removed.json()).toEqual({ ok: true })
+    expect(listed.json().workspaces).toEqual([])
+    expect(missing.statusCode).toBe(404)
+    expect(unknown.statusCode).toBe(404)
+    expect(existsSync(repositoryPath)).toBe(true)
+    expect(existsSync(`${repositoryPath}/.git`)).toBe(true)
+    expect(
+      readFileSync(
+        `${dataDirectory}/observer/registered-repositories.json`,
+        'utf8',
+      ),
+    ).toContain('"repositories": []')
+    expect(basename(repositoryPath).length).toBeGreaterThan(0)
+  })
+
+  it('does not open a native folder picker on unsupported platforms', async () => {
+    const app = createApp()
+    const response = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/workspaces/choose-folder',
+    })
+
+    if (process.platform === 'darwin') {
+      expect([200, 400]).toContain(response.statusCode)
+      return
+    }
+    expect(response.statusCode).toBe(400)
+    expect(response.json().error.code).toBe('FOLDER_PICKER_UNAVAILABLE')
   })
 
   it('rejects path traversal, missing paths, non-git paths, and duplicates', async () => {

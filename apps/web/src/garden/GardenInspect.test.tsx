@@ -16,7 +16,6 @@ describe('GardenInspect', () => {
           traveling: true,
           summary: 'この工房の資料を読んでいます',
           jobTitle: '調査',
-          operatorSummary: 'Codexが動かしている',
         }}
         onClose={onClose}
       />,
@@ -24,40 +23,97 @@ describe('GardenInspect', () => {
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       '資料棚へ向かっています',
     )
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      'Codexが動かしている',
-    )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('調査')
     await userEvent.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('shows how far a stopped agent got without inventing the next step', () => {
+  it('shows place progress in everyday words when the copy is given', () => {
     render(
       <GardenInspect
         subject={{
           kind: 'character',
           name: 'ブログ番',
-          station: 'waiting',
+          station: 'workbench',
           traveling: false,
-          summary: '見出しの直し',
-          repositoryLabel: 'my-blog',
-          operatorSummary: 'Claude Codeが確認を待っています',
-          stopped: true,
-          progressSummary: '見出しの直し',
-          nextStepSummary: null,
+          summary: 'APIを直している',
+          nowText: '動いている。APIを直している',
+          implementationLook: '作業中のファイルがいくつかある。画面あたりです',
+          nextStep: 'いまの作業の続き',
+          driverNote: 'Codexが動かしている',
         }}
         onClose={vi.fn()}
       />,
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('リポジトリ')
-    expect(inspect).toHaveTextContent('my-blog')
+    expect(inspect).toHaveTextContent('ブログ番')
+    expect(inspect).toHaveTextContent('いま')
+    expect(inspect).toHaveTextContent('動いている。APIを直している')
+    expect(inspect).toHaveTextContent('Codexが動かしている')
+    expect(inspect).toHaveTextContent('実装の様子')
+    expect(inspect).toHaveTextContent(
+      '作業中のファイルがいくつかある。画面あたりです',
+    )
+    expect(inspect).toHaveTextContent('これから')
+    expect(inspect).toHaveTextContent('いまの作業の続き')
+    expect(inspect).not.toHaveTextContent('役割')
+    expect(inspect).not.toHaveTextContent('要約')
+  })
+
+  it('uses stopped words for progress and next when the character is still', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'notes番',
+          station: 'rest',
+          traveling: false,
+          summary: 'まだ分かっていません',
+          nowText: '静か。まだ分かっていません',
+          implementationLook: '作業中のファイルが1つある',
+          nextStep: '次に動かすまで待つ',
+          live: false,
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('見出しの直し')
+    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
+    expect(inspect).toHaveTextContent('作業中のファイルが1つある')
     expect(inspect).toHaveTextContent('次はこんな感じか')
-    expect(inspect).toHaveTextContent('まだ分かっていません')
-    expect(inspect).not.toHaveTextContent('いまの仕事')
+    expect(inspect).toHaveTextContent('次に動かすまで待つ')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
+    expect(labels).toContain('どこまでやったか')
+    expect(labels).toContain('次はこんな感じか')
+    expect(labels).not.toContain('いま')
+    expect(labels).not.toContain('これから')
+    expect(inspect).not.toHaveTextContent('変更元不明')
+  })
+
+  it('says the work is unknown instead of inventing missing facts', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'notes番',
+          station: 'rest',
+          traveling: false,
+          summary: 'まだ分かっていません',
+          nowText: '静か。まだ分かっていません',
+          implementationLook: 'まだ分かっていません',
+          nextStep: '次に動かすまで待つ',
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
+    expect(inspect).toHaveTextContent('実装の様子')
+    expect(inspect).toHaveTextContent('次に動かすまで待つ')
+    expect(inspect).not.toHaveTextContent('変更元不明')
   })
 
   it('lists occupant summaries on a station', () => {

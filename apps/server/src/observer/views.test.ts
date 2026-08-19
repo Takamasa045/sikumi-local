@@ -53,6 +53,7 @@ describe('observer views', () => {
         claim('tab-2', 'src/b.ts', '2026-08-18T00:09:40.000Z'),
       ],
     })
+    expect(activity.lastChangedAt).toBe('2026-08-18T00:10:00.000Z')
     expect(activity.sessions.map((item) => item.displayName)).toEqual([
       'Cursor Agent',
       'Cursor Tab',

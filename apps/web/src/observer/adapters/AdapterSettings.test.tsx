@@ -170,7 +170,7 @@ afterEach(() => {
 })
 
 describe('AdapterSettings', () => {
-  it('shows a preview first and only applies after explicit confirm with the digest', async () => {
+  it('connects on one click and shows success without a confirm step or raw diff', async () => {
     render(<AdapterSettings />)
     expect(
       await screen.findByRole('heading', { name: '庭につなぐ道具' }),
@@ -190,21 +190,28 @@ describe('AdapterSettings', () => {
     ).toBeNull()
     expect(screen.getByText(/一度つなぎます/)).toBeVisible()
     await userEvent.click(screen.getAllByRole('button', { name: 'つなぐ' })[0]!)
+    expect(await screen.findByText('つながりました')).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('くわしく見る')).toBeNull()
+    expect(screen.queryByText('導入差分です')).toBeNull()
+    expect(screen.queryByText(/有効とはしません/)).toBeNull()
+    expect(screen.queryByText('この操作ではまだ書き込みません')).toBeNull()
     expect(
-      await screen.findByText(
-        /このパソコン全体で、Codex が庭に様子を知らせるようにします/,
-      ),
-    ).toBeVisible()
-    const details = screen.getByText('くわしく見る').closest('details')
-    expect(details).not.toBeNull()
-    expect(details).not.toHaveAttribute('open')
-    expect(details).toHaveTextContent('create /Users/example/.codex/hooks.json')
-    expect(details).toHaveTextContent('この操作ではまだ書き込みません')
-    const apply = await screen.findByRole('button', {
-      name: 'この場所につなぐ',
+      screen.queryByText('create /Users/example/.codex/hooks.json'),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'この場所につなぐ' }),
+    ).toBeNull()
+    const previewCall = fetchMock.mock.calls.find(([input, init]) => {
+      return (
+        String(input).endsWith('/api/observer/adapters/codex/install') &&
+        typeof init === 'object' &&
+        init !== null &&
+        'body' in init &&
+        String(init.body).includes('"confirm":false')
+      )
     })
-    expect(apply).toBeVisible()
-    await userEvent.click(apply)
+    expect(previewCall).toBeTruthy()
     const applyCall = fetchMock.mock.calls.find(([input, init]) => {
       return (
         String(input).endsWith('/api/observer/adapters/codex/install') &&
@@ -218,12 +225,9 @@ describe('AdapterSettings', () => {
     expect(String(applyCall?.[1]?.body)).toContain('preview-digest')
     expect(String(applyCall?.[1]?.body)).toContain('"scope":"user"')
     expect(String(applyCall?.[1]?.body)).not.toContain('repositoryId')
-    expect(
-      await screen.findByText(/Codex が庭に様子を知らせるようになりました/),
-    ).toBeVisible()
   })
 
-  it('keeps the same Claude Code repository scope on preview and apply', async () => {
+  it('keeps the same Claude Code repository scope on the one-click connect', async () => {
     render(<AdapterSettings />)
     expect(
       await screen.findByLabelText('Claude Code のつなぐ範囲'),
@@ -237,11 +241,10 @@ describe('AdapterSettings', () => {
       'repo_1',
     )
     await userEvent.click(screen.getAllByRole('button', { name: 'つなぐ' })[1]!)
+    expect(await screen.findByText('つながりました')).toBeVisible()
     expect(
-      await screen.findByText(
-        /demo-repo だけで、Claude Code が庭に様子を知らせるようにします/,
-      ),
-    ).toBeVisible()
+      screen.queryByRole('button', { name: 'この場所につなぐ' }),
+    ).toBeNull()
     const previewCall = fetchMock.mock.calls.find(([input, init]) => {
       return (
         String(input).endsWith('/api/observer/adapters/claude-code/install') &&
@@ -253,9 +256,6 @@ describe('AdapterSettings', () => {
     })
     expect(String(previewCall?.[1]?.body)).toContain('"scope":"repo"')
     expect(String(previewCall?.[1]?.body)).toContain('"repositoryId":"repo_1"')
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'この場所につなぐ' }),
-    )
     const applyCall = fetchMock.mock.calls.find(([input, init]) => {
       return (
         String(input).endsWith('/api/observer/adapters/claude-code/install') &&
@@ -302,30 +302,32 @@ describe('AdapterSettings', () => {
       screen.getByRole('button', { name: 'パッケージをつくる' }),
     )
     expect(
-      await screen.findByRole('button', { name: 'このパッケージをつくる' }),
+      await screen.findByText(/Claude Desktop の設定から自分で入れてください/),
     ).toBeVisible()
     expect(
-      screen.getByText(/Claude Desktop の設定から自分で入れてください/),
-    ).toBeVisible()
+      screen.queryByRole('button', { name: 'このパッケージをつくる' }),
+    ).toBeNull()
     expect(
       screen.queryByRole('button', { name: 'この場所につなぐ' }),
     ).toBeNull()
+    expect(
+      screen.getByRole('link', { name: 'できたファイルを受け取る' }),
+    ).toBeVisible()
   })
 
-  it('previews and applies uninstall with the same digest flow', async () => {
+  it('disconnects on one click and shows はずしました', async () => {
     render(<AdapterSettings />)
     await screen.findByTestId('observer-adapter-codex')
     await userEvent.click(screen.getAllByRole('button', { name: 'はずす' })[0]!)
+    expect(await screen.findByText('はずしました')).toBeVisible()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('くわしく見る')).toBeNull()
     expect(
-      await screen.findByText(
-        /このパソコン全体で、Codex から庭への知らせをやめます/,
-      ),
-    ).toBeVisible()
-    const details = screen.getByText('くわしく見る').closest('details')
-    expect(details).toHaveTextContent('remove /Users/example/.codex/hooks.json')
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'この場所からはずす' }),
-    )
+      screen.queryByText('remove /Users/example/.codex/hooks.json'),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'この場所からはずす' }),
+    ).toBeNull()
     const applyCall = fetchMock.mock.calls.find(([input, init]) => {
       return (
         String(input).endsWith('/api/observer/adapters/codex/uninstall') &&
@@ -337,9 +339,6 @@ describe('AdapterSettings', () => {
     })
     expect(applyCall).toBeTruthy()
     expect(String(applyCall?.[1]?.body)).toContain('preview-digest')
-    expect(
-      await screen.findByText(/Codex から庭への知らせをやめました/),
-    ).toBeVisible()
   })
 
   it('shows a plain-language error when connect preview fails', async () => {
@@ -378,7 +377,10 @@ describe('AdapterSettings', () => {
     })
     render(<AdapterSettings />)
     await userEvent.click(await screen.findByRole('button', { name: 'つなぐ' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('安全な場所')
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('安全な場所')
+    expect(alert).toHaveClass('repository-panel__error')
+    expect(screen.queryByText('つながりました')).toBeNull()
     expect(
       screen.queryByText('Hookコマンドの絶対pathが安全ではありません'),
     ).toBeNull()

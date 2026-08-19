@@ -66,7 +66,9 @@ export function toInstallOptions(
       ...(input.confirmationToken === undefined
         ? {}
         : { confirmationToken: input.confirmationToken }),
-      ...(input.planDigest === undefined ? {} : { planDigest: input.planDigest }),
+      ...(input.planDigest === undefined
+        ? {}
+        : { planDigest: input.planDigest }),
     }
   }
   return {
@@ -97,9 +99,14 @@ export async function applyObserverAdapterRequest(
       ? await observer.installAdapter(source, previewOptions)
       : await observer.uninstallAdapter(source, previewOptions)
   if (input.confirm !== true) {
-    return preview
+    return presentAdapterInstallCopy(source, action, preview)
   }
-  if (!shouldGrantRealUserApply({ confirm: true, ...digestFields(input) }, preview)) {
+  if (
+    !shouldGrantRealUserApply(
+      { confirm: true, ...digestFields(input) },
+      preview,
+    )
+  ) {
     return {
       ...preview,
       ok: false,
@@ -115,9 +122,45 @@ export async function applyObserverAdapterRequest(
     allowRealUserApply: true,
     ...digestFields(input),
   }
-  return action === 'install'
-    ? observer.installAdapter(source, granted)
-    : observer.uninstallAdapter(source, granted)
+  const applied =
+    action === 'install'
+      ? await observer.installAdapter(source, granted)
+      : await observer.uninstallAdapter(source, granted)
+  return presentAdapterInstallCopy(source, action, applied)
+}
+
+export function presentAdapterInstallCopy(
+  source: string,
+  action: 'install' | 'uninstall',
+  result: ObserverInstallResult,
+): ObserverInstallResult {
+  if (source === 'claude-desktop' || !result.ok) {
+    return result
+  }
+  if (result.applied === true) {
+    return {
+      ...result,
+      message: action === 'install' ? 'つながりました' : 'はずしました',
+    }
+  }
+  if (!looksLikeTechnicalInstallCopy(result.message)) {
+    return result
+  }
+  return {
+    ...result,
+    message:
+      action === 'install'
+        ? 'つなぐ準備ができました'
+        : 'はずす準備ができました',
+  }
+}
+
+function looksLikeTechnicalInstallCopy(message: string): boolean {
+  return (
+    message.includes('導入差分です') ||
+    message.includes('有効とはしません') ||
+    message.includes('有効としません')
+  )
 }
 
 function digestFields(input: ObserverAdapterActionRequest): {
@@ -370,10 +413,13 @@ export function registerObserverRoutes(
       const label = store.upsertSessionLabel({
         id: existing?.id ?? createObserverId(),
         externalSessionId: session.id,
-        title: parsed.data.title === undefined ? existing?.title ?? null : parsed.data.title,
+        title:
+          parsed.data.title === undefined
+            ? (existing?.title ?? null)
+            : parsed.data.title,
         summary:
           parsed.data.summary === undefined
-            ? existing?.summary ?? null
+            ? (existing?.summary ?? null)
             : parsed.data.summary,
         source: 'user',
         createdAt: existing?.createdAt ?? now,
@@ -454,19 +500,16 @@ export function registerObserverRoutes(
     }
   })
 
-  app.get<{ Params: { id: string } }>(
-    '/api/conflicts/:id',
-    async (request) => {
-      const finding = requireConflict(store, request.params.id)
-      return {
-        conflict: presentConflictView(
-          finding,
-          store,
-          readViewMode(request.query),
-        ),
-      }
-    },
-  )
+  app.get<{ Params: { id: string } }>('/api/conflicts/:id', async (request) => {
+    const finding = requireConflict(store, request.params.id)
+    return {
+      conflict: presentConflictView(
+        finding,
+        store,
+        readViewMode(request.query),
+      ),
+    }
+  })
 
   app.post<{ Params: { id: string } }>(
     '/api/conflicts/:id/acknowledge',
@@ -474,7 +517,11 @@ export function registerObserverRoutes(
       assertEmptyConflictBody(request.body)
       const finding = requireConflict(store, request.params.id)
       const next = store.upsertConflict(
-        applyConflictTransition(finding, 'acknowledge', new Date().toISOString()),
+        applyConflictTransition(
+          finding,
+          'acknowledge',
+          new Date().toISOString(),
+        ),
       )
       return { conflict: presentConflictView(next, store, 'simple') }
     },
@@ -502,7 +549,8 @@ export function registerObserverRoutes(
         throw new AppError('NOT_FOUND', '登録した場所が見つかりません', 404)
       }
       observer.scanRepository(finding.repositoryId, 'detail')
-      const next = store.getConflict(finding.id) ?? store.getConflict(finding.identityKey)
+      const next =
+        store.getConflict(finding.id) ?? store.getConflict(finding.identityKey)
       if (!next) {
         throw new AppError('NOT_FOUND', '競合が見つかりません', 404)
       }
@@ -530,9 +578,11 @@ function assertEmptyConflictBody(body: unknown): void {
   }
 }
 
-function countConflictTones(
-  conflicts: readonly ConflictApiView[],
-): { readonly red: number; readonly orange: number; readonly yellow: number } {
+function countConflictTones(conflicts: readonly ConflictApiView[]): {
+  readonly red: number
+  readonly orange: number
+  readonly yellow: number
+} {
   return conflicts.reduce(
     (counts, item) => {
       if (item.status === 'resolved') {

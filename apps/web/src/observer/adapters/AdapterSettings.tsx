@@ -3,18 +3,14 @@ import type { Workspace } from '@sikumi-local/core'
 import { UNSAFE_HOOK_COMMAND_MESSAGE } from '@sikumi-local/observer-core'
 import { listWorkspaces } from '../../api/workspaces'
 import {
-  applyObserverAdapterAction,
   checkObserverAdapter,
   listObserverAdapters,
-  previewObserverAdapterAction,
+  runObserverAdapterAction,
   type ObserverAdapterView,
-  type ObserverInstallView,
 } from '../../api/observer'
 
-type AdapterPlan = ObserverInstallView & {
+type AdapterOutcome = {
   action: 'install' | 'uninstall'
-  scope: 'user' | 'repo'
-  repositoryId?: string
 }
 
 export function AdapterSettings() {
@@ -27,7 +23,9 @@ export function AdapterSettings() {
   const [scopes, setScopes] = useState<
     Partial<Record<string, { scope: 'user' | 'repo'; repositoryId: string }>>
   >({})
-  const [plans, setPlans] = useState<Partial<Record<string, AdapterPlan>>>({})
+  const [outcomes, setOutcomes] = useState<
+    Partial<Record<string, AdapterOutcome>>
+  >({})
 
   useEffect(() => {
     let cancelled = false
@@ -92,7 +90,7 @@ export function AdapterSettings() {
     }
   }
 
-  async function handlePreview(
+  async function handleConnect(
     source: string,
     action: 'install' | 'uninstall',
   ) {
@@ -107,70 +105,20 @@ export function AdapterSettings() {
     }
     setBusySource(source)
     setError(null)
+    setOutcomes((current) => {
+      const next = { ...current }
+      delete next[source]
+      return next
+    })
     try {
-      const result = await previewObserverAdapterAction(source, action, target)
-      if (!result.ok) {
-        setError(friendlyInstallError(result.message))
-        setPlans((current) => {
-          const next = { ...current }
-          delete next[source]
-          return next
-        })
-        return
-      }
-      setPlans((current) => ({
-        ...current,
-        [source]: {
-          ...result,
-          action,
-          scope: target.scope,
-          ...(target.repositoryId === undefined
-            ? {}
-            : { repositoryId: target.repositoryId }),
-        },
-      }))
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'つなぐ準備ができませんでした',
-      )
-    } finally {
-      setBusySource(null)
-    }
-  }
-
-  async function handleApply(source: string) {
-    const plan = plans[source]
-    if (!plan || (!plan.confirmationToken && !plan.planDigest)) {
-      setError('先に、どこへつなぐかを確認してください')
-      return
-    }
-    setBusySource(source)
-    setError(null)
-    try {
-      const result = await applyObserverAdapterAction(source, plan.action, {
-        scope: plan.scope,
-        ...(plan.repositoryId === undefined
-          ? {}
-          : { repositoryId: plan.repositoryId }),
-        ...(plan.confirmationToken
-          ? { confirmationToken: plan.confirmationToken }
-          : {}),
-        ...(plan.planDigest ? { planDigest: plan.planDigest } : {}),
-      })
+      const result = await runObserverAdapterAction(source, action, target)
       if (!result.ok) {
         setError(friendlyInstallError(result.message))
         return
       }
-      setPlans((current) => ({
+      setOutcomes((current) => ({
         ...current,
-        [source]: {
-          ...result,
-          action: plan.action,
-          scope: plan.scope,
-          ...(plan.repositoryId === undefined
-            ? {}
-            : { repositoryId: plan.repositoryId }),
-        },
+        [source]: { action },
       }))
       await refresh()
     } catch (cause) {
@@ -198,7 +146,7 @@ export function AdapterSettings() {
       ) : null}
       <ul>
         {adapters.map((adapter) => {
-          const plan = plans[adapter.source]
+          const outcome = outcomes[adapter.source]
           return (
             <li
               key={adapter.id}
@@ -293,7 +241,7 @@ export function AdapterSettings() {
                       className="washi-tab"
                       disabled={busySource === adapter.source}
                       onClick={() => {
-                        void handlePreview(adapter.source, 'install')
+                        void handleConnect(adapter.source, 'install')
                       }}
                     >
                       {adapter.source === 'claude-desktop'
@@ -305,7 +253,7 @@ export function AdapterSettings() {
                       className="washi-tab"
                       disabled={busySource === adapter.source}
                       onClick={() => {
-                        void handlePreview(adapter.source, 'uninstall')
+                        void handleConnect(adapter.source, 'uninstall')
                       }}
                     >
                       はずす
@@ -313,36 +261,13 @@ export function AdapterSettings() {
                   </>
                 ) : null}
               </div>
-              {plan ? (
+              {outcome ? (
                 <div className="observer-adapter-plan">
                   <p className="observer-adapter-confirm">
-                    {planConfirmation(plan, adapter, repositories)}
+                    {outcomeCopy(adapter.source, outcome.action)}
                   </p>
-                  <details className="observer-adapter-details">
-                    <summary>くわしく見る</summary>
-                    <pre className="observer-adapter-preview">
-                      {plan.message}
-                      {plan.targetRoot ? `\n場所: ${plan.targetRoot}` : ''}
-                      {`\n範囲: ${plan.scope === 'repo' ? 'この場所だけ' : 'このパソコン全体'}`}
-                      {plan.preview ? `\n\n${plan.preview}` : ''}
-                    </pre>
-                  </details>
-                  {plan.requiresConfirm &&
-                  (plan.confirmationToken || plan.planDigest) ? (
-                    <button
-                      type="button"
-                      className="washi-tab"
-                      disabled={busySource === adapter.source}
-                      onClick={() => {
-                        void handleApply(adapter.source)
-                      }}
-                    >
-                      {applyLabel(adapter.source, plan.action)}
-                    </button>
-                  ) : null}
                   {adapter.source === 'claude-desktop' &&
-                  plan.applied &&
-                  plan.ok ? (
+                  outcome.action === 'install' ? (
                     <a
                       className="washi-tab"
                       href="/api/observer/adapters/claude-desktop/package"
@@ -425,43 +350,13 @@ function statusEvidence(adapter: ObserverAdapterView): string {
   }
 }
 
-function placeLabel(
-  plan: AdapterPlan,
-  repositories: readonly Workspace['repository'][],
-): string {
-  if (plan.scope !== 'repo') {
-    return 'このパソコン全体'
+function outcomeCopy(source: string, action: 'install' | 'uninstall'): string {
+  if (source === 'claude-desktop') {
+    return action === 'install'
+      ? 'パッケージを作りました。Claude Desktop の設定から自分で入れてください。'
+      : 'はずしました'
   }
-  const name = repositories.find(
-    (repository) => repository.id === plan.repositoryId,
-  )?.displayName
-  return name ? `${name} だけ` : 'この場所だけ'
-}
-
-function planConfirmation(
-  plan: AdapterPlan,
-  adapter: ObserverAdapterView,
-  repositories: readonly Workspace['repository'][],
-): string {
-  if (adapter.source === 'claude-desktop') {
-    if (plan.action === 'install') {
-      return plan.applied && plan.ok
-        ? 'パッケージを作りました。Claude Desktop の設定から自分で入れてください。'
-        : 'Claudeアプリ用の小さな道具を作ります。できたファイルは、Claude Desktop の設定から自分で入れてください。'
-    }
-    return plan.applied && plan.ok
-      ? 'パッケージの用意をやめました。'
-      : '作っておいた Claudeアプリ用のパッケージをやめます。'
-  }
-  const place = placeLabel(plan, repositories)
-  if (plan.action === 'install') {
-    return plan.applied && plan.ok
-      ? `${place}で、${adapter.displayName} が庭に様子を知らせるようになりました。この場所でいつもどおり動かせば、庭が反応します。`
-      : `${place}で、${adapter.displayName} が庭に様子を知らせるようにします。`
-  }
-  return plan.applied && plan.ok
-    ? `${place}で、${adapter.displayName} から庭への知らせをやめました。`
-    : `${place}で、${adapter.displayName} から庭への知らせをやめます。`
+  return action === 'install' ? 'つながりました' : 'はずしました'
 }
 
 function friendlyInstallError(message: string): string {
@@ -469,11 +364,4 @@ function friendlyInstallError(message: string): string {
     return UNSAFE_HOOK_COMMAND_MESSAGE
   }
   return message
-}
-
-function applyLabel(source: string, action: 'install' | 'uninstall'): string {
-  if (source === 'claude-desktop') {
-    return action === 'install' ? 'このパッケージをつくる' : 'この用意をやめる'
-  }
-  return action === 'install' ? 'この場所につなぐ' : 'この場所からはずす'
 }

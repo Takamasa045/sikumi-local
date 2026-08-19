@@ -991,19 +991,11 @@ export function App() {
             <ObserverGarden
               overview={overview}
               workspaces={workspaces}
-              selectedRepositoryId={selectedRepositoryId}
               onOpenWorkshop={() => {
                 window.location.hash = 'observer'
               }}
               onOpenSettings={() => {
                 window.location.hash = 'settings'
-              }}
-              onSelectPlace={(id) => {
-                setSelectedRepositoryId(id)
-                window.location.hash = `repository/${id}`
-                void getRepositoryActivity(id)
-                  .then(setRepositoryActivity)
-                  .catch(() => setRepositoryActivity(null))
               }}
             />
           ) : null}

@@ -3,15 +3,13 @@ import type { TodayOverview } from '../../api/observer'
 import {
   GARDEN_ACTIVE_WINDOW_MS,
   UNKNOWN_GARDEN_WORK,
-  collectGardenState,
   describeGardenWork,
   isGenericWorkTitle,
   shouldShowGardenDog,
   stationForTone,
 } from './gardenState'
 
-type RepositoryView = TodayOverview['repositories'][number]
-type SessionView = RepositoryView['sessions'][number]
+type SessionView = TodayOverview['repositories'][number]['sessions'][number]
 
 const NOW = '2026-08-19T00:10:00.000Z'
 const NOW_MS = Date.parse(NOW)
@@ -181,87 +179,14 @@ describe('describeGardenWork', () => {
   })
 })
 
-describe('collectGardenState', () => {
-  it('keeps live dogs on the ground stations, not the observatory', () => {
-    const { actors, bulletin } = collectGardenState(
-      overviewOf([
-        repository(
-          'repo_a',
-          'alpha',
-          [
-            session({
-              id: 'run',
-              source: 'codex',
-              displayName: 'Codex',
-              title: 'Codexの作業が始まりました',
-              status: 'running',
-              activity: 'working',
-              lastObservedAt: NOW,
-            }),
-            session({
-              id: 'kids',
-              source: 'cursor',
-              displayName: 'エージェントワークフローキッズ版',
-              title: '作業',
-              status: 'idle',
-              activity: 'idle',
-              lastObservedAt: NOW,
-            }),
-            session({
-              id: 'git',
-              source: 'git',
-              displayName: 'Git作業',
-              attributionConfidence: 'observed',
-            }),
-          ],
-          3,
-        ),
-      ]),
-    )
-
-    expect(actors.map((actor) => actor.session.id)).toEqual(['run'])
-    expect(actors[0]?.station).toBe('workbench')
-    expect(actors[0]?.workSummary).toBe('alphaが対象です')
+describe('stationForTone', () => {
+  it('keeps live work on the ground stations, not the observatory', () => {
+    expect(stationForTone('working')).toBe('workbench')
+    expect(stationForTone('waiting')).toBe('waiting')
+    expect(stationForTone('completed')).toBe('delivery')
     expect(stationForTone('observing')).toBe('rest')
-    expect(bulletin).toHaveLength(1)
-    expect(bulletin[0]?.repository.displayName).toBe('alpha')
   })
 })
-
-function overviewOf(
-  repositories: TodayOverview['repositories'],
-): TodayOverview {
-  return {
-    generatedAt: NOW,
-    repositoryCount: repositories.length,
-    activeRepositoryCount: repositories.length,
-    waitingCount: 0,
-    conflictCount: 0,
-    repositories,
-  }
-}
-
-function repository(
-  repositoryId: string,
-  displayName: string,
-  sessions: SessionView[],
-  changedFileCount = 0,
-): RepositoryView {
-  return {
-    repositoryId,
-    workspaceId: `ws_${repositoryId}`,
-    displayName,
-    available: true,
-    gitAvailable: true,
-    summary: '',
-    changedFileCount,
-    lastChangedLabel: null,
-    sessions,
-    worktrees: [],
-    conflicts: [],
-    areas: [],
-  }
-}
 
 function session(
   partial: Partial<SessionView> & Pick<SessionView, 'id' | 'source'>,

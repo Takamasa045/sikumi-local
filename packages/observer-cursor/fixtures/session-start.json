@@ -1,0 +1,9 @@
+{
+  "conversation_id": "conv-cursor-1",
+  "generation_id": "gen-1",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "sessionStart",
+  "model": "gpt-5.4",
+  "prompt": "do not store this prompt",
+  "user_email": "hidden@example.com"
+}

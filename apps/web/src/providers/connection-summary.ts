@@ -3,7 +3,21 @@ import type { ProviderAvailability, ProviderId } from '@sikumi-local/core'
 export type ProviderLoadState = 'loading' | 'ready' | 'error' | 'idle'
 
 export type ProviderConnectionSummaryStatus =
-  'loading' | 'connected' | 'disconnected' | 'error' | 'harness'
+  | 'loading'
+  | 'connected'
+  | 'disconnected'
+  | 'error'
+  | 'harness'
+  | 'observing'
+
+export function deriveObserverSurfaceSummary(): ProviderConnectionSummary {
+  return {
+    status: 'observing',
+    badgeLabel: 'ローカル観測',
+    badgeDetail: '登録した場所をこの端末で観測しています',
+    toolLabel: 'ローカル観測',
+  }
+}
 
 export interface ProviderConnectionSummary {
   readonly status: ProviderConnectionSummaryStatus

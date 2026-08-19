@@ -1,105 +1,95 @@
+import { writeFileSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import { expect, test } from '@playwright/test'
+import { createTemporaryGitRepository } from './owned-temp'
 
-test('a user can inspect both starter gardens', async ({ page }) => {
+test('the garden is the default home screen', async ({ page }) => {
   await page.goto('/')
 
   await expect(
-    page.getByRole('heading', { name: '犬たちの里山アトリエ' }),
+    page.getByRole('heading', { name: '観測の庭' }),
   ).toBeVisible()
-  await expect(page.getByText('まだ仕事は始まっていません')).toBeVisible()
+  await expect(
+    page.getByRole('region', { name: '観測の庭' }),
+  ).toBeVisible()
+  await expect(page.getByTestId('connection-badge')).toContainText('ローカル観測')
 
-  await page.getByRole('button', { name: '職人工房を表示' }).click()
-
-  await expect(page.getByRole('heading', { name: '職人工房' })).toBeVisible()
-  await expect(page.getByTestId('world-stage')).toHaveAttribute(
-    'data-world-pack',
-    'craft-workshop',
+  const nav = page.getByRole('navigation', { name: '主要画面' })
+  await expect(nav.getByRole('link', { name: '庭' })).toHaveAttribute(
+    'aria-current',
+    'page',
   )
+  await expect(nav.getByRole('link', { name: '今日の作業場' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: '設定' })).toBeVisible()
+  await expect(
+    page.getByRole('form', { name: '仕事を頼む' }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: '仕事を頼む' }),
+  ).toHaveCount(0)
+  await expect(page.getByTestId('world-stage')).toHaveCount(0)
+})
+
+test('the garden shows real current Git-only data', async ({ page }) => {
+  const repositoryPath = createTemporaryGitRepository('sikumi-e2e-garden-')
+  writeFileSync(join(repositoryPath, 'uncommitted.txt'), 'uncommitted change\n')
+
+  await page.goto('/#observer')
+  await page.getByLabel('観測するRepositoryの場所').fill(repositoryPath)
+  await page.getByRole('button', { name: '観測するRepositoryを追加' }).click()
+  await expect(
+    page.getByText(basename(repositoryPath), { exact: false }).first(),
+  ).toBeVisible()
+
+  await page.getByRole('link', { name: '庭' }).click()
+
+  await expect(
+    page.getByRole('heading', { name: '出どころ未確認の変更' }),
+  ).toBeVisible()
+  const unattributed = page.getByRole('list', {
+    name: '出どころ未確認の変更',
+  })
+  await expect(unattributed).toBeVisible()
+  await expect(unattributed).toContainText(basename(repositoryPath))
+  const observedAgents = page.getByRole('list', { name: '観測中のエージェント' })
+  if ((await observedAgents.count()) > 0) {
+    await expect(observedAgents).not.toContainText(basename(repositoryPath))
+  }
+})
+
+test('a user can move between garden, today\'s workshop, and settings', async ({
+  page,
+}) => {
+  await page.goto('/#garden')
+
+  await page.getByRole('link', { name: '今日の作業場' }).click()
+  await expect(
+    page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+  ).toBeVisible()
+
+  await page.getByRole('link', { name: '設定' }).click()
+  await expect(
+    page.getByRole('heading', { name: '工房の整え方' }),
+  ).toBeVisible()
+
+  await page.getByRole('link', { name: '庭' }).click()
+  await expect(
+    page.getByRole('heading', { name: '観測の庭' }),
+  ).toBeVisible()
 })
 
 test('the garden remains usable on a phone viewport', async ({ page }) => {
-  await page.goto('/')
+  await page.goto('/#garden')
 
-  await expect(page.getByRole('button', { name: '仕事を頼む' })).toBeDisabled()
+  await expect(page.getByRole('region', { name: '観測の庭' })).toBeInViewport()
   await expect(page.getByRole('navigation', { name: '主要画面' })).toBeVisible()
-  await expect(page.getByTestId('world-stage')).toBeInViewport()
-  await expect(page.getByTestId('connection-badge')).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '仕事を頼む' }),
+  ).toHaveCount(0)
+
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,
     clientWidth: document.documentElement.clientWidth,
   }))
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1)
 })
-
-test('narrow gardens keep 資料棚 and 納品台 plaques off the heading', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 844 })
-  await page.goto('/')
-  await expect(
-    page.getByRole('heading', { name: '犬たちの里山アトリエ' }),
-  ).toBeVisible()
-  await expect(page.getByTestId('garden-where')).toBeVisible()
-  await expect(
-    page.locator('.garden-station[data-station="archive"]'),
-  ).toHaveCSS('position', 'static')
-  const headingBox = await page
-    .getByRole('heading', { name: '犬たちの里山アトリエ' })
-    .boundingBox()
-  const descriptionBox = await page
-    .locator('.world-stage__heading > span')
-    .boundingBox()
-  expect(headingBox).not.toBeNull()
-  expect(descriptionBox).not.toBeNull()
-  for (const station of ['archive', 'delivery'] as const) {
-    const plaque = page.locator(`.garden-station[data-station="${station}"]`)
-    const box = await plaque.boundingBox()
-    expect(box, `${station} plaque should stay visible`).not.toBeNull()
-    expect(
-      boxesOverlap(box, headingBox),
-      `${station} plaque should not overlap the World heading`,
-    ).toBe(false)
-    expect(
-      boxesOverlap(box, descriptionBox),
-      `${station} plaque should not overlap the World description`,
-    ).toBe(false)
-    expect(
-      box && headingBox && box.y >= headingBox.y + headingBox.height,
-      `${station} plaque should sit below the World heading`,
-    ).toBe(true)
-  }
-  await expect(page.getByTestId('garden-where')).toContainText('縁側')
-  await expect(
-    page.locator('.garden-station[data-station="archive"]'),
-  ).toContainText('資料棚')
-  await expect(
-    page.locator('.garden-station[data-station="delivery"]'),
-  ).toContainText('納品台')
-
-  const noteBox = await page.locator('.employee__note').boundingBox()
-  expect(noteBox, 'employee note should stay visible').not.toBeNull()
-  expect(headingBox?.height ?? 99).toBeLessThan(40)
-  expect(
-    boxesOverlap(noteBox, headingBox),
-    'employee note should not overlap the World heading',
-  ).toBe(false)
-  expect(
-    boxesOverlap(noteBox, descriptionBox),
-    'employee note should not overlap the World description',
-  ).toBe(false)
-})
-
-function boxesOverlap(
-  left: { x: number; y: number; width: number; height: number } | null,
-  right: { x: number; y: number; width: number; height: number } | null,
-): boolean {
-  if (!left || !right) {
-    return false
-  }
-  return !(
-    left.x + left.width <= right.x ||
-    right.x + right.width <= left.x ||
-    left.y + left.height <= right.y ||
-    right.y + right.height <= left.y
-  )
-}

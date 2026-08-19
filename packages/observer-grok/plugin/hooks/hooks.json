@@ -1,0 +1,118 @@
+{
+  "description": "Reports local Grok Build activity metadata to Sikumi-local. Plugin or config presence is not a ready signal.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "SIKUMI_OBSERVER_GROK_COMMAND"
+          }
+        ]
+      }
+    ]
+  }
+}

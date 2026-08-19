@@ -9,7 +9,6 @@ import type {
   ProviderId,
   Workspace,
 } from '@sikumi-local/core'
-import { AppError, isGardenStationId } from '@sikumi-local/core'
 import { listApprovals, resolveApproval } from '../api/approvals'
 import {
   getEmployee,
@@ -21,7 +20,6 @@ import { getEmployeeGrowth, listGrowth } from '../api/growth'
 import {
   applyArtifact,
   cancelJob,
-  createJob,
   discardWorktree,
   exportArtifact,
   getJob,
@@ -52,25 +50,42 @@ import {
 import { ApprovalPanel } from '../approvals/ApprovalPanel'
 import { ArtifactShelf } from '../artifacts/ArtifactShelf'
 import { EmployeeDrawer } from '../employees/EmployeeDrawer'
-import { resolveGardenPresence, type GardenStateMap } from '../garden/presence'
-import { WorldStage } from '../garden/WorldStage'
-import { getWorldPack, worldPacks, type WorldPackId } from '../garden/worlds'
-import { CurrentJob } from '../jobs/CurrentJob'
-import { JobComposer } from '../jobs/JobComposer'
-import { SettingsPanel } from '../settings/SettingsPanel'
-import { RepositoryPanel } from '../workspace/RepositoryPanel'
-import { FirstRunGuide } from '../workspace/FirstRunGuide'
+import { ObserverGarden } from '../observer/garden/ObserverGarden'
 import {
+  acknowledgeConflict,
+  getConflict,
+  getRepositoryActivity,
+  getTodayOverview,
+  listConflicts,
+  recheckConflict,
+  rescanRepository,
+  resolveConflict,
+  type ConflictView,
+  type RepositoryActivity,
+  type TodayOverview,
+} from '../api/observer'
+import { ConflictCenter } from '../observer/conflicts/ConflictCenter'
+import { ObserverDashboard } from '../observer/dashboard/ObserverDashboard'
+import { RepositoryObserverPage } from '../observer/repositories/RepositoryObserverPage'
+import { SettingsPanel } from '../settings/SettingsPanel'
+import {
+  deriveObserverSurfaceSummary,
   deriveProviderConnectionSummary,
   type ProviderLoadState,
 } from '../providers/connection-summary'
 import './app.css'
 
-type Screen = 'garden' | 'artifacts' | 'employees' | 'settings'
+type Screen =
+  | 'observer'
+  | 'repository'
+  | 'conflicts'
+  | 'garden'
+  | 'artifacts'
+  | 'employees'
+  | 'settings'
 
 export function App() {
   const [screen, setScreen] = useState<Screen>(readScreen())
-  const [worldPackId, setWorldPackId] = useState<WorldPackId>('dog-office')
   const [workspace, setWorkspace] = useState<Workspace | null>(null)
   const [fakeHarness, setFakeHarness] = useState(false)
   const [providers, setProviders] = useState<ProviderAvailability[]>([])
@@ -92,25 +107,14 @@ export function App() {
       >
     >
   >({})
-  const [hasJobs, setHasJobs] = useState(false)
   const [employees, setEmployees] = useState<EmployeeSummary[]>([])
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('')
-  const [selectedProvider, setSelectedProvider] = useState<ProviderId | 'auto'>(
-    'auto',
-  )
   const [employeeDrawerOpen, setEmployeeDrawerOpen] = useState(false)
   const [recentJobs, setRecentJobs] = useState<Job[]>([])
-  const [stateMap, setStateMap] = useState<GardenStateMap | undefined>()
-  const [confirmation, setConfirmation] = useState<{
-    message: string
-    alternatives: ProviderId[]
-    request: string
-  } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [request, setRequest] = useState('')
   const [job, setJob] = useState<Job | null>(null)
-  const [events, setEvents] = useState<PersistedEvent[]>([])
+  const [, setEvents] = useState<PersistedEvent[]>([])
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [growth, setGrowth] = useState<{
@@ -123,10 +127,29 @@ export function App() {
   const [packPreview, setPackPreview] = useState<Awaited<
     ReturnType<typeof previewPack>
   > | null>(null)
-  const [dirtyRepo, setDirtyRepo] = useState<{
-    message: string
-    request: string
-  } | null>(null)
+  const [overview, setOverview] = useState<TodayOverview | null>(null)
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | null>(
+    null,
+  )
+  const [repositoryActivity, setRepositoryActivity] =
+    useState<RepositoryActivity | null>(null)
+  const [conflicts, setConflicts] = useState<ConflictView[]>([])
+  const [conflictCounts, setConflictCounts] = useState({
+    red: 0,
+    orange: 0,
+    yellow: 0,
+  })
+  const [selectedConflictId, setSelectedConflictId] = useState<string | null>(
+    null,
+  )
+  const [conflictDetail, setConflictDetail] = useState<ConflictView | null>(null)
+  const [conflictFilters, setConflictFilters] = useState({
+    repositoryId: '',
+    source: '',
+    level: '',
+    unconfirmed: false,
+  })
+  const [showConflictTechnical, setShowConflictTechnical] = useState(false)
   const [worktree, setWorktree] = useState<{
     branchName: string
     baseCommit: string
@@ -135,7 +158,6 @@ export function App() {
     files: string[]
     patch: string
   } | null>(null)
-  const world = getWorldPack(worldPackId)
   const employeeList = useMemo(
     () =>
       employees.map((employee, index) =>
@@ -152,35 +174,202 @@ export function App() {
   const displayEmployeeId = job?.employeeId ?? selectedEmployeeId
   const displayEmployee =
     employeeList.find((employee) => employee.id === displayEmployeeId) ?? null
-  const jobEnabled =
-    workspace !== null &&
-    (fakeHarness || providers.some((provider) => provider.executionConnected))
-  const connection = deriveProviderConnectionSummary({
-    loadState: providerLoadState,
-    providers,
-    fakeHarness,
-    defaultProviderId: workspace?.defaultProviderId ?? null,
-  })
-  const hasConnectedProvider = providers.some(
-    (provider) => provider.executionConnected,
-  )
-  const presence = resolveGardenPresence({
-    job,
-    events,
-    ...(stateMap ? { stateMap } : {}),
-  })
-  const gardenEmployeeName = displayEmployee?.name ?? world.character.name
-  const gardenEmployeeRole = displayEmployee?.role ?? world.character.role
+  const observerFacing =
+    screen === 'garden' ||
+    screen === 'observer' ||
+    screen === 'repository' ||
+    screen === 'conflicts' ||
+    screen === 'settings'
+  const connection = observerFacing
+    ? deriveObserverSurfaceSummary()
+    : deriveProviderConnectionSummary({
+        loadState: providerLoadState,
+        providers,
+        fakeHarness,
+        defaultProviderId: workspace?.defaultProviderId ?? null,
+      })
+  const gardenEmployeeName = displayEmployee?.name ?? selectedEmployee?.name ?? '担当'
 
   useEffect(() => {
     const onHash = () => {
       setScreen(readScreen())
+      const repositoryId = readRepositoryId()
+      if (repositoryId) {
+        setSelectedRepositoryId(repositoryId)
+      }
+      const conflictId = readConflictId()
+      if (conflictId) {
+        setSelectedConflictId(conflictId)
+      }
     }
+    onHash()
     window.addEventListener('hashchange', onHash)
     return () => {
       window.removeEventListener('hashchange', onHash)
     }
   }, [])
+
+  useEffect(() => {
+    if (
+      screen !== 'garden' &&
+      screen !== 'observer' &&
+      screen !== 'repository' &&
+      screen !== 'conflicts'
+    ) {
+      return
+    }
+    let cancelled = false
+    void getTodayOverview()
+      .then((listed) => {
+        if (!cancelled) {
+          setOverview(listed)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOverview((current) =>
+            current ?? {
+              generatedAt: new Date().toISOString(),
+              repositoryCount: 0,
+              activeRepositoryCount: 0,
+              waitingCount: 0,
+              conflictCount: 0,
+              repositories: [],
+            },
+          )
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [screen])
+
+  useEffect(() => {
+    if (
+      screen !== 'garden' &&
+      screen !== 'observer' &&
+      screen !== 'repository' &&
+      screen !== 'conflicts'
+    ) {
+      return
+    }
+    let cancelled = false
+    let inflight = false
+    let pending = false
+
+    const refreshOverview = () => {
+      if (cancelled) {
+        return
+      }
+      if (inflight) {
+        pending = true
+        return
+      }
+      inflight = true
+      void getTodayOverview()
+        .then((listed) => {
+          if (!cancelled) {
+            setOverview(listed)
+          }
+        })
+        .catch(() => {
+          // Keep the last overview.
+        })
+        .finally(() => {
+          inflight = false
+          if (pending && !cancelled) {
+            pending = false
+            refreshOverview()
+          }
+        })
+    }
+
+    const close = openEventStream(
+      '/api/observer/events/stream',
+      () => {
+        refreshOverview()
+      },
+      () => {
+        // Keep the last overview if the stream drops.
+      },
+    )
+    return () => {
+      cancelled = true
+      close()
+    }
+  }, [screen])
+
+  useEffect(() => {
+    if (!selectedRepositoryId || screen !== 'repository') {
+      return
+    }
+    let cancelled = false
+    void getRepositoryActivity(selectedRepositoryId)
+      .then((activity) => {
+        if (!cancelled) {
+          setRepositoryActivity(activity)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRepositoryActivity(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedRepositoryId, screen])
+
+  useEffect(() => {
+    if (screen !== 'conflicts') {
+      return
+    }
+    let cancelled = false
+    void listConflicts({
+      ...(conflictFilters.repositoryId
+        ? { repositoryId: conflictFilters.repositoryId }
+        : {}),
+      ...(conflictFilters.source ? { source: conflictFilters.source } : {}),
+      ...(conflictFilters.level ? { level: conflictFilters.level } : {}),
+      ...(conflictFilters.unconfirmed ? { unconfirmed: true } : {}),
+    })
+      .then((listed) => {
+        if (cancelled) {
+          return
+        }
+        setConflicts(listed.conflicts)
+        setConflictCounts(listed.counts ?? { red: 0, orange: 0, yellow: 0 })
+      })
+      .catch((caught) => {
+        if (!cancelled) {
+          setError(caught instanceof Error ? caught.message : '衝突の一覧を取得できませんでした')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [screen, conflictFilters])
+
+  useEffect(() => {
+    if (screen !== 'conflicts' || !selectedConflictId) {
+      return
+    }
+    let cancelled = false
+    void getConflict(selectedConflictId, showConflictTechnical ? 'detail' : 'simple')
+      .then((conflict) => {
+        if (!cancelled) {
+          setConflictDetail(conflict)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setConflictDetail(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [screen, selectedConflictId, showConflictTechnical])
 
   useEffect(() => {
     let cancelled = false
@@ -268,7 +457,6 @@ export function App() {
         if (cancelled) {
           return
         }
-        setHasJobs(jobs.length > 0)
         if (jobs[0]) {
           setJob(jobs[0])
         }
@@ -280,28 +468,6 @@ export function App() {
       cancelled = true
     }
   }, [workspace])
-
-  useEffect(() => {
-    if (!displayEmployeeId) {
-      return
-    }
-    let cancelled = false
-    void getEmployee(displayEmployeeId)
-      .then((detail) => {
-        if (cancelled) {
-          return
-        }
-        setStateMap(toGardenStateMap(detail.stateMap))
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setStateMap(undefined)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [displayEmployeeId])
 
   useEffect(() => {
     if (!selectedEmployeeId) {
@@ -454,9 +620,44 @@ export function App() {
     setBusy(true)
     setError(null)
     try {
-      setWorkspace(await registerWorkspace(path, employeeName || undefined))
+      const created = await registerWorkspace(path, employeeName || undefined)
+      if (!workspace) {
+        setWorkspace(created)
+      }
+      try {
+        setOverview(await getTodayOverview())
+      } catch {
+        // Observer can refresh later.
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '登録に失敗しました')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function runConflictAction(action: () => Promise<ConflictView>) {
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await action()
+      setConflictDetail(next)
+      setConflicts((current) =>
+        current.map((item) => (item.id === next.id ? next : item)),
+      )
+      const listed = await listConflicts({
+        ...(conflictFilters.repositoryId
+          ? { repositoryId: conflictFilters.repositoryId }
+          : {}),
+        ...(conflictFilters.source ? { source: conflictFilters.source } : {}),
+        ...(conflictFilters.level ? { level: conflictFilters.level } : {}),
+        ...(conflictFilters.unconfirmed ? { unconfirmed: true } : {}),
+      })
+      setConflicts(listed.conflicts)
+      setConflictCounts(listed.counts ?? { red: 0, orange: 0, yellow: 0 })
+      setOverview(await getTodayOverview())
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : '衝突の操作に失敗しました')
     } finally {
       setBusy(false)
     }
@@ -476,72 +677,6 @@ export function App() {
       setError(
         caught instanceof Error ? caught.message : '名前の保存に失敗しました',
       )
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  function jobCreateFields() {
-    return {
-      ...(selectedEmployeeId ? { employeeId: selectedEmployeeId } : {}),
-      ...(selectedEmployee?.supportedJobTypes[0]
-        ? { jobType: selectedEmployee.supportedJobTypes[0] }
-        : {}),
-      ...(selectedProvider === 'auto' ? {} : { selectedProvider }),
-    }
-  }
-
-  async function handleSubmitJob(value: string) {
-    if (!workspace) {
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      const created = await createJob({
-        workspaceId: workspace.id,
-        request: value,
-        ...jobCreateFields(),
-      })
-      setJob(created)
-      setHasJobs(true)
-      setEvents([])
-      setApprovals([])
-      setArtifacts([])
-      setRequest('')
-      setConfirmation(null)
-    } catch (caught) {
-      if (
-        caught instanceof AppError &&
-        (caught.code === 'PROVIDER_UNAVAILABLE' ||
-          caught.code === 'PROVIDER_EXECUTION_DISCONNECTED')
-      ) {
-        const alternatives = Array.isArray(caught.details?.alternatives)
-          ? (caught.details.alternatives.filter(
-              (item): item is ProviderId =>
-                item === 'codex' ||
-                item === 'grok-build' ||
-                item === 'claude-code',
-            ) as ProviderId[])
-          : []
-        setConfirmation({
-          message: caught.message,
-          alternatives,
-          request: value,
-        })
-      } else if (
-        caught instanceof AppError &&
-        caught.code === 'WORKTREE_DIRTY_REPO'
-      ) {
-        setDirtyRepo({
-          message: caught.message,
-          request: value,
-        })
-      } else {
-        setError(
-          caught instanceof Error ? caught.message : '依頼に失敗しました',
-        )
-      }
     } finally {
       setBusy(false)
     }
@@ -581,66 +716,6 @@ export function App() {
       setJob(await cancelJob(job.id))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '中止に失敗しました')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function handleDirtyPolicy(
-    policy: 'from-head' | 'include-dirty-patch' | 'cancel',
-  ) {
-    const pending = dirtyRepo?.request ?? request
-    setDirtyRepo(null)
-    if (policy === 'cancel' || !workspace) {
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      const created = await createJob({
-        workspaceId: workspace.id,
-        request: pending,
-        dirtyWorktreePolicy: policy,
-        ...jobCreateFields(),
-      })
-      setJob(created)
-      setHasJobs(true)
-      setEvents([])
-      setApprovals([])
-      setArtifacts([])
-      setRequest('')
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '依頼に失敗しました')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function handleSubmitJobWithFallback(
-    value: string,
-    providerId: ProviderId,
-  ) {
-    if (!workspace) {
-      return
-    }
-    setBusy(true)
-    setError(null)
-    try {
-      const created = await createJob({
-        workspaceId: workspace.id,
-        request: value,
-        confirmFallbackProvider: providerId,
-        ...jobCreateFields(),
-        selectedProvider: providerId,
-      })
-      setJob(created)
-      setHasJobs(true)
-      setEvents([])
-      setApprovals([])
-      setArtifacts([])
-      setRequest('')
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '依頼に失敗しました')
     } finally {
       setBusy(false)
     }
@@ -737,22 +812,22 @@ export function App() {
         </a>
         <nav aria-label="主要画面">
           <a
-            aria-current={screen === 'garden' ? 'page' : undefined}
+            aria-current={isGardenDestination(screen) ? 'page' : undefined}
             href="#garden"
           >
             庭
           </a>
           <a
-            aria-current={screen === 'artifacts' ? 'page' : undefined}
-            href="#artifacts"
+            aria-current={
+              screen === 'observer' ||
+              screen === 'repository' ||
+              screen === 'conflicts'
+                ? 'page'
+                : undefined
+            }
+            href="#observer"
           >
-            成果棚
-          </a>
-          <a
-            aria-current={screen === 'employees' ? 'page' : undefined}
-            href="#employees"
-          >
-            AI社員
+            今日の作業場
           </a>
           <a
             aria-current={screen === 'settings' ? 'page' : undefined}
@@ -773,14 +848,25 @@ export function App() {
         </div>
       </header>
 
-      {screen === 'garden' ||
+      {screen === 'observer' ||
+      screen === 'repository' ||
+      screen === 'conflicts' ||
+      screen === 'garden' ||
       screen === 'artifacts' ||
       screen === 'employees' ||
       screen === 'settings' ? (
-        <main id={screen === 'garden' ? 'garden' : screen}>
+        <main
+          id={
+            screen === 'garden'
+              ? 'garden'
+              : screen === 'observer'
+                ? 'observer'
+                : screen
+          }
+        >
           <div className="workspace-line" data-testid="workspace-line">
             <div>
-              <span className="eyebrow">最初の工房</span>
+              <span className="eyebrow">観測している場所</span>
               <strong>
                 {workspace
                   ? workspace.repository.displayName
@@ -788,180 +874,114 @@ export function App() {
               </strong>
             </div>
             <div>
-              <span className="eyebrow">標準の道具</span>
+              <span className="eyebrow">観測の状態</span>
               <strong data-testid="default-tool">{connection.toolLabel}</strong>
             </div>
           </div>
 
-          {screen === 'garden' ? (
-            <>
-              <WorldStage
-                world={world}
-                employeeName={gardenEmployeeName}
-                employeeRole={gardenEmployeeRole}
-                {...(displayEmployeeId
-                  ? { employeeId: displayEmployeeId }
-                  : {})}
-                level={growth?.level ?? 1}
-                unlocks={growth?.unlocks ?? []}
-                station={presence.station}
-                pose={presence.pose}
-                activitySummary={
-                  job &&
-                  (job.status === 'completed' ||
-                    job.status === 'failed' ||
-                    job.status === 'cancelled' ||
-                    job.status === 'completed_with_invalid_result')
-                    ? presence.summary
-                    : (latestSummary(events) ?? presence.summary)
+          {screen === 'observer' ? (
+            <ObserverDashboard
+              overview={overview}
+              workspace={workspace}
+              selectedRepositoryId={selectedRepositoryId}
+              busy={busy}
+              error={error}
+              onRegister={(path, employeeName) => {
+                void handleRegister(path, employeeName)
+              }}
+              onSelectRepository={(id) => {
+                setSelectedRepositoryId(id)
+                window.location.hash = `repository/${id}`
+                void getRepositoryActivity(id)
+                  .then(setRepositoryActivity)
+                  .catch(() => setRepositoryActivity(null))
+              }}
+              onRescan={(id) => {
+                void rescanRepository(id)
+                  .then(async (activity) => {
+                    setRepositoryActivity(activity)
+                    setOverview(await getTodayOverview())
+                  })
+                  .catch(() => {
+                    // Keep the last overview.
+                  })
+              }}
+              onOpenConflicts={() => {
+                window.location.hash = 'conflicts'
+              }}
+            />
+          ) : null}
+
+          {screen === 'conflicts' ? (
+            <ConflictCenter
+              conflicts={conflicts}
+              counts={conflictCounts}
+              repositories={(overview?.repositories ?? []).map((item) => ({
+                id: item.repositoryId,
+                name: item.displayName,
+              }))}
+              selectedId={selectedConflictId}
+              detail={conflictDetail}
+              showTechnical={showConflictTechnical}
+              busy={busy}
+              error={error}
+              filters={conflictFilters}
+              onFilterChange={setConflictFilters}
+              onSelect={(id) => {
+                setSelectedConflictId(id)
+                window.location.hash = `conflicts/${id}`
+              }}
+              onToggleTechnical={() => {
+                setShowConflictTechnical((current) => !current)
+              }}
+              onAcknowledge={(id) => {
+                void runConflictAction(() => acknowledgeConflict(id))
+              }}
+              onResolve={(id) => {
+                void runConflictAction(() => resolveConflict(id))
+              }}
+              onRecheck={(id) => {
+                void runConflictAction(() => recheckConflict(id))
+              }}
+              onBack={() => {
+                window.location.hash = 'observer'
+              }}
+            />
+          ) : null}
+
+          {screen === 'repository' ? (
+            <RepositoryObserverPage
+              activity={repositoryActivity}
+              busy={busy}
+              onBack={() => {
+                window.location.hash = 'observer'
+              }}
+              onOpenConflicts={(id) => {
+                window.location.hash = id ? `conflicts/${id}` : 'conflicts'
+              }}
+              onRescan={() => {
+                if (!selectedRepositoryId) {
+                  return
                 }
-              />
+                void rescanRepository(selectedRepositoryId)
+                  .then(setRepositoryActivity)
+                  .catch(() => {
+                    // Keep the last detail.
+                  })
+              }}
+            />
+          ) : null}
 
-              <section className="garden-controls" aria-label="庭の操作">
-                <FirstRunGuide
-                  hasWorkspace={workspace !== null}
-                  hasConnectedProvider={hasConnectedProvider}
-                  hasJobs={hasJobs}
-                />
-                <div className="world-selector">
-                  <div>
-                    <p className="section-kicker">庭の見立て</p>
-                    <h2>どの工房で迎えますか</h2>
-                  </div>
-                  <div
-                    className="world-selector__tabs"
-                    role="group"
-                    aria-label="World Pack"
-                  >
-                    {worldPacks.map((pack) => (
-                      <button
-                        key={pack.id}
-                        type="button"
-                        className={
-                          pack.id === world.id
-                            ? 'washi-tab is-active'
-                            : 'washi-tab'
-                        }
-                        aria-pressed={pack.id === world.id}
-                        aria-label={`${pack.name}を表示`}
-                        onClick={() => setWorldPackId(pack.id)}
-                      >
-                        <span>{pack.shortName}</span>
-                        <small>
-                          {pack.id === 'dog-office'
-                            ? '竹・苔・縁側'
-                            : '木工・金工・和紙・漆'}
-                        </small>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <RepositoryPanel
-                  workspace={workspace}
-                  busy={busy}
-                  error={workspace ? null : error}
-                  onRegister={(path, employeeName) => {
-                    void handleRegister(path, employeeName)
-                  }}
-                  onEmployeeNameChange={(employeeName) => {
-                    void handleEmployeeNameChange(employeeName)
-                  }}
-                />
-
-                <JobComposer
-                  enabled={jobEnabled}
-                  busy={busy}
-                  request={request}
-                  error={workspace ? error : null}
-                  employeeName={selectedEmployee?.name}
-                  employees={employeeList}
-                  selectedEmployeeId={selectedEmployeeId}
-                  providers={providers}
-                  selectedProvider={selectedProvider}
-                  {...(confirmation
-                    ? {
-                        confirmation: {
-                          message: confirmation.message,
-                          alternatives: confirmation.alternatives,
-                        },
-                      }
-                    : {})}
-                  {...(dirtyRepo
-                    ? { dirtyRepo: { message: dirtyRepo.message } }
-                    : {})}
-                  notice={
-                    fakeHarness
-                      ? '開発用ハーネスです。Codex / Grok Build / Claude Code としては表示しません'
-                      : '道具を選び、ログイン済みの実行エンジンだけで仕事を始めます。自動切替はしません'
-                  }
-                  onRequestChange={setRequest}
-                  onEmployeeChange={setSelectedEmployeeId}
-                  onProviderChange={setSelectedProvider}
-                  onSubmit={(value) => {
-                    void handleSubmitJob(value)
-                  }}
-                  onConfirmFallback={(providerId) => {
-                    const pending = confirmation?.request ?? request
-                    setSelectedProvider(providerId)
-                    setConfirmation(null)
-                    void handleSubmitJobWithFallback(pending, providerId)
-                  }}
-                  onCancelConfirmation={() => {
-                    setConfirmation(null)
-                  }}
-                  onDirtyPolicy={(policy) => {
-                    void handleDirtyPolicy(policy)
-                  }}
-                />
-
-                <CurrentJob
-                  job={job}
-                  presence={presence}
-                  employeeName={gardenEmployeeName}
-                  busy={busy}
-                  onCancel={() => {
-                    void handleCancel()
-                  }}
-                />
-
-                <div className="garden-peek">
-                  <button
-                    type="button"
-                    className="washi-tab"
-                    onClick={() => {
-                      setEmployeeDrawerOpen(true)
-                    }}
-                  >
-                    {selectedEmployee?.name ?? gardenEmployeeName}を確認する
-                  </button>
-                  <a className="washi-tab" href="#artifacts">
-                    成果を受け取る
-                  </a>
-                  <a className="washi-tab" href="#settings">
-                    設定
-                  </a>
-                </div>
-
-                <ArtifactShelf
-                  artifacts={artifacts}
-                  worktree={worktree}
-                  busy={busy}
-                  onApply={(id) => {
-                    void handleApplyArtifact(id)
-                  }}
-                  onExport={(id) => {
-                    void handleExportArtifact(id)
-                  }}
-                  onKeep={() => {
-                    void handleKeepWorktree()
-                  }}
-                  onDiscard={() => {
-                    void handleDiscardWorktree()
-                  }}
-                />
-              </section>
-            </>
+          {screen === 'garden' ? (
+            <ObserverGarden
+              overview={overview}
+              onOpenWorkshop={() => {
+                window.location.hash = 'observer'
+              }}
+              onOpenSettings={() => {
+                window.location.hash = 'settings'
+              }}
+            />
           ) : null}
 
           {screen === 'artifacts' ? (
@@ -1105,7 +1125,7 @@ export function App() {
 
       <footer>
         <p>
-          庭だけで頼む・確認する・受け取る。偽の進捗は出しません。社員は資料棚・望遠鏡・作業台・納品台のあいだを移ります。
+          登録した場所の様子を整理します。Gitの用語や、誰が直したかの断定はしません。
         </p>
         <span>Shikumi Local · 127.0.0.1</span>
       </footer>
@@ -1113,41 +1133,47 @@ export function App() {
   )
 }
 
-function latestSummary(events: readonly PersistedEvent[]): string | null {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const summary = events[index]?.payload.summary
-    if (typeof summary === 'string' && summary.length > 0) {
-      return summary
-    }
+function readRepositoryId(): string | null {
+  const hash = window.location.hash.replace('#', '')
+  if (!hash.startsWith('repository/')) {
+    return null
   }
-  return null
+  const id = hash.slice('repository/'.length).trim()
+  return id.length > 0 ? id : null
+}
+
+function readConflictId(): string | null {
+  const hash = window.location.hash.replace('#', '')
+  if (!hash.startsWith('conflicts/')) {
+    return null
+  }
+  const id = hash.slice('conflicts/'.length).trim()
+  return id.length > 0 ? id : null
+}
+
+function isGardenDestination(screen: Screen): boolean {
+  return screen === 'garden' || screen === 'artifacts' || screen === 'employees'
 }
 
 function readScreen(): Screen {
   const hash = window.location.hash.replace('#', '')
-  if (hash === 'artifacts' || hash === 'employees' || hash === 'settings') {
+  if (hash.startsWith('repository')) {
+    return 'repository'
+  }
+  if (hash.startsWith('conflicts')) {
+    return 'conflicts'
+  }
+  if (
+    hash === 'artifacts' ||
+    hash === 'employees' ||
+    hash === 'settings' ||
+    hash === 'garden' ||
+    hash === 'observer'
+  ) {
     return hash
   }
+  if (hash === 'labs') {
+    return 'garden'
+  }
   return 'garden'
-}
-
-function toGardenStateMap(input: {
-  states: Record<string, { station: string; pose: string; summary: string }>
-  eventBindings: Record<string, string>
-}): GardenStateMap {
-  const states: Record<string, GardenStateMap['states'][string]> = {}
-  for (const [name, state] of Object.entries(input.states)) {
-    if (!isGardenStationId(state.station)) {
-      continue
-    }
-    states[name] = {
-      station: state.station,
-      pose: state.pose,
-      summary: state.summary,
-    }
-  }
-  return {
-    states,
-    eventBindings: input.eventBindings,
-  }
 }

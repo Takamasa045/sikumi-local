@@ -5,9 +5,21 @@ import { expect, test } from '@playwright/test'
 test('growth and pack trust screens are available after a local session starts', async ({
   page,
 }) => {
-  await page.goto('/')
-  await page.getByRole('link', { name: 'AI社員' }).click()
-  await page.getByRole('button', { name: /サグル/ }).click()
+  await page.goto('/#employees')
+  await expect(page.getByRole('heading', { name: 'AI社員' })).toBeVisible()
+  const listed = await page.request.get('/api/employees')
+  const body = (await listed.json()) as {
+    employees?: Array<{ id: string; name: string; role: string }>
+  }
+  expect(
+    (body.employees ?? []).find((employee) => employee.id === 'saguru'),
+    JSON.stringify(body),
+  ).toMatchObject({
+    id: 'saguru',
+    name: 'サグル',
+    role: '調査担当',
+  })
+  await page.getByRole('button', { name: /調査担当/ }).click()
   await expect(page.getByTestId('employee-drawer')).toBeVisible()
   await expect(page.getByTestId('employee-growth')).toBeVisible()
   await page.getByRole('button', { name: '閉じる' }).click()

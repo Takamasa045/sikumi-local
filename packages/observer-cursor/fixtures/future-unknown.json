@@ -1,0 +1,6 @@
+{
+  "conversation_id": "conv-cursor-1",
+  "hook_event_name": "beforeMCPExecution",
+  "mcp_payload": { "secret": "do-not-store-mcp" },
+  "future_field": "keep-out-of-payload"
+}

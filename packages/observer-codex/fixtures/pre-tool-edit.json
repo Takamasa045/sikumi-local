@@ -1,0 +1,14 @@
+{
+  "session_id": "sess-codex-1",
+  "turn_id": "turn-3",
+  "transcript_path": "/tmp/hidden/transcript.jsonl",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-5.4",
+  "permission_mode": "default",
+  "tool_name": "apply_patch",
+  "tool_use_id": "tool-9",
+  "tool_input": {
+    "patch": "*** Update File: src/auth/session.ts\n@@\n-old\n+new\n"
+  }
+}

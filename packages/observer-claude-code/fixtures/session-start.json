@@ -1,0 +1,8 @@
+{
+  "session_id": "sess-claude-1",
+  "transcript_path": "/tmp/hidden/claude-transcript.jsonl",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "SessionStart",
+  "model": "claude-opus",
+  "prompt": "do not store this prompt"
+}

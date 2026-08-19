@@ -1,0 +1,76 @@
+[
+  {
+    "type": "available_commands",
+    "session_id": "sess-real-stream",
+    "commands": [
+      {
+        "name": "help",
+        "description": "secret command catalog must vanish"
+      }
+    ]
+  },
+  {
+    "type": "available_commands_update",
+    "session_id": "sess-real-stream",
+    "availableCommands": [
+      {
+        "name": "help",
+        "description": "secret command catalog must vanish"
+      }
+    ]
+  },
+  {
+    "type": "text",
+    "data": "full assistant response that must vanish"
+  },
+  {
+    "type": "thought",
+    "data": "hidden chain of thought"
+  },
+  {
+    "type": "thought",
+    "delta": "thought delta secret"
+  },
+  {
+    "type": "reasoning",
+    "data": "hidden reasoning must vanish"
+  },
+  {
+    "type": "agent_message_chunk",
+    "content": {
+      "text": "agent message full text must vanish"
+    }
+  },
+  {
+    "type": "agent_thought_chunk",
+    "content": {
+      "text": "hidden thought chunk must vanish"
+    }
+  },
+  {
+    "type": "user_message_chunk",
+    "content": {
+      "text": "user prompt must vanish"
+    }
+  },
+  {
+    "type": "session_info_update",
+    "sessionId": "sess-real-stream"
+  },
+  {
+    "type": "tool_call",
+    "session_id": "sess-real-stream",
+    "name": "Write",
+    "id": "call-real-1",
+    "input": {
+      "path": "src/api/users.ts",
+      "content": "full file must not persist"
+    }
+  },
+  {
+    "type": "result",
+    "subtype": "success",
+    "session_id": "sess-real-stream",
+    "stopReason": "EndTurn"
+  }
+]

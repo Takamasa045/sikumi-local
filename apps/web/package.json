@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@sikumi-local/core": "workspace:*",
+    "@sikumi-local/observer-core": "workspace:*",
     "@tanstack/react-query": "latest",
     "react": "latest",
     "react-dom": "latest",

@@ -15,7 +15,9 @@ import { registerJobRoutes } from './api/jobs.js'
 import { registerPackRoutes } from './api/packs.js'
 import { registerProviderRoutes } from './api/providers.js'
 import { registerSessionRoutes } from './api/session.js'
+import { registerObserverRoutes } from './api/observer.js'
 import { registerWorkspaceRoutes } from './api/workspaces.js'
+import { createObserverService } from './observer/service.js'
 import { createEmployeeRegistry } from './employees/registry.js'
 import { ensureBuiltinPacks } from './packs/manager.js'
 import { createJobManager } from './jobs/job-manager.js'
@@ -42,6 +44,8 @@ export interface AppOptions {
   readonly enableFakeProvider?: boolean
   readonly liveProviderRuns?: boolean
   readonly registry?: ProviderRegistry
+  readonly observerScanThrottleMs?: number
+  readonly observerScanDebounceMs?: number
 }
 
 export function buildApp(options: AppOptions): FastifyInstance {
@@ -74,6 +78,15 @@ export function buildApp(options: AppOptions): FastifyInstance {
     employees,
     dataDirectory: options.dataDirectory,
   })
+  const observer = createObserverService(store, options.dataDirectory, {
+    ...(options.observerScanThrottleMs === undefined
+      ? {}
+      : { scanThrottleMs: options.observerScanThrottleMs }),
+    ...(options.observerScanDebounceMs === undefined
+      ? {}
+      : { scanDebounceMs: options.observerScanDebounceMs }),
+  })
+  void observer.recover()
   const app = Fastify({
     logger: false,
     bodyLimit: options.security?.bodyLimitBytes ?? DEFAULT_BODY_LIMIT_BYTES,
@@ -81,6 +94,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
 
   app.addHook('onClose', async () => {
     await jobs.dispose()
+    observer.dispose()
     sqlite.close()
   })
 
@@ -153,7 +167,9 @@ export function buildApp(options: AppOptions): FastifyInstance {
   })
 
   registerSessionRoutes(app, security.sessionToken)
-  registerWorkspaceRoutes(app, store)
+  registerWorkspaceRoutes(app, store, {
+    dataDirectory: options.dataDirectory,
+  })
   registerProviderRoutes(app, store, registry, { liveProviderRuns })
   registerEmployeeRoutes(app, store, employees)
   registerJobRoutes(app, jobs, security)
@@ -162,6 +178,7 @@ export function buildApp(options: AppOptions): FastifyInstance {
   registerArtifactRoutes(app, jobs)
   registerGrowthRoutes(app, store, employees)
   registerPackRoutes(app, store, employees, options.dataDirectory)
+  registerObserverRoutes(app, observer, store, security)
 
   return app
 }

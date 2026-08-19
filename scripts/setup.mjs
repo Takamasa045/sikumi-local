@@ -18,6 +18,7 @@ const SUBDIRECTORIES = [
   'employees',
   'worlds',
   'characters',
+  'observer',
 ]
 
 try {

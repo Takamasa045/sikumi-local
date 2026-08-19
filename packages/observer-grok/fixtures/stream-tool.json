@@ -1,0 +1,10 @@
+{
+  "type": "tool_use",
+  "session_id": "sess-grok-stream",
+  "name": "Write",
+  "id": "call-9",
+  "input": {
+    "path": "src/api/users.ts",
+    "content": "full file must not persist"
+  }
+}

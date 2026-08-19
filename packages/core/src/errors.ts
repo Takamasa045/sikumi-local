@@ -44,6 +44,8 @@ export const errorCodes = [
   'BACKUP_FAILED',
   'IMPORT_CONFLICT',
   'OUTPUT_TOO_LARGE',
+  'OBSERVER_EVENT_INVALID',
+  'OBSERVER_ADAPTER_UNAVAILABLE',
 ] as const
 
 export type ErrorCode = (typeof errorCodes)[number]

@@ -44,6 +44,7 @@ import { createStore } from '../storage/store.js'
 
 export const PORTABLE_FORMAT = 'shikumi-local-portable'
 export const PORTABLE_SCHEMA_VERSION = 1
+export const PORTABLE_INCLUDES_OBSERVER_HISTORY = false
 export const MAX_PORTABLE_BYTES = 8 * 1024 * 1024
 export const PORTABLE_MANIFEST_NAME = 'shikumi-portable.json'
 
@@ -196,6 +197,8 @@ export function buildPortableSnapshot(dataDirectory: string): PortableSnapshot {
         builtin: pack.builtin,
         installedAt: pack.installedAt,
       })),
+      // Observer history stays local-only. Absolute paths, hook metadata,
+      // and session correlation are not part of the portable archive.
     }
     return portableSnapshotSchema.parse(snapshot)
   } finally {

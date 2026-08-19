@@ -48,6 +48,10 @@ import { and, eq } from 'drizzle-orm'
 import type { GitInspection } from '../workspaces/git-repository.js'
 import type { AppDatabase } from './database.js'
 import {
+  createObserverStore,
+  type ObserverStore,
+} from './observer-store.js'
+import {
   approvalRequests,
   artifacts,
   auditEntries,
@@ -187,8 +191,11 @@ export interface AppStore {
   deletePackPreview(id: string): void
 }
 
-export function createStore(db: AppDatabase): AppStore {
+export type CombinedStore = AppStore & ObserverStore
+
+export function createStore(db: AppDatabase): CombinedStore {
   return {
+    ...createObserverStore(db),
     listWorkspaces() {
       const rows = db.select().from(workspaces).all()
       return rows

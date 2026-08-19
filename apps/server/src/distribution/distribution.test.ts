@@ -26,6 +26,7 @@ import { runDoctor } from './doctor.js'
 import {
   MAX_PORTABLE_BYTES,
   PORTABLE_FORMAT,
+  PORTABLE_INCLUDES_OBSERVER_HISTORY,
   exportPortableArchive,
   importPortableArchive,
   previewPortableArchive,
@@ -198,6 +199,57 @@ describe('distribution portable export/import', () => {
     expect(JSON.parse(raw).workspaces[0].repository.displayName).toBe(
       'example-repo',
     )
+  })
+
+  it('excludes observer history so hook secrets and absolute paths stay local', () => {
+    expect(PORTABLE_INCLUDES_OBSERVER_HISTORY).toBe(false)
+    const dataDirectory = preparedDataDir()
+    seedHistory(dataDirectory)
+    const opened = openTrackedDatabase(dataDirectory)
+    const store = createStore(opened.db)
+    store.insertObserverEvent(
+      {
+        id: 'obs_export',
+        schemaVersion: 1,
+        occurredAt: '2026-08-18T00:00:00.000Z',
+        receivedAt: '2026-08-18T00:00:00.000Z',
+        source: 'codex',
+        surface: 'cli',
+        nativeEventType: 'SessionStart',
+        normalizedType: 'session.started',
+        externalSessionId: 'sess_export',
+        externalTurnId: 'turn_export',
+        externalTaskId: null,
+        externalSubagentId: null,
+        cwd: '/Users/example/secret-repo',
+        repositoryId: null,
+        worktreePath: '/Users/example/secret-repo',
+        branch: 'main',
+        baseCommit: 'aaa',
+        headCommit: 'bbb',
+        actorKind: 'agent',
+        activity: 'starting',
+        resource: null,
+        summary: '開始',
+        attributionConfidence: 'verified',
+        ingestionMethod: 'hook',
+        idempotencyKey: 'export-observer-key-12345678',
+        payload: {},
+      },
+      { sessionId: null },
+    )
+    const destination = join(trackTemp(), 'observer-archive.json')
+    exportPortableArchive({
+      destination,
+      env: { SIKUMI_LOCAL_DATA_DIR: dataDirectory },
+    })
+    const raw = readFileSync(destination, 'utf8')
+    expect(raw).not.toContain('obs_export')
+    expect(raw).not.toContain('sess_export')
+    expect(raw).not.toContain('/Users/example/secret-repo')
+    expect(raw).not.toContain('observer_events')
+    expect(raw).not.toContain('externalSessionId')
+    expect(raw).not.toContain('reasoning')
   })
 
   it('previews import and requires the exact confirm token', () => {

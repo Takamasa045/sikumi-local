@@ -1,0 +1,6 @@
+{
+  "type": "thought",
+  "session_id": "sess-grok-stream",
+  "thought": "hidden chain of thought",
+  "text": "full assistant response"
+}

@@ -1,22 +1,25 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
+const webPort = Number(process.env.SIKUMI_WEB_PORT ?? 5184)
+const serverPort = Number(process.env.SIKUMI_LOCAL_PORT ?? 4321)
+
 export default defineConfig({
   plugins: [react()],
   server: {
     host: '127.0.0.1',
-    port: 5184,
+    port: webPort,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:4321',
+      '/api': `http://127.0.0.1:${serverPort}`,
     },
   },
   preview: {
     host: '127.0.0.1',
-    port: 5184,
+    port: webPort,
     strictPort: true,
     proxy: {
-      '/api': 'http://127.0.0.1:4321',
+      '/api': `http://127.0.0.1:${serverPort}`,
     },
   },
   test: {

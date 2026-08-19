@@ -16,7 +16,12 @@ export const DATA_SUBDIRECTORIES = [
   'employees',
   'worlds',
   'characters',
+  'observer',
 ] as const
+
+export function observerDirectory(dataDirectory: string): string {
+  return join(dataDirectory, 'observer')
+}
 
 export function resolveDataDirectory(
   env: NodeJS.ProcessEnv = process.env,

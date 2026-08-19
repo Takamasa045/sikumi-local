@@ -1,0 +1,6 @@
+{
+  "session_id": "sess-claude-desktop",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "SessionStart",
+  "surface": "desktop-app"
+}

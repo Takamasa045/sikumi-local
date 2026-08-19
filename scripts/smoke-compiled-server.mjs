@@ -48,6 +48,21 @@ try {
     throw new Error(`Unexpected health contract: ${JSON.stringify(health)}`)
   }
 
+  const today = await fetchJson(`${base}/api/observer/today`)
+  if (!today.overview || typeof today.overview.repositoryCount !== 'number') {
+    throw new Error(`Unexpected today contract: ${JSON.stringify(today)}`)
+  }
+
+  const adapters = await fetchJson(`${base}/api/observer/adapters`)
+  if (!Array.isArray(adapters.adapters) || adapters.adapters.length < 5) {
+    throw new Error(`Unexpected adapters contract: ${JSON.stringify(adapters)}`)
+  }
+
+  const conflicts = await fetchJson(`${base}/api/conflicts`)
+  if (!Array.isArray(conflicts.conflicts) || !conflicts.counts) {
+    throw new Error(`Unexpected conflicts contract: ${JSON.stringify(conflicts)}`)
+  }
+
   const sessionResponse = await fetch(`${base}/api/session`)
   const session = await sessionResponse.json()
   const setCookie = sessionResponse.headers.get('set-cookie') ?? ''

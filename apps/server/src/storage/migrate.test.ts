@@ -3,7 +3,16 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
-import { applyMigrations, type Migration } from './migrate.js'
+import {
+  applyMigrations,
+  initialSchemaMigration,
+  conflictAttributionMigration,
+  conflictEngineMigration,
+  observerFoundationMigration,
+  workspaceEmployeeNameMigration,
+  worktreeGrowthPacksMigration,
+  type Migration,
+} from './migrate.js'
 
 const tempDirectories: string[] = []
 
@@ -38,6 +47,13 @@ describe('applyMigrations', () => {
         'artifacts',
         'growth_records',
         'installed_packs',
+        'observer_adapters',
+        'external_sessions',
+        'observer_events',
+        'resource_claims',
+        'repository_snapshots',
+        'conflict_findings',
+        'session_labels',
       ]),
     )
   })
@@ -66,7 +82,7 @@ describe('applyMigrations', () => {
       .get() as { count: number }
 
     expect(workspace.name).toBe('keep-me')
-    expect(migrations.count).toBe(3)
+    expect(migrations.count).toBe(6)
     const columns = second
       .prepare('PRAGMA table_info(workspaces)')
       .all() as Array<{ name: string }>
@@ -179,6 +195,192 @@ describe('applyMigrations', () => {
       { version: 1, name: 'one' },
       { version: 2, name: 'fixed' },
     ])
+  })
+
+  it('keeps existing job, run, and event rows when applying observer v4', () => {
+    const sqlite = openTempDatabase()
+    applyMigrations(sqlite, [
+      initialSchemaMigration,
+      worktreeGrowthPacksMigration,
+      workspaceEmployeeNameMigration,
+    ])
+    sqlite
+      .prepare(
+        `INSERT INTO workspaces (id, name, world_pack_id, created_at, updated_at, employee_name)
+         VALUES ('ws_keep', 'kept', 'dog-office', 't', 't', '番')`,
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO jobs (id, workspace_id, employee_id, request, job_type, selected_provider, permission_profile, status, created_at)
+         VALUES ('job_keep', 'ws_keep', 'saguru', '調べて', 'research', 'codex', 'research', 'completed', 't')`,
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO runs (id, job_id, provider_id, status, created_at)
+         VALUES ('run_keep', 'job_keep', 'codex', 'completed', 't')`,
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO events (id, job_id, run_id, type, payload, occurred_at)
+         VALUES ('evt_keep', 'job_keep', 'run_keep', 'run.completed', '{"summary":"完了"}', 't')`,
+      )
+      .run()
+
+    applyMigrations(sqlite, [
+      initialSchemaMigration,
+      worktreeGrowthPacksMigration,
+      workspaceEmployeeNameMigration,
+      observerFoundationMigration,
+    ])
+
+    expect(
+      sqlite.prepare('SELECT COUNT(*) AS count FROM jobs').get() as {
+        count: number
+      },
+    ).toEqual({ count: 1 })
+    expect(
+      sqlite.prepare('SELECT request FROM jobs WHERE id = ?').get('job_keep'),
+    ).toEqual({ request: '調べて' })
+    expect(
+      sqlite.prepare('SELECT COUNT(*) AS count FROM runs').get() as {
+        count: number
+      },
+    ).toEqual({ count: 1 })
+    expect(
+      sqlite.prepare('SELECT payload FROM events WHERE id = ?').get('evt_keep'),
+    ).toEqual({ payload: '{"summary":"完了"}' })
+    expect(
+      sqlite
+        .prepare(
+          `SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'observer_events'`,
+        )
+        .get(),
+    ).toEqual({ name: 'observer_events' })
+  })
+
+  it('adds conflict engine columns without dropping existing findings', () => {
+    const sqlite = openTempDatabase()
+    applyMigrations(sqlite, [
+      initialSchemaMigration,
+      worktreeGrowthPacksMigration,
+      workspaceEmployeeNameMigration,
+      observerFoundationMigration,
+    ])
+    sqlite
+      .prepare(
+        `INSERT INTO conflict_findings (
+           id, repository_id, left_session_id, right_session_id,
+           left_worktree_path, right_worktree_path, level, score, confidence,
+           summary, reason_json, status, detected_at, updated_at, resolved_at
+         ) VALUES (
+           'cnf_keep', 'repo_1', 's1', 's2', '/a', '/b', 'high', 82, 'verified',
+           '同じファイル', '["同じファイル"]', 'open', 't', 't', NULL
+         )`,
+      )
+      .run()
+
+    applyMigrations(sqlite, [
+      initialSchemaMigration,
+      worktreeGrowthPacksMigration,
+      workspaceEmployeeNameMigration,
+      observerFoundationMigration,
+      conflictEngineMigration,
+    ])
+
+    const row = sqlite
+      .prepare(
+        `SELECT identity_key, headline, recommendation, evidence_json, fingerprint
+         FROM conflict_findings WHERE id = 'cnf_keep'`,
+      )
+      .get() as {
+      identity_key: string
+      headline: string
+      recommendation: string
+      evidence_json: string
+      fingerprint: string
+    }
+    expect(row.identity_key).toBe('cnf_keep')
+    expect(row.headline).toBe('同じファイル')
+    expect(row.recommendation).toContain('自動操作')
+    expect(row.evidence_json).toBe('[]')
+    expect(row.fingerprint).toBe('cnf_keep')
+    const columns = sqlite
+      .prepare('PRAGMA table_info(conflict_findings)')
+      .all() as Array<{ name: string }>
+    expect(columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining([
+        'identity_key',
+        'headline',
+        'recommendation',
+        'evidence_json',
+        'fingerprint',
+        'left_source',
+        'right_source',
+      ]),
+    )
+  })
+
+  it('adds per-side attribution columns without dropping existing findings', () => {
+    const sqlite = openTempDatabase()
+    applyMigrations(sqlite, [
+      initialSchemaMigration,
+      worktreeGrowthPacksMigration,
+      workspaceEmployeeNameMigration,
+      observerFoundationMigration,
+      conflictEngineMigration,
+    ])
+    sqlite
+      .prepare(
+        `INSERT INTO conflict_findings (
+           id, repository_id, left_session_id, right_session_id,
+           left_worktree_path, right_worktree_path, left_source, right_source,
+           level, score, confidence, headline, summary, recommendation,
+           reason_json, evidence_json, identity_key, fingerprint, status,
+           detected_at, updated_at, resolved_at
+         ) VALUES (
+           'cnf_attr', 'repo_1', 's1', 's2', '/a', '/b', 'codex', 'cursor',
+           'high', 82, 'inferred', '同じファイル', '同じファイル', '自動操作はしません。',
+           '["同じファイル"]', '[]', 'cnf_attr', 'cnf_attr', 'open', 't', 't', NULL
+         )`,
+      )
+      .run()
+
+    applyMigrations(sqlite, [
+      initialSchemaMigration,
+      worktreeGrowthPacksMigration,
+      workspaceEmployeeNameMigration,
+      observerFoundationMigration,
+      conflictEngineMigration,
+      conflictAttributionMigration,
+    ])
+
+    const row = sqlite
+      .prepare(
+        `SELECT left_source, right_source, left_attribution_confidence, right_attribution_confidence
+         FROM conflict_findings WHERE id = 'cnf_attr'`,
+      )
+      .get() as {
+      left_source: string
+      right_source: string
+      left_attribution_confidence: string | null
+      right_attribution_confidence: string | null
+    }
+    expect(row.left_source).toBe('codex')
+    expect(row.right_source).toBe('cursor')
+    expect(row.left_attribution_confidence).toBeNull()
+    expect(row.right_attribution_confidence).toBeNull()
+    const columns = sqlite
+      .prepare('PRAGMA table_info(conflict_findings)')
+      .all() as Array<{ name: string }>
+    expect(columns.map((column) => column.name)).toEqual(
+      expect.arrayContaining([
+        'left_attribution_confidence',
+        'right_attribution_confidence',
+      ]),
+    )
   })
 })
 

@@ -1,0 +1,41 @@
+{
+  "name": "@sikumi-local/observer-claude-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "sikumi-observer-claude-desktop": "./bin/sikumi-observer-claude-desktop.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "bin",
+    "extension",
+    "scripts"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json --pretty false",
+    "typecheck": "tsc -p tsconfig.json --noEmit --pretty false",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "mcpb:validate": "node ./scripts/validate.mjs",
+    "mcpb:pack": "node ./scripts/pack.mjs"
+  },
+  "dependencies": {
+    "@sikumi-local/core": "workspace:*",
+    "@sikumi-local/observer-bridge": "workspace:*",
+    "@sikumi-local/observer-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@anthropic-ai/mcpb": "2.1.2",
+    "@modelcontextprotocol/sdk": "1.30.0"
+  }
+}

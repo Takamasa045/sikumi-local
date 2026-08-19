@@ -1,0 +1,7 @@
+{
+  "conversation_id": "conv-cursor-1",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "beforeShellExecution",
+  "command": "pnpm test --filter observer-cursor",
+  "stdout": "must not store command output"
+}

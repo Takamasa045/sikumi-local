@@ -253,6 +253,116 @@ export const worldFeatureUnlocks = sqliteTable(
   ],
 )
 
+export const observerAdapters = sqliteTable('observer_adapters', {
+  id: text('id').primaryKey(),
+  source: text('source').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  enabled: integer('enabled', { mode: 'boolean' }).notNull(),
+  installationStatus: text('installation_status').notNull(),
+  installedVersion: text('installed_version'),
+  detectedVersion: text('detected_version'),
+  lastEventAt: text('last_event_at'),
+  healthJson: text('health_json').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
+export const externalSessions = sqliteTable('external_sessions', {
+  id: text('id').primaryKey(),
+  source: text('source').notNull(),
+  surface: text('surface').notNull(),
+  externalSessionId: text('external_session_id'),
+  workspaceId: text('workspace_id'),
+  repositoryId: text('repository_id'),
+  cwd: text('cwd'),
+  worktreePath: text('worktree_path'),
+  branch: text('branch'),
+  baseCommit: text('base_commit'),
+  headCommit: text('head_commit'),
+  title: text('title'),
+  status: text('status').notNull(),
+  activity: text('activity').notNull(),
+  attributionConfidence: text('attribution_confidence').notNull(),
+  startedAt: text('started_at').notNull(),
+  lastObservedAt: text('last_observed_at').notNull(),
+  endedAt: text('ended_at'),
+})
+
+export const observerEvents = sqliteTable('observer_events', {
+  id: text('id').primaryKey(),
+  externalSessionId: text('external_session_id'),
+  repositoryId: text('repository_id'),
+  source: text('source').notNull(),
+  nativeEventType: text('native_event_type').notNull(),
+  normalizedType: text('normalized_type').notNull(),
+  payloadJson: text('payload_json').notNull(),
+  occurredAt: text('occurred_at').notNull(),
+  receivedAt: text('received_at').notNull(),
+  idempotencyKey: text('idempotency_key').notNull().unique(),
+})
+
+export const resourceClaims = sqliteTable('resource_claims', {
+  id: text('id').primaryKey(),
+  externalSessionId: text('external_session_id'),
+  repositoryId: text('repository_id'),
+  resourceType: text('resource_type').notNull(),
+  resourceKey: text('resource_key').notNull(),
+  action: text('action').notNull(),
+  claimKind: text('claim_kind').notNull(),
+  confidence: text('confidence').notNull(),
+  firstObservedAt: text('first_observed_at').notNull(),
+  lastObservedAt: text('last_observed_at').notNull(),
+})
+
+export const repositorySnapshots = sqliteTable('repository_snapshots', {
+  id: text('id').primaryKey(),
+  repositoryId: text('repository_id').notNull(),
+  worktreePath: text('worktree_path').notNull(),
+  branch: text('branch'),
+  headCommit: text('head_commit'),
+  baseCommit: text('base_commit'),
+  statusJson: text('status_json').notNull(),
+  changedFilesJson: text('changed_files_json').notNull(),
+  createdAt: text('created_at').notNull(),
+})
+
+export const conflictFindings = sqliteTable('conflict_findings', {
+  id: text('id').primaryKey(),
+  repositoryId: text('repository_id').notNull(),
+  leftSessionId: text('left_session_id'),
+  rightSessionId: text('right_session_id'),
+  leftWorktreePath: text('left_worktree_path'),
+  rightWorktreePath: text('right_worktree_path'),
+  leftSource: text('left_source'),
+  rightSource: text('right_source'),
+  leftAttributionConfidence: text('left_attribution_confidence'),
+  rightAttributionConfidence: text('right_attribution_confidence'),
+  level: text('level').notNull(),
+  score: integer('score').notNull(),
+  confidence: text('confidence').notNull(),
+  headline: text('headline'),
+  summary: text('summary').notNull(),
+  recommendation: text('recommendation'),
+  reasonJson: text('reason_json').notNull(),
+  evidenceJson: text('evidence_json'),
+  identityKey: text('identity_key'),
+  fingerprint: text('fingerprint'),
+  status: text('status').notNull(),
+  detectedAt: text('detected_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+  resolvedAt: text('resolved_at'),
+})
+
+export const sessionLabels = sqliteTable('session_labels', {
+  id: text('id').primaryKey(),
+  externalSessionId: text('external_session_id').notNull().unique(),
+  title: text('title'),
+  summary: text('summary'),
+  source: text('source').notNull(),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+})
+
 export const packPreviews = sqliteTable('pack_previews', {
   id: text('id').primaryKey(),
   kind: text('kind').notNull(),

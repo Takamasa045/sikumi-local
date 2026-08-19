@@ -265,10 +265,171 @@ export const workspaceEmployeeNameMigration: Migration = {
   `,
 }
 
+export const observerFoundationMigration: Migration = {
+  version: 4,
+  name: 'observer-foundation',
+  sql: `
+    CREATE TABLE observer_adapters (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      enabled INTEGER NOT NULL,
+      installation_status TEXT NOT NULL,
+      installed_version TEXT,
+      detected_version TEXT,
+      last_event_at TEXT,
+      health_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE external_sessions (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      surface TEXT NOT NULL,
+      external_session_id TEXT,
+      workspace_id TEXT,
+      repository_id TEXT,
+      cwd TEXT,
+      worktree_path TEXT,
+      branch TEXT,
+      base_commit TEXT,
+      head_commit TEXT,
+      title TEXT,
+      status TEXT NOT NULL,
+      activity TEXT NOT NULL,
+      attribution_confidence TEXT NOT NULL,
+      started_at TEXT NOT NULL,
+      last_observed_at TEXT NOT NULL,
+      ended_at TEXT
+    );
+
+    CREATE UNIQUE INDEX external_sessions_source_external_id
+      ON external_sessions(source, external_session_id)
+      WHERE external_session_id IS NOT NULL;
+
+    CREATE TABLE observer_events (
+      id TEXT PRIMARY KEY,
+      external_session_id TEXT,
+      repository_id TEXT,
+      source TEXT NOT NULL,
+      native_event_type TEXT NOT NULL,
+      normalized_type TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      occurred_at TEXT NOT NULL,
+      received_at TEXT NOT NULL,
+      idempotency_key TEXT NOT NULL UNIQUE
+    );
+
+    CREATE TABLE resource_claims (
+      id TEXT PRIMARY KEY,
+      external_session_id TEXT,
+      repository_id TEXT,
+      resource_type TEXT NOT NULL,
+      resource_key TEXT NOT NULL,
+      action TEXT NOT NULL,
+      claim_kind TEXT NOT NULL,
+      confidence TEXT NOT NULL,
+      first_observed_at TEXT NOT NULL,
+      last_observed_at TEXT NOT NULL
+    );
+
+    CREATE UNIQUE INDEX resource_claims_unique_scope
+      ON resource_claims(
+        IFNULL(external_session_id, ''),
+        IFNULL(repository_id, ''),
+        resource_type,
+        resource_key,
+        action,
+        claim_kind
+      );
+
+    CREATE TABLE repository_snapshots (
+      id TEXT PRIMARY KEY,
+      repository_id TEXT NOT NULL,
+      worktree_path TEXT NOT NULL,
+      branch TEXT,
+      head_commit TEXT,
+      base_commit TEXT,
+      status_json TEXT NOT NULL,
+      changed_files_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE conflict_findings (
+      id TEXT PRIMARY KEY,
+      repository_id TEXT NOT NULL,
+      left_session_id TEXT,
+      right_session_id TEXT,
+      left_worktree_path TEXT,
+      right_worktree_path TEXT,
+      level TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      confidence TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      reason_json TEXT NOT NULL,
+      status TEXT NOT NULL,
+      detected_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      resolved_at TEXT
+    );
+
+    CREATE TABLE session_labels (
+      id TEXT PRIMARY KEY,
+      external_session_id TEXT NOT NULL UNIQUE,
+      title TEXT,
+      summary TEXT,
+      source TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+  `,
+}
+
+export const conflictEngineMigration: Migration = {
+  version: 5,
+  name: 'conflict-engine',
+  sql: `
+    ALTER TABLE conflict_findings ADD COLUMN identity_key TEXT;
+    ALTER TABLE conflict_findings ADD COLUMN headline TEXT;
+    ALTER TABLE conflict_findings ADD COLUMN recommendation TEXT;
+    ALTER TABLE conflict_findings ADD COLUMN evidence_json TEXT NOT NULL DEFAULT '[]';
+    ALTER TABLE conflict_findings ADD COLUMN fingerprint TEXT;
+    ALTER TABLE conflict_findings ADD COLUMN left_source TEXT;
+    ALTER TABLE conflict_findings ADD COLUMN right_source TEXT;
+    UPDATE conflict_findings
+      SET identity_key = id
+      WHERE identity_key IS NULL;
+    UPDATE conflict_findings
+      SET headline = summary
+      WHERE headline IS NULL;
+    UPDATE conflict_findings
+      SET recommendation = 'こちらから自動操作はしません。'
+      WHERE recommendation IS NULL;
+    UPDATE conflict_findings
+      SET fingerprint = id
+      WHERE fingerprint IS NULL;
+    CREATE INDEX IF NOT EXISTS conflict_findings_identity_idx
+      ON conflict_findings(repository_id, identity_key);
+  `,
+}
+
+export const conflictAttributionMigration: Migration = {
+  version: 6,
+  name: 'conflict-side-attribution',
+  sql: `
+    ALTER TABLE conflict_findings ADD COLUMN left_attribution_confidence TEXT;
+    ALTER TABLE conflict_findings ADD COLUMN right_attribution_confidence TEXT;
+  `,
+}
+
 export const defaultMigrations: readonly Migration[] = [
   initialSchemaMigration,
   worktreeGrowthPacksMigration,
   workspaceEmployeeNameMigration,
+  observerFoundationMigration,
+  conflictEngineMigration,
+  conflictAttributionMigration,
 ]
 
 export function applyMigrations(

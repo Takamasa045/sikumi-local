@@ -1,15 +1,17 @@
 # Shikumi Local
 
-自分の Git Repository に AI 社員が住み、仕事を頼むとローカルの AI 実行エンジンが働く、小さな庭・工房の Web アプリです。
+複数の AI アプリが触ったローカル Repository の様子を、横断して眺めるためのローカルアプリです。仕事の依頼は各 AI アプリ側で行い、Shikumi Local は観測と整理を担当します。
 
 ## できること
 
-- 自分の Git プロジェクトを工房として登録する
-- Codex / Grok Build / Claude Code を道具としてつなぐ
-- AI 社員に日本語で仕事を頼む
+- 自分の Git プロジェクトを登録し、変更と別作業場を一覧する
+- Codex / Claude Code の公式 Hooks から、許可したメタデータだけを受け取る
+- Claudeアプリの通常チャットは、協調報告用の `.mcpb` をユーザーが入れる制限付き対応です。自動の全観測ではありません
+- どの場所で何が動いているかを、専門用語を減らして確認する
+- 同じ仕組みを別作業が触っているときの注意を見る
+- 「庭」で AI社員に仕事を頼む
 - 確認が必要な操作だけ承認する
 - 調査レポート、差分、テスト結果などを成果棚で受け取る
-- 別作業場の変更を適用する、残す、破棄する
 
 ブラウザから CLI や Git を直接操作しません。すべてはこのパソコン上の Local Server 経由です。
 
@@ -169,6 +171,8 @@ packages/provider-sdk    Adapter / Capabilities / Events / Approval
 packages/provider-codex  Codex app-server / exec --json
 packages/provider-grok   Grok ACP / streaming-json
 packages/provider-claude Claude stream-json と permission broker
+packages/observer-cursor Cursor Hooks 観測口
+packages/observer-grok   Grok Build Hook / Plugin 観測口
 packages/provider-fake   決定的なテスト/開発用ハーネス
 examples/packs           導入見本の data-only Employee / World
 docs                     計画書、出典、troubleshooting、利用者向け案内

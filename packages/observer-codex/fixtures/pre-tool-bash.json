@@ -1,0 +1,12 @@
+{
+  "session_id": "sess-codex-1",
+  "turn_id": "turn-4",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-5.4",
+  "tool_name": "Bash",
+  "tool_use_id": "tool-10",
+  "tool_input": {
+    "command": "pnpm test --filter observer-codex"
+  }
+}

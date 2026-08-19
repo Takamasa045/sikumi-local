@@ -1,0 +1,77 @@
+{
+  "manifest_version": "0.3",
+  "name": "sikumi-observer-claude-desktop",
+  "display_name": "Sikumi Observer（Claudeアプリ・協調報告）",
+  "version": "0.1.0",
+  "description": "Sikumi-local への協調報告用 MCP。通常チャットの自動全観測ではありません。登録Repositoryの作業開始・更新・完了だけを自己申告します。",
+  "long_description": "この Desktop Extension は Claude アプリの通常チャット向けの制限付き観測口です。\nClaude が Tool を呼んだときだけ記録します。チャット一覧の受動取得はしません。\n\n登録Repositoryで作業を始める場合は、\n最初にsikumi.begin_workを使用してください。\n\n作業範囲が変わった場合は、\nsikumi.update_workまたはsikumi.note_resourceを使用してください。\n\nユーザー確認が必要なときは、\nsikumi.waiting_for_userを使用してください。\n\n完了時はsikumi.complete_workを使用してください。\n失敗したときはsikumi.fail_workを使用してください。\n\nこれは協調報告です。通常チャットを自動で全観測するものではありません。\nPrompt、返答、会話全文、ファイル本文、秘密情報は送らないでください。",
+  "author": {
+    "name": "Sikumi-local"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "SIKUMI_LOCAL_DATA_DIR": "${user_config.data_directory}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "sikumi.list_registered_repositories",
+      "description": "List repositories registered in Sikumi-local. Cooperative reporting only; this does not observe chat automatically."
+    },
+    {
+      "name": "sikumi.begin_work",
+      "description": "Start cooperative reporting for work in one registered repository. Call this first. Does not control Claude and does not capture the prompt."
+    },
+    {
+      "name": "sikumi.update_work",
+      "description": "Update the cooperative summary or activity of an open reported session. Use when the work scope changes."
+    },
+    {
+      "name": "sikumi.note_resource",
+      "description": "Report metadata about a file or other resource inside the registered repository. Store only the path and action, never file contents."
+    },
+    {
+      "name": "sikumi.waiting_for_user",
+      "description": "Report that the cooperative session is waiting for the user. Does not pause or control Claude."
+    },
+    {
+      "name": "sikumi.complete_work",
+      "description": "Mark a cooperative session as completed. Call this when the reported work is done."
+    },
+    {
+      "name": "sikumi.fail_work",
+      "description": "Mark a cooperative session as failed. Call this when the reported work cannot continue."
+    }
+  ],
+  "tools_generated": false,
+  "prompts": [
+    {
+      "name": "sikumi_cooperative_reporting",
+      "description": "登録Repositoryでの協調報告手順",
+      "text": "登録Repositoryで作業を始める場合は、\n最初にsikumi.begin_workを使用してください。\n\n作業範囲が変わった場合は、\nsikumi.update_workまたはsikumi.note_resourceを使用してください。\n\nユーザー確認が必要なときは、\nsikumi.waiting_for_userを使用してください。\n\n完了時はsikumi.complete_workを使用してください。\n失敗したときはsikumi.fail_workを使用してください。\n\nこれは協調報告です。通常チャットを自動で全観測するものではありません。\nPrompt、返答、会話全文、ファイル本文、秘密情報は送らないでください。"
+    }
+  ],
+  "keywords": ["sikumi", "observer", "cooperative", "claude-desktop"],
+  "license": "UNLICENSED",
+  "compatibility": {
+    "platforms": ["darwin", "win32"],
+    "runtimes": {
+      "node": ">=22.0.0"
+    }
+  },
+  "user_config": {
+    "data_directory": {
+      "type": "directory",
+      "title": "Sikumi-local データフォルダ",
+      "description": "Sikumi-local のデータディレクトリ。通常は ~/.shikumi-local です。Claude Desktop の設定ファイルは使いません。",
+      "required": false,
+      "default": "${HOME}/.shikumi-local"
+    }
+  }
+}

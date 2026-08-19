@@ -1,6 +1,7 @@
 import type { InstalledPack, ProviderId, Workspace } from '@sikumi-local/core'
 import type { ProviderAvailability } from '../api/providers'
 import type { ProviderLoadState } from '../providers/connection-summary'
+import { AdapterSettings } from '../observer/adapters/AdapterSettings'
 import { RepositoryPanel } from '../workspace/RepositoryPanel'
 import { ProviderStatusPanel } from './ProviderStatusPanel'
 
@@ -71,6 +72,7 @@ export function SettingsPanel({
     <section className="settings-panel" id="settings" aria-label="設定">
       <p className="section-kicker">設定</p>
       <h2>工房の整え方</h2>
+      <AdapterSettings />
       <RepositoryPanel
         workspace={workspace}
         busy={busy}

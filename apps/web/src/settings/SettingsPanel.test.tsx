@@ -1,9 +1,49 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SettingsPanel } from './SettingsPanel'
 
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/observer/adapters')) {
+        return new Response(JSON.stringify({ adapters: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify({ error: { message: 'not found' } }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      })
+    }),
+  )
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
 describe('SettingsPanel', () => {
+  it('does not present the garden as a labs or legacy screen', () => {
+    render(
+      <SettingsPanel
+        workspace={null}
+        providers={[]}
+        busy={false}
+        error={null}
+        onRegister={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText('Labs')).not.toBeInTheDocument()
+    expect(screen.queryByText('以前の実行画面')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Legacy Executionを開く' }),
+    ).not.toBeInTheDocument()
+  })
+
   it('lets the user change the workshop default tool', async () => {
     const onChange = vi.fn()
     render(

@@ -7,6 +7,7 @@ import { App } from './App'
 const fetchMock = vi.fn()
 
 beforeEach(() => {
+  window.location.hash = ''
   fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.endsWith('/api/session')) {
@@ -28,6 +29,9 @@ beforeEach(() => {
     if (url.includes('/api/employees')) {
       return employeePayload()
     }
+    if (isObserverUrl(url)) {
+      return observerResponse(url)
+    }
     return jsonResponse(
       { error: { code: 'NOT_FOUND', message: 'not found' } },
       404,
@@ -37,83 +41,236 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  window.location.hash = ''
   resetSessionToken()
   vi.unstubAllGlobals()
 })
 
 describe('Shikumi Local garden', () => {
-  it('shows the initial dog atelier without pretending work is running', async () => {
+  it('opens the garden as the home screen', async () => {
     render(<App />)
 
     expect(
-      screen.getByRole('heading', { name: '犬たちの里山アトリエ' }),
+      screen.getByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Shikumi Local ホーム' })).toHaveAttribute(
+      'href',
+      '#garden',
+    )
+    const nav = screen.getByRole('navigation', { name: '主要画面' })
+    expect(within(nav).getByRole('link', { name: '庭' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(within(nav).getByRole('link', { name: '今日の作業場' })).toBeVisible()
+    expect(within(nav).getByRole('link', { name: '設定' })).toBeVisible()
+    expect(screen.queryByText('以前の実行画面')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Legacy Executionを開く' }),
+    ).not.toBeInTheDocument()
+    expect(await screen.findByText('Repository未登録')).toBeVisible()
+    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('world-stage')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('first-run-guide')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('form', { name: /仕事/ }),
+    ).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('connection-badge')).toHaveTextContent(
+        'ローカル観測',
+      )
+    })
+    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
+      '実行エンジン未接続',
+    )
+    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
+      '接続済み',
+    )
+    expect(screen.getByTestId('default-tool')).toHaveTextContent('ローカル観測')
+    expect(
+      await screen.findByText(
+        '各AIアプリで作業を始めると、観測できたエージェントがここに現れます',
+      ),
+    ).toBeVisible()
+  })
+
+  it('treats the old labs hash as the garden', async () => {
+    window.location.hash = '#labs'
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
+    expect(screen.getByRole('main')).toHaveAttribute('id', 'garden')
+    expect(
+      within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
+        'link',
+        { name: '庭' },
+      ),
+    ).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('shows today\'s workshop without pretending work is running', async () => {
+    render(<App />)
+    await openTodayWorkshop()
+
+    expect(
+      screen.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
     ).toBeVisible()
     expect(screen.getByTestId('connection-badge')).toHaveAttribute(
       'data-status',
-      'loading',
+      'observing',
     )
     expect(screen.getByTestId('connection-badge')).toHaveTextContent(
-      '実行エンジンを確認中',
+      'ローカル観測',
     )
-    expect(screen.getByText('サグル')).toBeVisible()
-    expect(screen.getByText('まだ仕事は始まっていません')).toBeVisible()
+    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
+      '接続済み',
+    )
     expect(screen.queryByText('作業中')).not.toBeInTheDocument()
     expect(await screen.findByText('Repository未登録')).toBeVisible()
     expect(await screen.findByTestId('connection-badge')).toHaveAttribute(
       'data-status',
-      'disconnected',
+      'observing',
     )
+    expect(await screen.findByTestId('observer-stats')).toBeVisible()
   })
 
-  it('opens the four main screens and the employee drawer from the garden', async () => {
+  it('navigates garden, today\'s workshop, and settings as first-class destinations', async () => {
     render(<App />)
 
-    expect(await screen.findByLabelText('担当')).toBeVisible()
-    await userEvent.click(screen.getByRole('link', { name: 'AI社員' }))
-    expect(await screen.findByRole('heading', { name: 'AI社員' })).toBeVisible()
-    await userEvent.click(screen.getByRole('link', { name: '成果棚' }))
-    expect(await screen.findByRole('heading', { name: '成果棚' })).toBeVisible()
-    await userEvent.click(screen.getByRole('link', { name: '設定' }))
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
+    await userEvent.click(screen.getByRole('link', { name: '今日の作業場' }))
+    expect(
+      await screen.findByRole('heading', { name: 'いま何が、どこで起きているか' }),
+    ).toBeVisible()
+    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
+      'ローカル観測',
+    )
+    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
+      '実行エンジン未接続',
+    )
+
+    await openSettings()
     expect(
       await screen.findByRole('heading', { name: '工房の整え方' }),
     ).toBeVisible()
-    await userEvent.click(screen.getByRole('link', { name: '庭' }))
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'サグルを確認する' }),
-    )
-    expect(await screen.findByTestId('employee-drawer')).toBeVisible()
-    expect(screen.getByText('受けられる仕事', { exact: false })).toBeVisible()
-  })
-
-  it('switches to the craft workshop', async () => {
-    render(<App />)
-
-    await userEvent.click(
-      screen.getByRole('button', { name: '職人工房を表示' }),
-    )
-
-    expect(screen.getByRole('heading', { name: '職人工房' })).toBeVisible()
-    expect(screen.getByTestId('world-stage')).toHaveAttribute(
-      'data-world-pack',
-      'craft-workshop',
-    )
-  })
-
-  it('keeps job submission disabled while provider execution is disconnected', async () => {
-    render(<App />)
-
-    expect(screen.getByRole('button', { name: '仕事を頼む' })).toBeDisabled()
     expect(
-      screen.getByText(
-        '道具を選び、ログイン済みの実行エンジンだけで仕事を始めます。自動切替はしません',
-      ),
+      screen.queryByRole('heading', { name: '以前の実行画面' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: 'Legacy Executionを開く' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Labs')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('link', { name: '庭' }))
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
     ).toBeVisible()
-    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
+    await waitFor(() => {
+      expect(screen.getByTestId('connection-badge')).toHaveTextContent(
+        'ローカル観測',
+      )
+    })
+    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
       '実行エンジン未接続',
     )
-    expect(screen.getByTestId('default-tool')).toHaveTextContent(
-      '実行エンジン未接続',
-    )
+    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+  })
+
+  it('renders the mocked overview on the observation garden', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return jsonResponse({ token: 'test-session' })
+      }
+      if (url.endsWith('/api/health')) {
+        return jsonResponse(disconnectedHealth())
+      }
+      if (url.endsWith('/api/providers')) {
+        return jsonResponse({
+          providers: catalogProviders(),
+          executionConnected: false,
+          fakeHarness: false,
+        })
+      }
+      if (url.includes('/api/employees')) {
+        return employeePayload()
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return jsonResponse({ workspaces: [sampleWorkspace()] })
+      }
+      if (url.endsWith('/api/observer/today')) {
+        return jsonResponse({
+          overview: {
+            generatedAt: '2026-08-18T00:00:00.000Z',
+            repositoryCount: 1,
+            activeRepositoryCount: 1,
+            waitingCount: 0,
+            conflictCount: 0,
+            repositories: [
+              {
+                repositoryId: 'repo_1',
+                workspaceId: 'ws_1',
+                displayName: 'my-project',
+                available: true,
+                gitAvailable: true,
+                summary: 'Codexが作業中',
+                changedFileCount: 2,
+                lastChangedLabel: '1分前',
+                sessions: [
+                  {
+                    id: 'sess_codex',
+                    source: 'codex',
+                    displayName: 'Codex',
+                    status: 'running',
+                    activity: 'working',
+                    attributionConfidence: 'observed',
+                    title: 'APIを直している',
+                    lastObservedAt: '2026-08-18T00:00:00.000Z',
+                    lastObservedLabel: '1分前',
+                  },
+                  {
+                    id: 'sess_git',
+                    source: 'git',
+                    displayName: '変更元不明',
+                    status: 'detected',
+                    activity: 'unknown',
+                    attributionConfidence: 'inferred',
+                    title: '変更元不明の作業',
+                    lastObservedAt: '2026-08-18T00:00:00.000Z',
+                    lastObservedLabel: '2分前',
+                  },
+                ],
+                worktrees: [],
+                conflicts: [],
+                areas: [],
+              },
+            ],
+          },
+        })
+      }
+      if (isObserverUrl(url)) {
+        return observerResponse(url, { displayName: 'my-project' })
+      }
+      return jsonResponse(
+        { error: { code: 'NOT_FOUND', message: 'not found' } },
+        404,
+      )
+    })
+
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { name: '観測の庭' })).toBeVisible()
+    const agents = await screen.findByRole('list', { name: '観測中のエージェント' })
+    expect(within(agents).getByText('APIを直している')).toBeVisible()
+    expect(within(agents).getAllByText('Codex').length).toBeGreaterThan(0)
+    const unverified = screen.getByRole('list', { name: '出どころ未確認の変更' })
+    expect(within(unverified).getByText('my-project')).toBeVisible()
+    expect(within(unverified).getByText('2 件')).toBeVisible()
+    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
   })
 
   it('registers a repository through the local server without leaving the garden', async () => {
@@ -136,6 +293,9 @@ describe('Shikumi Local garden', () => {
         }
         if (url.includes('/api/employees')) {
           return employeePayload()
+        }
+        if (isObserverUrl(url)) {
+          return observerResponse(url)
         }
         if (url.endsWith('/api/workspaces') && method === 'GET') {
           return jsonResponse({ workspaces: [] })
@@ -174,12 +334,13 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
+    await openTodayWorkshop()
     await userEvent.type(
-      screen.getByLabelText('Repositoryの場所'),
+      screen.getByLabelText('観測するRepositoryの場所'),
       '/Users/example/my-project',
     )
     await userEvent.click(
-      screen.getByRole('button', { name: 'この工房に登録する' }),
+      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
     )
 
     await waitFor(() => {
@@ -187,15 +348,228 @@ describe('Shikumi Local garden', () => {
         'my-project',
       )
     })
+    expect(
+      screen.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+    ).toBeVisible()
+    await openSettings()
     expect(screen.getByText('✓ Git Repository')).toBeVisible()
     expect(screen.getByText('✓ 現在のbranch: main')).toBeVisible()
+    await openGarden()
     expect(
-      screen.getByRole('heading', { name: 'ブログ番に何を頼みますか' }),
+      await screen.findByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('connection-badge')).toHaveTextContent(
+      'ローカル観測',
+    )
+  })
+
+  it('lists registered repository activity without claiming an AI source', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return jsonResponse({ token: 'test-session' })
+      }
+      if (url.endsWith('/api/health')) {
+        return jsonResponse(disconnectedHealth())
+      }
+      if (url.endsWith('/api/providers')) {
+        return jsonResponse({
+          providers: catalogProviders(),
+          executionConnected: false,
+          fakeHarness: false,
+        })
+      }
+      if (url.includes('/api/employees')) {
+        return employeePayload()
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return jsonResponse({ workspaces: [sampleWorkspace()] })
+      }
+      if (isObserverUrl(url)) {
+        return observerResponse(url, { displayName: 'my-project' })
+      }
+      return jsonResponse(
+        { error: { code: 'NOT_FOUND', message: 'not found' } },
+        404,
+      )
+    })
+
+    render(<App />)
+    await openTodayWorkshop()
+
+    expect(
+      await screen.findByText((content) =>
+        content.includes('変更元不明の作業があります'),
+      ),
+    ).toBeVisible()
+    expect(screen.getAllByText('変更元不明').length).toBeGreaterThan(0)
+    expect(screen.getByText('AIによる作業だと決めてはいません')).toBeVisible()
+    expect(screen.queryByText('Codexが変更中')).not.toBeInTheDocument()
+  })
+
+  it('never renders job submission or legacy garden chrome even when providers report connected', async () => {
+    mockGarden({
+      providers: [
+        connectedProvider('codex', 'Codex'),
+        catalogProviders()[1]!,
+        catalogProviders()[2]!,
+      ],
+      executionConnected: true,
+      workspace: { ...sampleWorkspace(), defaultProviderId: 'codex' },
+    })
+    render(<App />)
+
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
     ).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: '犬たちの里山アトリエ' }),
-    ).toBeVisible()
-    expect(screen.getByRole('button', { name: '仕事を頼む' })).toBeDisabled()
+      screen.queryByRole('form', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByTestId('first-run-guide')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('world-stage')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: '成果を受け取る' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('refreshes the garden from observer SSE after a canonical persisted event', async () => {
+    const sources: FakeEventSource[] = []
+    class FakeEventSource {
+      readonly url: string
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: (() => void) | null = null
+      constructor(url: string) {
+        this.url = url
+        sources.push(this)
+      }
+      close() {}
+    }
+    vi.stubGlobal('EventSource', FakeEventSource)
+
+    let includeObservedSession = false
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return jsonResponse({ token: 'test-session' })
+      }
+      if (url.endsWith('/api/health')) {
+        return jsonResponse(disconnectedHealth())
+      }
+      if (url.endsWith('/api/providers')) {
+        return jsonResponse({
+          providers: catalogProviders(),
+          executionConnected: false,
+          fakeHarness: false,
+        })
+      }
+      if (url.includes('/api/employees')) {
+        return employeePayload()
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return jsonResponse({ workspaces: [sampleWorkspace()] })
+      }
+      if (url.endsWith('/api/observer/today')) {
+        if (!includeObservedSession) {
+          return jsonResponse({
+            overview: {
+              generatedAt: '2026-08-18T00:00:00.000Z',
+              repositoryCount: 0,
+              activeRepositoryCount: 0,
+              waitingCount: 0,
+              conflictCount: 0,
+              repositories: [],
+            },
+          })
+        }
+        return jsonResponse({
+          overview: {
+            generatedAt: '2026-08-18T00:00:01.000Z',
+            repositoryCount: 1,
+            activeRepositoryCount: 1,
+            waitingCount: 0,
+            conflictCount: 0,
+            repositories: [
+              {
+                repositoryId: 'repo_1',
+                workspaceId: 'ws_1',
+                displayName: 'my-project',
+                available: true,
+                gitAvailable: true,
+                summary: 'Codexが作業中',
+                changedFileCount: 1,
+                lastChangedLabel: 'たった今',
+                sessions: [
+                  {
+                    id: 'sess_codex',
+                    source: 'codex',
+                    displayName: 'Codex',
+                    status: 'running',
+                    activity: 'working',
+                    attributionConfidence: 'observed',
+                    title: 'SSEで届いた作業',
+                    lastObservedAt: '2026-08-18T00:00:01.000Z',
+                    lastObservedLabel: 'たった今',
+                  },
+                ],
+                worktrees: [],
+                conflicts: [],
+                areas: [],
+              },
+            ],
+          },
+        })
+      }
+      if (isObserverUrl(url)) {
+        return observerResponse(url, { displayName: 'my-project' })
+      }
+      return jsonResponse(
+        { error: { code: 'NOT_FOUND', message: 'not found' } },
+        404,
+      )
+    })
+
+    try {
+      render(<App />)
+      expect(
+        await screen.findByText(
+          '各AIアプリで作業を始めると、観測できたエージェントがここに現れます',
+        ),
+      ).toBeVisible()
+
+      await waitFor(() => {
+        expect(
+          sources.some((source) =>
+            source.url.includes('/api/observer/events/stream'),
+          ),
+        ).toBe(true)
+      })
+      const stream = sources.find((source) =>
+        source.url.includes('/api/observer/events/stream'),
+      )
+      expect(stream).toBeDefined()
+
+      includeObservedSession = true
+      stream!.onmessage?.(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            id: 'evt_obs_1',
+            jobId: null,
+            runId: null,
+            type: 'file.changed',
+            payload: { path: 'README.md' },
+            occurredAt: '2026-08-18T00:00:01.000Z',
+          }),
+        }),
+      )
+
+      expect(await screen.findByText('SSEで届いた作業')).toBeVisible()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('restores a persisted workspace on load', async () => {
@@ -215,6 +589,11 @@ describe('Shikumi Local garden', () => {
       }
       if (String(input).includes('/api/employees')) {
         return jsonResponse({ employees: [sampleEmployee()] })
+      }
+      if (isObserverUrl(String(input))) {
+        return observerResponse(String(input), {
+          displayName: 'kept-project',
+        })
       }
       if (String(input).endsWith('/api/workspaces')) {
         return jsonResponse({
@@ -250,7 +629,120 @@ describe('Shikumi Local garden', () => {
     expect(await screen.findByTestId('workspace-line')).toHaveTextContent(
       'kept-project',
     )
-    expect(screen.getByText('✓ Git Repository')).toBeVisible()
+    expect(
+      screen.getByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
+    expect(
+      await screen.findByRole('list', { name: '出どころ未確認の変更' }),
+    ).toBeVisible()
+    await openTodayWorkshop()
+    expect(await screen.findByTestId('observer-repo-repo_1')).toBeVisible()
+    expect(screen.getByText('変更元不明の作業')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+    ).toBeVisible()
+  })
+
+  it('keeps an add-repository path after the first workspace exists', async () => {
+    const workspaces = [sampleWorkspace()]
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method ?? 'GET'
+        if (url.endsWith('/api/session')) {
+          return jsonResponse({ token: 'test-session' })
+        }
+        if (url.endsWith('/api/health')) {
+          return jsonResponse(disconnectedHealth())
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
+            fakeHarness: false,
+          })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
+        }
+        if (url.endsWith('/api/workspaces') && method === 'GET') {
+          return jsonResponse({ workspaces })
+        }
+        if (url.endsWith('/api/workspaces') && method === 'POST') {
+          const created = {
+            id: 'ws_2',
+            name: 'second-project',
+            defaultProviderId: null,
+            worldPackId: 'dog-office',
+            createdAt: '2026-08-18T00:00:00.000Z',
+            updatedAt: '2026-08-18T00:00:00.000Z',
+            repository: {
+              id: 'repo_2',
+              absolutePath: '/Users/example/second-project',
+              displayName: 'second-project',
+              currentBranch: 'main',
+              remoteName: 'origin',
+              remoteUrl: 'https://github.com/example/second-project.git',
+              readable: true,
+            },
+          }
+          workspaces.push(created)
+          return jsonResponse({ workspace: created }, 201)
+        }
+        if (url.endsWith('/api/observer/today')) {
+          return jsonResponse({
+            overview: {
+              generatedAt: '2026-08-18T00:00:00.000Z',
+              repositoryCount: workspaces.length,
+              activeRepositoryCount: workspaces.length,
+              waitingCount: 0,
+              conflictCount: 0,
+              repositories: workspaces.map((workspace) => ({
+                repositoryId: workspace.repository.id,
+                workspaceId: workspace.id,
+                displayName: workspace.repository.displayName,
+                available: true,
+                gitAvailable: true,
+                summary: '現在観測中の作業はありません',
+                changedFileCount: 0,
+                lastChangedLabel: null,
+                sessions: [],
+                worktrees: [],
+                conflicts: [],
+                areas: [],
+              })),
+            },
+          })
+        }
+        if (isObserverUrl(url)) {
+          return observerResponse(url)
+        }
+        return jsonResponse(
+          { error: { code: 'NOT_FOUND', message: 'not found' } },
+          404,
+        )
+      },
+    )
+
+    render(<App />)
+    await openTodayWorkshop()
+    expect(await screen.findByTestId('observer-repo-repo_1')).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+    ).toBeVisible()
+    await userEvent.type(
+      screen.getByLabelText('観測するRepositoryの場所'),
+      '/Users/example/second-project',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+    )
+    expect(await screen.findByTestId('observer-repo-repo_2')).toBeVisible()
+    expect(screen.getByTestId('observer-repo-repo_1')).toBeVisible()
+    expect(screen.getByTestId('workspace-line')).toHaveTextContent('my-project')
+    expect(screen.getByTestId('workspace-line')).not.toHaveTextContent(
+      'second-project',
+    )
   })
 
   it('restores job history for a real provider without the fake harness', async () => {
@@ -333,18 +825,15 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(
-      await screen.findByRole('button', { name: '仕事を中止' }),
-    ).toBeVisible()
-    expect(await screen.findByText('公式情報を探しています')).toBeVisible()
-    expect(
-      fetchMock.mock.calls.some((call) =>
-        String(call[0]).includes('/api/jobs?workspaceId=ws_1'),
-      ),
-    ).toBe(true)
-    expect(
-      screen.getByPlaceholderText('例：このRepositoryの構成と改善点を調べて'),
-    ).toBeEnabled()
+    expect(await screen.findByRole('heading', { name: '観測の庭' })).toBeVisible()
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some((call) =>
+          String(call[0]).includes('/api/jobs?workspaceId=ws_1'),
+        ),
+      ).toBe(true)
+    })
+    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
   })
 
   it('keeps the current job employee and station when another employee is selected to ask next', async () => {
@@ -428,38 +917,16 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(await screen.findByTestId('world-stage')).toHaveAttribute(
-      'data-employee-id',
-      'saguru',
+    expect(await screen.findByTestId('approval-panel')).toHaveTextContent(
+      'サグル',
     )
-    await waitFor(() => {
-      expect(screen.getByTestId('world-stage')).toHaveAttribute(
-        'data-station',
-        'archive',
-      )
-    })
-    expect(screen.getByTestId('current-job')).toHaveTextContent('サグル')
-    expect(screen.getByTestId('approval-panel')).toHaveTextContent('サグル')
+    expect(screen.queryByTestId('world-stage')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('current-job')).not.toBeInTheDocument()
 
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: '担当' }),
-      'miru',
-    )
+    window.location.hash = '#employees'
+    await userEvent.click(await screen.findByRole('button', { name: /ミル/ }))
 
-    expect(
-      await screen.findByRole('heading', { name: 'ミルに何を頼みますか' }),
-    ).toBeVisible()
-    expect(screen.getByRole('button', { name: 'ミルを確認する' })).toBeVisible()
-    expect(screen.getByTestId('world-stage')).toHaveAttribute(
-      'data-employee-id',
-      'saguru',
-    )
-    expect(screen.getByTestId('world-stage')).toHaveAttribute(
-      'data-station',
-      'archive',
-    )
-    expect(screen.getByTestId('current-job')).toHaveTextContent('サグル')
-    expect(screen.getByTestId('current-job')).not.toHaveTextContent('ミル')
+    expect(await screen.findByTestId('employee-drawer')).toBeVisible()
     expect(screen.getByTestId('approval-panel')).toHaveTextContent('サグル')
     expect(screen.getByTestId('approval-panel')).not.toHaveTextContent('ミル')
   })
@@ -473,7 +940,7 @@ describe('Shikumi Local garden', () => {
 
     expect(await screen.findByText('Repository未登録')).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: '犬たちの里山アトリエ' }),
+      screen.getByRole('heading', { name: '観測の庭' }),
     ).toBeVisible()
   })
 
@@ -515,12 +982,13 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
+    await openTodayWorkshop()
     await userEvent.type(
-      screen.getByLabelText('Repositoryの場所'),
+      screen.getByLabelText('観測するRepositoryの場所'),
       '/tmp/not-git',
     )
     await userEvent.click(
-      screen.getByRole('button', { name: 'この工房に登録する' }),
+      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
     )
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -529,656 +997,14 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByText('Repository未登録')).toBeVisible()
   })
 
-  it('runs a fake-harness job through approval to an artifact without naming a real engine', async () => {
-    let pending = true
-    fetchMock.mockImplementation(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? 'GET'
-        if (url.endsWith('/api/session')) {
-          return jsonResponse({ token: 'test-session' })
-        }
-        if (url.endsWith('/api/health')) {
-          return jsonResponse({
-            ...disconnectedHealth(),
-            fakeHarness: true,
-          })
-        }
-        if (url.endsWith('/api/providers')) {
-          return jsonResponse({
-            providers: catalogProviders(),
-            executionConnected: false,
-            fakeHarness: true,
-          })
-        }
-        if (url.includes('/api/employees')) {
-          return employeePayload()
-        }
-        if (url.endsWith('/api/workspaces') && method === 'GET') {
-          return jsonResponse({
-            workspaces: [sampleWorkspace()],
-          })
-        }
-        if (url.endsWith('/api/jobs') && method === 'GET') {
-          return jsonResponse({ jobs: [] })
-        }
-        if (url.endsWith('/api/jobs') && method === 'POST') {
-          return jsonResponse({ job: sampleJob('waiting_for_user') }, 201)
-        }
-        if (url.endsWith('/api/jobs/job_1')) {
-          return jsonResponse({
-            job: sampleJob(pending ? 'waiting_for_user' : 'completed'),
-          })
-        }
-        if (url.endsWith('/api/jobs/job_1/events')) {
-          return jsonResponse({
-            events: [
-              {
-                id: 'evt_1',
-                jobId: 'job_1',
-                runId: 'run_1',
-                type: 'repository.read',
-                payload: { summary: 'この工房の資料を読んでいます' },
-                occurredAt: 't',
-              },
-            ],
-          })
-        }
-        if (url.includes('/api/approvals') && method === 'GET') {
-          return jsonResponse({
-            approvals: pending
-              ? [
-                  {
-                    id: 'apr_1',
-                    jobId: 'job_1',
-                    runId: 'run_1',
-                    risk: 'medium',
-                    summary: '外部サイトへアクセスします',
-                    status: 'pending',
-                    createdAt: 't',
-                    resolvedAt: null,
-                  },
-                ]
-              : [],
-          })
-        }
-        if (url.endsWith('/api/approvals/apr_1/resolve') && method === 'POST') {
-          pending = false
-          return jsonResponse({
-            approval: {
-              id: 'apr_1',
-              jobId: 'job_1',
-              runId: 'run_1',
-              risk: 'medium',
-              summary: '外部サイトへアクセスします',
-              status: 'approved',
-              createdAt: 't',
-              resolvedAt: 't',
-            },
-          })
-        }
-        if (url.includes('/api/artifacts')) {
-          return jsonResponse({
-            artifacts: pending
-              ? []
-              : [
-                  {
-                    id: 'art_1',
-                    jobId: 'job_1',
-                    type: 'report',
-                    title: '調査メモ',
-                    storagePath: null,
-                    createdAt: 't',
-                  },
-                ],
-          })
-        }
-        return jsonResponse(
-          { error: { code: 'NOT_FOUND', message: 'not found' } },
-          404,
-        )
-      },
-    )
 
-    render(<App />)
 
-    expect(await screen.findByText('開発用ハーネス')).toBeVisible()
-    expect(screen.getByTestId('connection-badge')).toHaveAttribute(
-      'data-status',
-      'harness',
-    )
-    expect(screen.getByTestId('default-tool')).toHaveTextContent('テスト実行')
-    expect(screen.getByLabelText('道具')).toBeVisible()
 
-    await userEvent.type(
-      screen.getByPlaceholderText('例：このRepositoryの構成と改善点を調べて'),
-      '構成を調べて',
-    )
-    await userEvent.click(screen.getByRole('button', { name: '仕事を頼む' }))
-    expect(await screen.findByText('外部サイトへアクセスします')).toBeVisible()
 
-    await userEvent.click(screen.getByRole('button', { name: '今回だけ許可' }))
-    expect(await screen.findByText('調査メモ')).toBeVisible()
-    expect(screen.getByText('調査が完了しました')).toBeVisible()
-  })
 
-  it('asks before switching away from an unavailable provider', async () => {
-    fetchMock.mockImplementation(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? 'GET'
-        if (url.endsWith('/api/session')) {
-          return jsonResponse({ token: 'test-session' })
-        }
-        if (url.endsWith('/api/health')) {
-          return jsonResponse({ ...disconnectedHealth(), fakeHarness: true })
-        }
-        if (url.endsWith('/api/providers')) {
-          return jsonResponse({
-            providers: catalogProviders(),
-            executionConnected: false,
-            fakeHarness: true,
-          })
-        }
-        if (url.includes('/api/employees')) {
-          return employeePayload()
-        }
-        if (url.endsWith('/api/workspaces')) {
-          return jsonResponse({ workspaces: [sampleWorkspace()] })
-        }
-        if (url.endsWith('/api/jobs') && method === 'GET') {
-          return jsonResponse({ jobs: [] })
-        }
-        if (url.endsWith('/api/jobs') && method === 'POST') {
-          const body = JSON.parse(String(init?.body ?? '{}')) as {
-            confirmFallbackProvider?: string
-          }
-          if (body.confirmFallbackProvider === 'grok-build') {
-            return jsonResponse({ job: sampleJob('completed') }, 201)
-          }
-          return jsonResponse(
-            {
-              error: {
-                code: 'PROVIDER_UNAVAILABLE',
-                message: 'Codexを起動できませんでした。別の道具で始めますか？',
-              },
-              details: {
-                alternatives: ['grok-build'],
-                confirmationRequired: true,
-              },
-            },
-            409,
-          )
-        }
-        if (url.includes('/api/jobs/job_1')) {
-          return jsonResponse({ job: sampleJob('completed') })
-        }
-        if (url.includes('/api/jobs/job_1/events')) {
-          return jsonResponse({ events: [] })
-        }
-        if (url.includes('/api/approvals')) {
-          return jsonResponse({ approvals: [] })
-        }
-        if (url.includes('/api/artifacts')) {
-          return jsonResponse({ artifacts: [] })
-        }
-        return jsonResponse(
-          { error: { code: 'NOT_FOUND', message: 'not found' } },
-          404,
-        )
-      },
-    )
 
-    render(<App />)
-    await userEvent.selectOptions(await screen.findByLabelText('道具'), 'codex')
-    await userEvent.type(
-      screen.getByPlaceholderText('例：このRepositoryの構成と改善点を調べて'),
-      '調べて',
-    )
-    await userEvent.click(screen.getByRole('button', { name: '仕事を頼む' }))
-    expect(
-      await screen.findByText(
-        'Codexを起動できませんでした。別の道具で始めますか？',
-      ),
-    ).toBeVisible()
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Grok Buildで始める' }),
-    )
-  })
 
-  it('cancels a running harness job from the garden', async () => {
-    let status: 'running' | 'cancelled' = 'running'
-    fetchMock.mockImplementation(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? 'GET'
-        if (url.endsWith('/api/session')) {
-          return jsonResponse({ token: 'test-session' })
-        }
-        if (url.endsWith('/api/health')) {
-          return jsonResponse({ ...disconnectedHealth(), fakeHarness: true })
-        }
-        if (url.endsWith('/api/providers')) {
-          return jsonResponse({
-            providers: catalogProviders(),
-            executionConnected: false,
-            fakeHarness: true,
-          })
-        }
-        if (url.includes('/api/employees')) {
-          return employeePayload()
-        }
-        if (url.endsWith('/api/workspaces')) {
-          return jsonResponse({ workspaces: [sampleWorkspace()] })
-        }
-        if (
-          (url.endsWith('/api/jobs') || url.includes('/api/jobs?')) &&
-          method === 'GET'
-        ) {
-          return jsonResponse({ jobs: [sampleJob(status)] })
-        }
-        if (url.endsWith('/api/jobs/job_1') && method === 'GET') {
-          return jsonResponse({ job: sampleJob(status) })
-        }
-        if (url.endsWith('/api/jobs/job_1/cancel')) {
-          status = 'cancelled'
-          return jsonResponse({ job: sampleJob('cancelled') })
-        }
-        if (url.endsWith('/api/jobs/job_1/events')) {
-          return jsonResponse({ events: [] })
-        }
-        if (url.includes('/api/approvals')) {
-          return jsonResponse({ approvals: [] })
-        }
-        if (url.includes('/api/artifacts')) {
-          return jsonResponse({ artifacts: [] })
-        }
-        return jsonResponse(
-          { error: { code: 'NOT_FOUND', message: 'not found' } },
-          404,
-        )
-      },
-    )
 
-    render(<App />)
-    expect(
-      await screen.findByRole('button', { name: '仕事を中止' }),
-    ).toBeVisible()
-    await userEvent.click(screen.getByRole('button', { name: '仕事を中止' }))
-    expect(await screen.findByText('仕事を中止しました')).toBeVisible()
-  })
-
-  it('asks how to handle a dirty repo and installs a pack from the trust screen', async () => {
-    let createdWithPolicy: string | undefined
-    let createdJobType: string | undefined
-    let createdPermission: string | undefined
-    fetchMock.mockImplementation(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = String(input)
-        const method = init?.method ?? 'GET'
-        if (url.endsWith('/api/session')) {
-          return jsonResponse({ token: 'test-session' })
-        }
-        if (url.endsWith('/api/health')) {
-          return jsonResponse({ ...disconnectedHealth(), fakeHarness: true })
-        }
-        if (url.endsWith('/api/providers')) {
-          return jsonResponse({
-            providers: catalogProviders(),
-            executionConnected: false,
-            fakeHarness: true,
-          })
-        }
-        if (url.includes('/api/employees')) {
-          return employeePayload()
-        }
-        if (url.endsWith('/api/workspaces')) {
-          return jsonResponse({ workspaces: [sampleWorkspace()] })
-        }
-        if (url.endsWith('/api/jobs') && method === 'GET') {
-          return jsonResponse({ jobs: [] })
-        }
-        if (url.endsWith('/api/jobs') && method === 'POST') {
-          const body = JSON.parse(String(init?.body ?? '{}')) as {
-            dirtyWorktreePolicy?: string
-            jobType?: string
-            permissionProfile?: string
-          }
-          if (!body.dirtyWorktreePolicy) {
-            return jsonResponse(
-              {
-                error: {
-                  code: 'WORKTREE_DIRTY_REPO',
-                  message: '現在の作業ディレクトリに未commitの変更があります',
-                },
-                details: {
-                  options: ['from-head', 'include-dirty-patch', 'cancel'],
-                },
-              },
-              409,
-            )
-          }
-          createdWithPolicy = body.dirtyWorktreePolicy
-          createdJobType = body.jobType
-          createdPermission = body.permissionProfile
-          return jsonResponse({ job: sampleJob('completed') }, 201)
-        }
-        if (url.endsWith('/api/jobs/job_1/worktree')) {
-          return jsonResponse({
-            worktree: {
-              jobId: 'job_1',
-              branchName: 'shikumi/saguru/aaaaaaaa',
-              baseCommit: 'abc12345',
-              status: 'completed',
-              includeDirtyPatch: false,
-            },
-            diff: {
-              summary: '1 file',
-              files: ['from-worktree.txt'],
-              patch: 'diff --git a/from-worktree.txt',
-            },
-          })
-        }
-        if (url.includes('/api/artifacts/art_patch/apply')) {
-          return jsonResponse({
-            artifact: {
-              id: 'art_patch',
-              jobId: 'job_1',
-              type: 'patch',
-              title: '変更パッチ',
-              storagePath: 'x',
-              createdAt: 't',
-            },
-          })
-        }
-        if (url.includes('/api/artifacts/art_patch/export')) {
-          return jsonResponse({ exportRelPath: 'exports/x.patch' })
-        }
-        if (url.includes('/api/jobs/job_1/worktree/keep')) {
-          return jsonResponse({ job: sampleJob('completed') })
-        }
-        if (url.includes('/api/jobs/job_1/worktree/discard')) {
-          return jsonResponse({ job: sampleJob('completed') })
-        }
-        if (url.includes('/api/jobs/job_1')) {
-          return jsonResponse({ job: sampleJob('completed') })
-        }
-        if (url.includes('/api/approvals')) {
-          return jsonResponse({ approvals: [] })
-        }
-        if (url.includes('/api/artifacts')) {
-          return jsonResponse({
-            artifacts: [
-              {
-                id: 'art_patch',
-                jobId: 'job_1',
-                type: 'patch',
-                title: '変更パッチ',
-                storagePath: 'x',
-                createdAt: 't',
-              },
-            ],
-          })
-        }
-        if (url.endsWith('/api/growth')) {
-          return jsonResponse({
-            growth: [
-              {
-                employeeId: 'saguru',
-                employeeName: 'サグル',
-                workspaceId: null,
-                level: 2,
-                permissionProfile: 'research',
-                metrics: [
-                  { id: 'completed_jobs', label: '完了した仕事', value: 3 },
-                ],
-                unlocks: ['bookshelf-small'],
-              },
-            ],
-          })
-        }
-        if (url.includes('/api/employees/saguru/growth')) {
-          return jsonResponse({
-            growth: {
-              employeeId: 'saguru',
-              employeeName: 'サグル',
-              workspaceId: 'ws_1',
-              level: 2,
-              permissionProfile: 'research',
-              metrics: [
-                { id: 'completed_jobs', label: '完了した仕事', value: 3 },
-              ],
-              unlocks: ['bookshelf-small'],
-            },
-          })
-        }
-        if (url.endsWith('/api/packs') && method === 'GET') {
-          return jsonResponse({
-            packs: [
-              {
-                id: 'p1',
-                kind: 'employee',
-                packId: 'saguru',
-                version: '1.0.0',
-                sourcePath: null,
-                sourceKind: 'builtin',
-                sourceDisplay: 'builtin',
-                commitHash: null,
-                builtin: true,
-                installedAt: 't',
-              },
-            ],
-          })
-        }
-        if (url.endsWith('/api/packs/preview')) {
-          return jsonResponse(
-            {
-              preview: {
-                id: 'prev_1',
-                kind: 'employee',
-                packId: 'miru',
-                version: '1.0.0',
-                sourceKind: 'folder',
-                sourceDisplay: 'miru',
-                validation: { ok: true, errors: [] },
-                fileSummary: {
-                  files: 1,
-                  totalBytes: 10,
-                  names: ['employee.yaml'],
-                },
-                gitCommit: null,
-                gitChanges: null,
-                createdAt: 't',
-              },
-            },
-            201,
-          )
-        }
-        if (url.endsWith('/api/packs/install')) {
-          return jsonResponse(
-            {
-              pack: {
-                id: 'p2',
-                kind: 'employee',
-                packId: 'miru',
-                version: '1.0.0',
-                sourcePath: null,
-                sourceKind: 'folder',
-                sourceDisplay: 'miru',
-                commitHash: null,
-                builtin: false,
-                installedAt: 't',
-              },
-            },
-            201,
-          )
-        }
-        return jsonResponse(
-          { error: { code: 'NOT_FOUND', message: 'not found' } },
-          404,
-        )
-      },
-    )
-
-    render(<App />)
-    await userEvent.type(
-      await screen.findByPlaceholderText(
-        '例：このRepositoryの構成と改善点を調べて',
-      ),
-      '直して',
-    )
-    await userEvent.click(screen.getByRole('button', { name: '仕事を頼む' }))
-    expect(
-      await screen.findByText(
-        '現在の作業ディレクトリに未commitの変更があります',
-      ),
-    ).toBeVisible()
-    await userEvent.click(
-      screen.getByRole('button', { name: 'HEADから新しいWorktreeを作る' }),
-    )
-    await waitFor(() => {
-      expect(createdWithPolicy).toBe('from-head')
-      expect(createdJobType).toBe('research')
-      expect(createdPermission).toBeUndefined()
-    })
-
-    await userEvent.click(
-      within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
-        'link',
-        { name: '設定' },
-      ),
-    )
-    await userEvent.type(screen.getByLabelText('Packの場所'), '/tmp/miru')
-    await userEvent.click(
-      screen.getByRole('button', { name: '確認画面を開く' }),
-    )
-    expect(await screen.findByTestId('pack-trust')).toHaveTextContent('miru')
-    await userEvent.click(
-      screen.getByRole('button', { name: 'このPackを導入する' }),
-    )
-    expect(await screen.findByTestId('pack-list')).toBeVisible()
-    await userEvent.click(
-      within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
-        'link',
-        { name: '庭' },
-      ),
-    )
-    expect(await screen.findByTestId('world-stage')).toHaveAttribute(
-      'data-level',
-      '2',
-    )
-  })
-
-  it('shows Codex as connected by display name, not id', async () => {
-    mockGarden({
-      providers: [
-        connectedProvider('codex', 'Codex'),
-        catalogProviders()[1]!,
-        catalogProviders()[2]!,
-      ],
-      executionConnected: true,
-      workspace: { ...sampleWorkspace(), defaultProviderId: 'codex' },
-    })
-    render(<App />)
-    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
-      'Codex 接続済み',
-    )
-    expect(screen.getByTestId('connection-badge')).toHaveAttribute(
-      'data-status',
-      'connected',
-    )
-    expect(screen.getByTestId('default-tool')).toHaveTextContent('Codex')
-    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
-      'codex',
-    )
-    expect(screen.getByTestId('default-tool')).not.toHaveTextContent('codex')
-  })
-
-  it('shows Claude Code as the only connected engine', async () => {
-    mockGarden({
-      providers: [
-        catalogProviders()[0]!,
-        catalogProviders()[1]!,
-        connectedProvider('claude-code', 'Claude Code'),
-      ],
-      executionConnected: true,
-      workspace: { ...sampleWorkspace(), defaultProviderId: 'claude-code' },
-    })
-    render(<App />)
-    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
-      'Claude Code 接続済み',
-    )
-    expect(screen.getByTestId('default-tool')).toHaveTextContent('Claude Code')
-    expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
-      'claude-code',
-    )
-  })
-
-  it('summarizes multiple connected engines', async () => {
-    mockGarden({
-      providers: [
-        connectedProvider('codex', 'Codex'),
-        connectedProvider('grok-build', 'Grok Build'),
-        catalogProviders()[2]!,
-      ],
-      executionConnected: true,
-      workspace: sampleWorkspace(),
-    })
-    render(<App />)
-    const badge = await screen.findByTestId('connection-badge')
-    expect(badge).toHaveTextContent('Codex · Grok Build 接続済み')
-    expect(badge).toHaveAttribute('title', expect.stringContaining('Codex'))
-    expect(screen.getByTestId('default-tool')).toHaveTextContent(
-      '依頼ごとに選択',
-    )
-    expect(screen.getByTestId('default-tool')).not.toHaveTextContent(
-      '実行エンジン未接続',
-    )
-  })
-
-  it('reports a provider catalog fetch error', async () => {
-    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
-      const url = String(input)
-      if (url.endsWith('/api/session')) {
-        return jsonResponse({ token: 'test-session' })
-      }
-      if (url.endsWith('/api/health')) {
-        return jsonResponse(disconnectedHealth())
-      }
-      if (url.endsWith('/api/providers')) {
-        return jsonResponse(
-          { error: { code: 'VALIDATION_FAILED', message: 'failed' } },
-          500,
-        )
-      }
-      if (url.includes('/api/employees')) {
-        return employeePayload()
-      }
-      if (url.endsWith('/api/workspaces')) {
-        return jsonResponse({ workspaces: [] })
-      }
-      return jsonResponse(
-        { error: { code: 'NOT_FOUND', message: 'not found' } },
-        404,
-      )
-    })
-    render(<App />)
-    expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
-      '接続状態を確認できません',
-    )
-    expect(screen.getByTestId('connection-badge')).toHaveAttribute(
-      'data-status',
-      'error',
-    )
-  })
-
-  it('shows the first-run guide until the three setup steps are done', async () => {
-    render(<App />)
-    expect(await screen.findByTestId('first-run-guide')).toHaveTextContent(
-      '開始までの3段階',
-    )
-    expect(screen.getByText('次に行う')).toBeVisible()
-  })
 
   it('rechecks a provider and refreshes the catalog', async () => {
     let listed = 0
@@ -1280,6 +1106,11 @@ function mockGarden(input: {
     }
     if (url.endsWith('/api/workspaces')) {
       return jsonResponse({ workspaces: [input.workspace] })
+    }
+    if (isObserverUrl(url)) {
+      return observerResponse(url, {
+        displayName: input.workspace.repository.displayName,
+      })
     }
     if (url.includes('/api/jobs')) {
       return jsonResponse({ jobs: [] })
@@ -1454,6 +1285,120 @@ function sampleJob(
     startedAt: 't',
     completedAt: status === 'completed' ? 't' : null,
   }
+}
+
+async function openTodayWorkshop() {
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
+      'link',
+      { name: '今日の作業場' },
+    ),
+  )
+}
+
+async function openGarden() {
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
+      'link',
+      { name: '庭' },
+    ),
+  )
+}
+
+async function openSettings() {
+  await userEvent.click(
+    within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
+      'link',
+      { name: '設定' },
+    ),
+  )
+}
+
+function isObserverUrl(url: string): boolean {
+  return (
+    url.includes('/api/observer/') ||
+    url.includes('/api/external-sessions') ||
+    url.includes('/api/conflicts') ||
+    /\/api\/repositories\/[^/]+\/(activity|worktrees|snapshots|rescan)/.test(
+      url,
+    )
+  )
+}
+
+function observerResponse(
+  url: string,
+  options?: { readonly displayName?: string },
+) {
+  const displayName = options?.displayName ?? 'my-project'
+  if (url.endsWith('/api/observer/today')) {
+    return jsonResponse({
+      overview: {
+        generatedAt: '2026-08-18T00:00:00.000Z',
+        repositoryCount: options?.displayName ? 1 : 0,
+        activeRepositoryCount: options?.displayName ? 1 : 0,
+        waitingCount: 0,
+        conflictCount: 0,
+        repositories: options?.displayName
+          ? [
+              {
+                repositoryId: 'repo_1',
+                workspaceId: 'ws_1',
+                displayName,
+                available: true,
+                gitAvailable: true,
+                summary: '変更元不明の作業があります。ログイン状態',
+                changedFileCount: 1,
+                lastChangedLabel: '2分前',
+                sessions: [
+                  {
+                    id: 'sess_git',
+                    source: 'git',
+                    displayName: '変更元不明',
+                    status: 'detected',
+                    activity: 'unknown',
+                    attributionConfidence: 'inferred',
+                    title: '変更元不明の作業',
+                    lastObservedAt: '2026-08-18T00:00:00.000Z',
+                    lastObservedLabel: '2分前',
+                  },
+                ],
+                worktrees: [],
+                conflicts: [],
+                areas: ['ログイン状態'],
+              },
+            ]
+          : [],
+      },
+    })
+  }
+  if (url.endsWith('/api/observer/adapters')) {
+    return jsonResponse({ adapters: [] })
+  }
+  if (url.includes('/activity') || url.includes('/rescan')) {
+    return jsonResponse({
+      activity: {
+        repositoryId: 'repo_1',
+        workspaceId: 'ws_1',
+        displayName,
+        available: true,
+        gitAvailable: true,
+        summary: '変更元不明の作業があります。ログイン状態',
+        changedFileCount: 1,
+        lastChangedLabel: '2分前',
+        sessions: [],
+        worktrees: [],
+        conflicts: [],
+        areas: ['ログイン状態'],
+      },
+    })
+  }
+  if (url.includes('/api/conflicts')) {
+    return jsonResponse({
+      conflicts: [],
+      counts: { red: 0, orange: 0, yellow: 0 },
+    })
+  }
+  return jsonResponse({ sessions: [], adapters: [], conflicts: [] })
 }
 
 function jsonResponse(body: unknown, status = 200): Response {

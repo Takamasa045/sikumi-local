@@ -1,0 +1,71 @@
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
+import { ObserverDashboard } from './ObserverDashboard'
+
+describe('ObserverDashboard', () => {
+  it('keeps an add-repository path after repositories already exist', async () => {
+    const onRegister = vi.fn()
+    render(
+      <ObserverDashboard
+        overview={{
+          generatedAt: '2026-08-18T00:00:00.000Z',
+          repositoryCount: 1,
+          activeRepositoryCount: 0,
+          waitingCount: 0,
+          conflictCount: 0,
+          repositories: [
+            {
+              repositoryId: 'repo_1',
+              workspaceId: 'ws_1',
+              displayName: 'first',
+              available: true,
+              gitAvailable: true,
+              summary: '現在観測中の作業はありません',
+              changedFileCount: 0,
+              lastChangedLabel: null,
+              sessions: [],
+              worktrees: [],
+              conflicts: [],
+              areas: [],
+            },
+          ],
+        }}
+        workspace={{
+          id: 'ws_1',
+          name: 'first',
+          defaultProviderId: null,
+          worldPackId: 'dog-office',
+          createdAt: 't',
+          updatedAt: 't',
+          repository: {
+            id: 'repo_1',
+            absolutePath: '/tmp/first',
+            displayName: 'first',
+            currentBranch: 'main',
+            remoteName: 'origin',
+            remoteUrl: null,
+            readable: true,
+          },
+        }}
+        selectedRepositoryId={null}
+        busy={false}
+        error={null}
+        onRegister={onRegister}
+        onSelectRepository={vi.fn()}
+        onRescan={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('observer-add-repository')).toBeVisible()
+    expect(screen.getByText('first')).toBeVisible()
+    await userEvent.type(
+      screen.getByLabelText('観測するRepositoryの場所'),
+      '/tmp/second',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+    )
+    expect(onRegister).toHaveBeenCalledWith('/tmp/second', '')
+  })
+})

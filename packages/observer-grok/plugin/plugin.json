@@ -1,0 +1,6 @@
+{
+  "name": "sikumi-observer",
+  "displayName": "Sikumi Observer",
+  "version": "0.1.0",
+  "description": "Reports local Grok Build activity metadata to Sikumi-local. Does not start, stop, or control Grok. Plugin or config presence alone is not a ready signal."
+}

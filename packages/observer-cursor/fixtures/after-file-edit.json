@@ -1,0 +1,9 @@
+{
+  "conversation_id": "conv-cursor-1",
+  "generation_id": "gen-2",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "afterFileEdit",
+  "file_path": "src/dashboard/page.tsx",
+  "edits": [{ "old_string": "secret old", "new_string": "secret new" }],
+  "content": "full file body must not be stored"
+}

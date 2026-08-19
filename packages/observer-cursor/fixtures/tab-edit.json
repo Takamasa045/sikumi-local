@@ -1,0 +1,6 @@
+{
+  "cwd": "/Users/example/project",
+  "hook_event_name": "afterTabFileEdit",
+  "file_path": "src/ui/button.tsx",
+  "edits": [{ "old_string": "hidden tab patch" }]
+}

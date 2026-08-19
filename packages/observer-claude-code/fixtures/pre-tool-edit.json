@@ -1,0 +1,13 @@
+{
+  "session_id": "sess-claude-1",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "PreToolUse",
+  "matcher": "Edit|Write",
+  "tool_name": "Edit",
+  "tool_use_id": "tool-3",
+  "tool_input": {
+    "file_path": "src/api/users.ts",
+    "old_string": "secret body",
+    "new_string": "also secret"
+  }
+}

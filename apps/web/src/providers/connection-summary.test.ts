@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import type { ProviderAvailability } from '@sikumi-local/core'
-import { deriveProviderConnectionSummary } from './connection-summary'
+import {
+  deriveObserverSurfaceSummary,
+  deriveProviderConnectionSummary,
+} from './connection-summary'
+
+describe('deriveObserverSurfaceSummary', () => {
+  it('does not claim an execution provider is connected', () => {
+    const summary = deriveObserverSurfaceSummary()
+    expect(summary.status).toBe('observing')
+    expect(summary.badgeLabel).toBe('ローカル観測')
+    expect(summary.badgeLabel).not.toContain('接続済み')
+    expect(summary.toolLabel).toBe('ローカル観測')
+  })
+})
 
 describe('deriveProviderConnectionSummary', () => {
   it('reports the initial loading badge without exposing provider ids', () => {

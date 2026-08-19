@@ -6,11 +6,13 @@ import {
 } from '@sikumi-local/core'
 import type { FastifyInstance } from 'fastify'
 import type { AppStore } from '../storage/store.js'
+import { writeRegisteredRepositoryCatalog } from '@sikumi-local/observer-claude-desktop'
 import { registerWorkspace } from '../workspaces/register-workspace.js'
 
 export function registerWorkspaceRoutes(
   app: FastifyInstance,
   store: AppStore,
+  options: { readonly dataDirectory?: string } = {},
 ): void {
   app.get('/api/workspaces', async () => ({
     workspaces: store.listWorkspaces(),
@@ -40,6 +42,22 @@ export function registerWorkspaceRoutes(
     const workspace = workspaceSchema.parse(
       registerWorkspace(store, parsed.data.path, parsed.data.employeeName),
     )
+    if (options.dataDirectory) {
+      writeRegisteredRepositoryCatalog(
+        options.dataDirectory,
+        store
+          .listWorkspaces()
+          .filter(
+            (workspace) =>
+              !workspace.repository.absolutePath.startsWith('unlinked:'),
+          )
+          .map((workspace) => ({
+            id: workspace.repository.id,
+            displayName: workspace.repository.displayName,
+            absolutePath: workspace.repository.absolutePath,
+          })),
+      )
+    }
     return reply.status(201).send({ workspace })
   })
 

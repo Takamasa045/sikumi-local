@@ -1,0 +1,7 @@
+{
+  "session_id": "sess-codex-1",
+  "cwd": "/Users/example/project",
+  "hook_event_name": "Future hypothetical Event",
+  "future_field": { "nested": true },
+  "schema_version": 99
+}

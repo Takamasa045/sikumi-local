@@ -1,0 +1,71 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import type { Readable, Writable } from 'node:stream'
+import { writeSpoolEvent } from '@sikumi-local/observer-bridge'
+import {
+  assertEventSizeLimit,
+  OBSERVER_MAX_EVENT_BYTES,
+} from '@sikumi-local/observer-core'
+import { normalizeClaudeCodeHook } from './normalize.js'
+
+export interface HookIo {
+  readonly stdin: Readable
+  readonly stdout: Writable
+  readonly stderr: Writable
+  readonly env: NodeJS.ProcessEnv
+}
+
+export async function runClaudeCodeObserverHook(
+  argv: readonly string[],
+  io: HookIo,
+): Promise<number> {
+  try {
+    const raw = await readStdinBounded(io.stdin)
+    if (raw.trim().length === 0) {
+      return 0
+    }
+    assertEventSizeLimit(raw)
+    const json = JSON.parse(raw) as unknown
+    const event = normalizeClaudeCodeHook(json)
+    if (!event) {
+      return 0
+    }
+    writeSpoolEvent(dataDirectoryFrom(argv, io.env), event)
+  } catch {
+    // fail-open
+  }
+  return 0
+}
+
+function dataDirectoryFrom(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv,
+): string {
+  for (let index = 0; index < argv.length; index += 1) {
+    if (
+      (argv[index] === '--root' || argv[index] === '--data-dir') &&
+      argv[index + 1]
+    ) {
+      return argv[index + 1]!
+    }
+  }
+  return env.SIKUMI_LOCAL_DATA_DIR ?? join(homedir(), '.shikumi-local')
+}
+
+async function readStdinBounded(stdin: Readable): Promise<string> {
+  const chunks: Buffer[] = []
+  let total = 0
+  for await (const chunk of stdin) {
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))
+    total += buffer.length
+    if (total > OBSERVER_MAX_EVENT_BYTES) {
+      assertEventSizeLimit(
+        buffer.length > OBSERVER_MAX_EVENT_BYTES
+          ? buffer
+          : Buffer.concat([...chunks, buffer]),
+      )
+    }
+    chunks.push(buffer)
+  }
+  return Buffer.concat(chunks).toString('utf8')
+}

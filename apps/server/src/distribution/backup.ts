@@ -44,6 +44,7 @@ export const DATA_DIRECTORY_OWNED_NAMES = new Set([
   'employees',
   'worlds',
   'characters',
+  'observer',
 ])
 
 export interface DirectoryBackupResult {

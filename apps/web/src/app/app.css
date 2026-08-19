@@ -160,6 +160,12 @@ input:focus-visible {
 .connection-badge[data-status='disconnected'] {
   color: #c7c5b1;
 }
+.connection-badge[data-status='observing'] {
+  color: #cfe6c4;
+}
+.connection-badge[data-status='observing'] span {
+  background: #7dbe6b;
+}
 
 main {
   width: min(1220px, calc(100% - 40px));
@@ -1225,5 +1231,1082 @@ footer span {
   }
   .employee.is-idle .employee__sprite {
     animation: none;
+  }
+}
+
+.observer-home,
+.observer-detail,
+.labs-panel {
+  display: grid;
+  gap: 16px;
+  padding: 28px 24px 32px;
+  background: var(--washi);
+  border: 1px solid #c6beaa;
+}
+.observer-lead {
+  margin: 0;
+  color: var(--ink-soft);
+  max-width: 42rem;
+}
+.observer-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  color: var(--moss);
+  font-size: 14px;
+}
+.observer-repo-list {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.observer-card,
+.observer-worktree {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  background: #f7f3e6;
+  border: 1px solid #cfc6b0;
+}
+.observer-card.is-selected {
+  border-color: var(--copper);
+}
+.observer-card header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.observer-session-list,
+.observer-detail ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.observer-empty {
+  color: var(--ink-soft);
+}
+.observer-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.observer-add-repository {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  background: #f7f3e6;
+  border: 1px solid #cfc6b0;
+}
+.observer-add-repository h3 {
+  margin: 0;
+}
+.observer-add-repository p,
+.observer-add-repository label {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.observer-add-repository input {
+  width: 100%;
+  padding: 10px 12px;
+  color: #36372f;
+  background: #fbf8ee;
+  border: 1px solid #c6beaa;
+}
+.observer-add-repository button {
+  justify-self: start;
+  min-width: 88px;
+  padding: 8px 14px;
+  color: #f7f2e1;
+  background: var(--moss);
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.observer-adapters {
+  display: grid;
+  gap: 12px;
+}
+.observer-adapters ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.observer-adapters li {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  background: #f7f3e6;
+  border: 1px solid #cfc6b0;
+}
+.conflict-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: end;
+}
+.conflict-filters label {
+  display: grid;
+  gap: 4px;
+}
+.conflict-filters__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.conflict-layout {
+  display: grid;
+  gap: 16px;
+}
+.conflict-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.conflict-technical {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.conflict-technical div {
+  display: grid;
+  gap: 2px;
+}
+.conflict-technical dt {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.observer-adapter-scope {
+  display: grid;
+  gap: 8px;
+}
+.observer-adapter-scope label {
+  display: grid;
+  gap: 4px;
+}
+.observer-adapter-plan {
+  display: grid;
+  gap: 8px;
+}
+.observer-adapter-preview {
+  overflow: auto;
+  max-height: 240px;
+  margin: 0;
+  padding: 12px;
+  white-space: pre-wrap;
+  font-size: 12px;
+  background: #fbf8ee;
+  border: 1px solid #c6beaa;
+}
+
+.observer-garden {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: grid;
+  gap: 20px;
+  min-height: 360px;
+  padding: 28px 24px 32px;
+  color: #f4f0df;
+  border: 1px solid #1c271e;
+  background:
+    radial-gradient(ellipse at 18% 8%, rgba(232, 196, 129, 0.22), transparent 42%),
+    radial-gradient(ellipse at 82% 18%, rgba(51, 72, 58, 0.55), transparent 48%),
+    linear-gradient(180deg, #4a6351 0%, #2a3b2f 46%, #172119 100%);
+}
+
+.observer-garden::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(240, 237, 223, 0.04) 1px, transparent 1px),
+    linear-gradient(rgba(240, 237, 223, 0.035) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.observer-garden__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.observer-garden h2,
+.observer-garden h3 {
+  margin: 0;
+  font-family: 'Yu Mincho', 'Hiragino Mincho ProN', serif;
+  font-weight: 600;
+}
+
+.observer-garden h2 {
+  font-size: clamp(22px, 3vw, 32px);
+}
+
+.observer-garden h3 {
+  font-size: 18px;
+  color: var(--ink);
+}
+
+.observer-garden__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.observer-garden__empty {
+  margin: 0;
+  max-width: 36rem;
+  color: #efe6cc;
+}
+
+.observer-garden__agents,
+.observer-garden__unverified ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.observer-garden__agent,
+.observer-garden__unverified li {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  color: var(--ink);
+  background: rgba(247, 243, 230, 0.94);
+  border: 1px solid #cfc6b0;
+}
+
+.observer-garden__agent p,
+.observer-garden__unverified li p {
+  margin: 0;
+}
+
+.observer-garden__agent[data-status='waiting'] {
+  border-color: var(--lantern);
+}
+
+.observer-garden__agent[data-status='working'] {
+  border-color: var(--moss);
+}
+
+.observer-garden__agent[data-status='completed'] {
+  border-color: #8a8676;
+}
+
+.observer-garden__unverified {
+  display: grid;
+  gap: 12px;
+}
+
+.observer-garden__unverified h3 {
+  color: #efe6cc;
+}
+
+@media (max-width: 720px) {
+  .observer-garden {
+    min-height: 0;
+    padding: 20px 16px 24px;
+  }
+
+  .observer-garden__header {
+    flex-direction: column;
+  }
+
+  .observer-garden__actions,
+  .observer-garden__actions .washi-tab {
+    width: 100%;
+  }
+
+  .observer-garden__agents,
+  .observer-garden__unverified ul {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .observer-garden,
+  .observer-garden::before,
+  .observer-garden * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+/* satoyama garden override — appended last to win over prior .observer-garden rules */
+.observer-garden.observer-garden--satoyama {
+  --observer-ink: #1c1a17;
+  --observer-moss: #3f5136;
+  --observer-vermilion: #8f3a2e;
+  --observer-paper: #f4ead8;
+  --observer-wood: #6a4e38;
+  --observer-mist: rgba(255, 250, 240, 0.38);
+  position: relative;
+  display: block !important;
+  grid-template: none !important;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+  width: 100%;
+  min-height: min(78vh, 860px);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(90, 68, 48, 0.28);
+  border-radius: 18px;
+  background-color: #cbb896;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 80px rgba(40, 28, 16, 0.18);
+  font-family: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+  color: var(--observer-ink);
+}
+
+.observer-garden.observer-garden--satoyama *,
+.observer-garden.observer-garden--satoyama *::before,
+.observer-garden.observer-garden--satoyama *::after {
+  box-sizing: border-box;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-mist {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 50% 110%, rgba(40, 32, 18, 0.22), transparent 55%),
+    linear-gradient(180deg, rgba(255, 250, 240, 0.18), transparent 28%, rgba(28, 24, 16, 0.12) 100%);
+  z-index: 1;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  z-index: 8;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-sign {
+  margin: 0;
+  padding: 6px 12px;
+  max-width: 58%;
+  writing-mode: horizontal-tb;
+  letter-spacing: 0.18em;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--observer-paper);
+  background: rgba(28, 24, 18, 0.42);
+  border: 1px solid rgba(244, 234, 216, 0.22);
+  border-radius: 999px;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav-actions {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav-button {
+  appearance: none;
+  margin: 0;
+  padding: 5px 11px;
+  border: 1px solid rgba(244, 234, 216, 0.28);
+  border-radius: 999px;
+  background: rgba(28, 24, 18, 0.34);
+  color: var(--observer-paper);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  opacity: 0.86;
+  transition: opacity 160ms ease, background-color 160ms ease;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav-button:hover,
+.observer-garden.observer-garden--satoyama .observer-garden-nav-button:focus-visible {
+  opacity: 1;
+  background: rgba(28, 24, 18, 0.55);
+  outline: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-ground {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block !important;
+  grid-template: none !important;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-station {
+  position: absolute;
+  transform: translate(-50%, -110%);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-station-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 3px;
+  background: rgba(244, 234, 216, 0.78);
+  color: var(--observer-ink);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  box-shadow: 0 1px 0 rgba(90, 68, 48, 0.18);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-station--archive .observer-garden-station-pill,
+.observer-garden.observer-garden--satoyama .observer-garden-station--rest .observer-garden-station-pill {
+  background: rgba(244, 234, 216, 0.62);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 6;
+  width: min(240px, 42vw);
+  max-height: 42%;
+  padding: 12px 12px 10px;
+  overflow: auto;
+  background:
+    linear-gradient(180deg, rgba(244, 234, 216, 0.92), rgba(232, 214, 184, 0.9));
+  border: 1px solid rgba(90, 68, 48, 0.35);
+  border-radius: 4px 12px 8px 4px;
+  box-shadow: 2px 6px 0 rgba(40, 28, 16, 0.12);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--observer-vermilion);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-empty {
+  margin: 0;
+  font-size: 12px;
+  opacity: 0.72;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 7px;
+  border-bottom: 1px dashed rgba(90, 68, 48, 0.28);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-reason {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--observer-moss);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-repo,
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-title-text {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-meta {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actors {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: block !important;
+  margin: 0;
+  padding: 0;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actor {
+  position: absolute;
+  width: 88px;
+  transform: translate(-50%, -88%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actor-sprite {
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  background-repeat: no-repeat;
+  background-size: calc(var(--observer-atlas-columns, 3) * 100%) calc(var(--observer-atlas-rows, 4) * 100%);
+  background-position: calc(var(--observer-atlas-x, 0) * -100%) calc(var(--observer-atlas-y, 0) * -100%);
+  filter: drop-shadow(0 4px 0 rgba(40, 28, 16, 0.18));
+  animation: observer-garden-bob 2.8s ease-in-out infinite;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actor--waiting .observer-garden-actor-sprite {
+  animation-duration: 3.6s;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actor--workbench .observer-garden-actor-sprite {
+  animation-duration: 1.8s;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble {
+  min-width: 108px;
+  max-width: 148px;
+  padding: 6px 8px 7px;
+  background: rgba(244, 234, 216, 0.92);
+  border: 1px solid rgba(90, 68, 48, 0.28);
+  border-radius: 10px 10px 10px 3px;
+  box-shadow: 0 2px 0 rgba(90, 68, 48, 0.12);
+  color: var(--observer-ink);
+  pointer-events: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble p {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-source {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--observer-vermilion);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-repo {
+  font-size: 10px;
+  opacity: 0.78;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-title {
+  margin-top: 2px !important;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-status,
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-observed {
+  font-size: 10px;
+  opacity: 0.78;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-guide {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 7;
+  transform: translateX(-50%);
+  margin: 0;
+  width: min(420px, calc(100% - 280px));
+  padding: 8px 14px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--observer-paper);
+  background: rgba(28, 24, 18, 0.42);
+  border-radius: 999px;
+}
+
+@keyframes observer-garden-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@media (max-width: 760px) {
+  .observer-garden.observer-garden--satoyama {
+    min-height: min(100dvh, 720px);
+    border-radius: 0;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-nav {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-sign {
+    max-width: none;
+    font-size: 13px;
+    letter-spacing: 0.12em;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-nav-actions {
+    justify-content: flex-end;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-station-pill {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    letter-spacing: 0.12em;
+    font-size: 10px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-bulletin {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    max-height: 28%;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-actor {
+    width: 76px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-actor-sprite {
+    width: 52px;
+    height: 52px;
+    flex-basis: 52px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-bubble {
+    min-width: 92px;
+    max-width: 124px;
+    padding: 5px 6px 6px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-guide {
+    width: calc(100% - 24px);
+    bottom: calc(28% + 18px);
+    font-size: 12px;
+    border-radius: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .observer-garden.observer-garden--satoyama .observer-garden-actor-sprite,
+  .observer-garden.observer-garden--satoyama .observer-garden-nav-button {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* satoyama garden visual QC override — appended last */
+.observer-garden.observer-garden--satoyama {
+  --observer-ink: #1c1a17;
+  --observer-moss: #3f5136;
+  --observer-vermilion: #8f3a2e;
+  --observer-paper: #f4ead8;
+  --observer-wood: #6a4e38;
+  position: relative;
+  display: block !important;
+  grid-template: none !important;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+  width: 100%;
+  min-height: min(78vh, 860px);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(90, 68, 48, 0.28);
+  border-radius: 18px;
+  background-color: #cbb896;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 80px rgba(40, 28, 16, 0.18);
+  font-family: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Noto Serif JP", serif;
+  color: var(--observer-ink);
+}
+
+.observer-garden.observer-garden--satoyama *,
+.observer-garden.observer-garden--satoyama *::before,
+.observer-garden.observer-garden--satoyama *::after {
+  box-sizing: border-box;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-mist {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 50% 110%, rgba(40, 32, 18, 0.22), transparent 55%),
+    linear-gradient(180deg, rgba(255, 250, 240, 0.18), transparent 28%, rgba(28, 24, 16, 0.12) 100%);
+  z-index: 1;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  right: 16px;
+  z-index: 8;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-heading-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 62%;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-heading {
+  margin: 0;
+  padding: 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--observer-paper);
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.45);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-sign {
+  margin: 0;
+  padding: 4px 10px;
+  width: fit-content;
+  letter-spacing: 0.16em;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--observer-paper);
+  background: rgba(28, 24, 18, 0.42);
+  border: 1px solid rgba(244, 234, 216, 0.22);
+  border-radius: 999px;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav-actions {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav-button {
+  appearance: none;
+  margin: 0;
+  padding: 5px 11px;
+  border: 1px solid rgba(244, 234, 216, 0.28);
+  border-radius: 999px;
+  background: rgba(28, 24, 18, 0.34);
+  color: var(--observer-paper);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  opacity: 0.86;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-nav-button:hover,
+.observer-garden.observer-garden--satoyama .observer-garden-nav-button:focus-visible {
+  opacity: 1;
+  background: rgba(28, 24, 18, 0.55);
+  outline: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-ground {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block !important;
+  grid-template: none !important;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-station {
+  position: absolute;
+  transform: translate(-50%, -110%);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-station-pill {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 3px;
+  background: rgba(244, 234, 216, 0.78);
+  color: var(--observer-ink);
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  box-shadow: 0 1px 0 rgba(90, 68, 48, 0.18);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 6;
+  width: min(240px, 42vw);
+  max-height: 42%;
+  padding: 12px 12px 10px;
+  overflow: auto;
+  background: linear-gradient(180deg, rgba(244, 234, 216, 0.92), rgba(232, 214, 184, 0.9));
+  border: 1px solid rgba(90, 68, 48, 0.35);
+  border-radius: 4px 12px 8px 4px;
+  box-shadow: 2px 6px 0 rgba(40, 28, 16, 0.12);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--observer-vermilion);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-bottom: 7px;
+  border-bottom: 1px dashed rgba(90, 68, 48, 0.28);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-repo,
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-label {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bulletin-count {
+  font-size: 10px;
+  opacity: 0.78;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actors {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: block !important;
+  margin: 0;
+  padding: 0;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actor {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  transform: translate(-50%, -82%);
+  display: block;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actor-sprite {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 112px;
+  height: 112px;
+  transform: translateX(-50%);
+  background-repeat: no-repeat;
+  background-size: calc(var(--observer-atlas-columns, 3) * 100%) calc(var(--observer-atlas-rows, 4) * 100%);
+  background-position: var(--observer-atlas-x) var(--observer-atlas-y);
+  filter: drop-shadow(0 5px 0 rgba(40, 28, 16, 0.2));
+  animation: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actor--workbench .observer-garden-actor-sprite {
+  animation: observer-garden-bob 2.6s ease-in-out infinite;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble {
+  position: absolute;
+  left: calc(50% + 58px);
+  bottom: 78px;
+  z-index: 2;
+  min-width: 118px;
+  max-width: 168px;
+  padding: 6px 8px 7px;
+  background: rgba(244, 234, 216, 0.94);
+  border: 1px solid rgba(90, 68, 48, 0.28);
+  border-radius: 10px 10px 10px 3px;
+  box-shadow: 0 2px 0 rgba(90, 68, 48, 0.12);
+  color: var(--observer-ink);
+  pointer-events: none;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble p {
+  margin: 0;
+  line-height: 1.35;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-source {
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--observer-vermilion);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-session,
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-repo {
+  font-size: 10px;
+  opacity: 0.78;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-title {
+  margin-top: 2px !important;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-status,
+.observer-garden.observer-garden--satoyama .observer-garden-bubble-observed {
+  font-size: 10px;
+  opacity: 0.78;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-guide {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 7;
+  transform: translateX(-50%);
+  margin: 0;
+  width: min(520px, calc(100% - 48px));
+  padding: 8px 14px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: var(--observer-paper);
+  background: rgba(28, 24, 18, 0.42);
+  border-radius: 999px;
+}
+
+@keyframes observer-garden-bob {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-5px); }
+}
+
+@media (max-width: 760px) {
+  .observer-garden.observer-garden--satoyama {
+    min-height: min(100dvh, 720px);
+    border-radius: 0;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-nav {
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-heading-group {
+    max-width: none;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-heading {
+    font-size: 18px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-sign {
+    font-size: 12px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-nav-actions {
+    justify-content: flex-end;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-station-pill {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+    letter-spacing: 0.12em;
+    font-size: 10px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-bulletin {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    max-height: 28%;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-actor {
+    width: 88px;
+    height: 88px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-actor-sprite {
+    width: 80px;
+    height: 80px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-bubble {
+    left: calc(50% + 42px);
+    bottom: 54px;
+    min-width: 96px;
+    max-width: 132px;
+    padding: 5px 6px 6px;
+  }
+
+  .observer-garden.observer-garden--satoyama .observer-garden-guide {
+    width: calc(100% - 24px);
+    bottom: calc(28% + 18px);
+    font-size: 12px;
+    border-radius: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .observer-garden.observer-garden--satoyama .observer-garden-actor-sprite,
+  .observer-garden.observer-garden--satoyama .observer-garden-actor--workbench .observer-garden-actor-sprite,
+  .observer-garden.observer-garden--satoyama .observer-garden-nav-button {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-actor--waiting .observer-garden-bubble {
+  right: calc(50% + 56px);
+  left: auto;
+}
+
+@media (max-width: 760px) {
+  .observer-garden.observer-garden--satoyama .observer-garden-actor--waiting .observer-garden-bubble {
+    right: calc(50% + 40px);
+    left: auto;
   }
 }

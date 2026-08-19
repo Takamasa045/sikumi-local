@@ -67,7 +67,7 @@ describe('Shikumi Local garden', () => {
     expect(
       screen.queryByRole('link', { name: 'Legacy Executionを開く' }),
     ).not.toBeInTheDocument()
-    expect(await screen.findByText('Repository未登録')).toBeVisible()
+    expect(await screen.findByText('場所はまだありません')).toBeVisible()
     expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
     expect(screen.queryByTestId('garden-employee')).not.toBeInTheDocument()
     expect(
@@ -129,7 +129,7 @@ describe('Shikumi Local garden', () => {
       '接続済み',
     )
     expect(screen.queryByText('作業中')).not.toBeInTheDocument()
-    expect(await screen.findByText('Repository未登録')).toBeVisible()
+    expect(await screen.findByText('場所はまだありません')).toBeVisible()
     expect(await screen.findByTestId('connection-badge')).toHaveAttribute(
       'data-status',
       'observing',
@@ -364,11 +364,11 @@ describe('Shikumi Local garden', () => {
 
     await openTodayWorkshop()
     await userEvent.type(
-      screen.getByLabelText('観測するRepositoryの場所'),
+      screen.getByLabelText('場所のパス'),
       '/Users/example/my-project',
     )
     await userEvent.click(
-      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+      screen.getByRole('button', { name: 'この場所を追加' }),
     )
 
     await waitFor(() => {
@@ -380,8 +380,8 @@ describe('Shikumi Local garden', () => {
       screen.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
     ).toBeVisible()
     await openSettings()
-    expect(screen.getByText('✓ Git Repository')).toBeVisible()
-    expect(screen.getByText('✓ 現在のbranch: main')).toBeVisible()
+    expect(screen.getByText('✓ Gitの場所です')).toBeVisible()
+    expect(screen.getByText('✓ いまの枝: main')).toBeVisible()
     await openGarden()
     expect(
       await screen.findByRole('heading', { name: '観測の庭' }),
@@ -392,6 +392,173 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByTestId('connection-badge')).toHaveTextContent(
       'ローカル観測',
     )
+  })
+
+  it('fills a path from the native folder picker before registering', async () => {
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method ?? 'GET'
+        if (url.endsWith('/api/session')) {
+          return jsonResponse({ token: 'test-session' })
+        }
+        if (url.endsWith('/api/health')) {
+          return jsonResponse(disconnectedHealth())
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
+            fakeHarness: false,
+          })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
+        }
+        if (isObserverUrl(url)) {
+          return observerResponse(url)
+        }
+        if (url.endsWith('/api/workspaces') && method === 'GET') {
+          return jsonResponse({ workspaces: [] })
+        }
+        if (url.endsWith('/api/workspaces/choose-folder') && method === 'POST') {
+          return jsonResponse({
+            cancelled: false,
+            path: '/Users/example/picked-blog',
+          })
+        }
+        if (url.endsWith('/api/workspaces') && method === 'POST') {
+          expect(init?.body).toBe(
+            JSON.stringify({
+              path: '/Users/example/picked-blog',
+              employeeName: 'ブログ番',
+            }),
+          )
+          return jsonResponse(
+            {
+              workspace: {
+                id: 'ws_picked',
+                name: 'picked-blog',
+                employeeName: 'ブログ番',
+                defaultProviderId: null,
+                worldPackId: 'dog-office',
+                createdAt: '2026-08-18T00:00:00.000Z',
+                updatedAt: '2026-08-18T00:00:00.000Z',
+                repository: {
+                  id: 'repo_picked',
+                  absolutePath: '/Users/example/picked-blog',
+                  displayName: 'picked-blog',
+                  currentBranch: 'main',
+                  remoteName: 'origin',
+                  remoteUrl: null,
+                  readable: true,
+                },
+              },
+            },
+            201,
+          )
+        }
+        return jsonResponse(
+          { error: { code: 'NOT_FOUND', message: 'not found' } },
+          404,
+        )
+      },
+    )
+
+    render(<App />)
+    await openTodayWorkshop()
+    await userEvent.type(screen.getByLabelText('担当の名前（任意）'), 'ブログ番')
+    await userEvent.click(screen.getByRole('button', { name: 'フォルダを選ぶ' }))
+    expect(screen.getByLabelText('場所のパス')).toHaveValue(
+      '/Users/example/picked-blog',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'この場所を追加' }),
+    )
+    expect(await screen.findByText('ブログ番')).toBeVisible()
+  })
+
+  it('removes a registered place from today, the garden, and settings', async () => {
+    const workspaces = [sampleWorkspace()]
+    fetchMock.mockImplementation(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = init?.method ?? 'GET'
+        if (url.endsWith('/api/session')) {
+          return jsonResponse({ token: 'test-session' })
+        }
+        if (url.endsWith('/api/health')) {
+          return jsonResponse(disconnectedHealth())
+        }
+        if (url.endsWith('/api/providers')) {
+          return jsonResponse({
+            providers: catalogProviders(),
+            executionConnected: false,
+            fakeHarness: false,
+          })
+        }
+        if (url.includes('/api/employees')) {
+          return employeePayload()
+        }
+        if (url.endsWith('/api/workspaces') && method === 'GET') {
+          return jsonResponse({ workspaces })
+        }
+        if (url.endsWith('/api/workspaces/ws_1') && method === 'DELETE') {
+          workspaces.splice(0, workspaces.length)
+          return jsonResponse({ ok: true })
+        }
+        if (url.endsWith('/api/observer/today')) {
+          return jsonResponse({
+            overview: {
+              generatedAt: '2026-08-18T00:00:00.000Z',
+              repositoryCount: workspaces.length,
+              activeRepositoryCount: 0,
+              waitingCount: 0,
+              conflictCount: 0,
+              repositories: workspaces.map((workspace) => ({
+                repositoryId: workspace.repository.id,
+                workspaceId: workspace.id,
+                displayName: workspace.repository.displayName,
+                available: true,
+                gitAvailable: true,
+                summary: '現在観測中の作業はありません',
+                changedFileCount: 0,
+                lastChangedLabel: null,
+                sessions: [],
+                worktrees: [],
+                conflicts: [],
+                areas: [],
+              })),
+            },
+          })
+        }
+        if (isObserverUrl(url)) {
+          return observerResponse(url, {
+            displayName: workspaces[0]?.repository.displayName,
+          })
+        }
+        return jsonResponse(
+          { error: { code: 'NOT_FOUND', message: 'not found' } },
+          404,
+        )
+      },
+    )
+    vi.stubGlobal('confirm', vi.fn(() => true))
+
+    render(<App />)
+    expect(await screen.findByText('my-project番')).toBeVisible()
+    await openTodayWorkshop()
+    expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'この場所を外す' }))
+    await waitFor(() => {
+      expect(screen.queryByTestId('observer-place-repo_1')).toBeNull()
+    })
+    expect(screen.getByText('場所はまだありません')).toBeVisible()
+    await openGarden()
+    expect(screen.queryByText('my-project番')).toBeNull()
+    await openSettings()
+    expect(screen.queryByRole('button', { name: 'この場所を外す' })).toBeNull()
+    vi.unstubAllGlobals()
   })
 
   it('lists registered repository activity without claiming an AI source', async () => {
@@ -676,7 +843,7 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByText('kept-project番')).toBeVisible()
     expect(screen.getByText('まだ分かっていません')).toBeVisible()
     expect(
-      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+      screen.getByRole('button', { name: 'この場所を追加' }),
     ).toBeVisible()
   })
 
@@ -765,14 +932,14 @@ describe('Shikumi Local garden', () => {
     await openTodayWorkshop()
     expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
     expect(
-      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+      screen.getByRole('button', { name: 'この場所を追加' }),
     ).toBeVisible()
     await userEvent.type(
-      screen.getByLabelText('観測するRepositoryの場所'),
+      screen.getByLabelText('場所のパス'),
       '/Users/example/second-project',
     )
     await userEvent.click(
-      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+      screen.getByRole('button', { name: 'この場所を追加' }),
     )
     expect(await screen.findByTestId('observer-place-repo_2')).toBeVisible()
     expect(screen.getByTestId('observer-place-repo_1')).toBeVisible()
@@ -981,7 +1148,7 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(await screen.findByText('Repository未登録')).toBeVisible()
+    expect(await screen.findByText('場所はまだありません')).toBeVisible()
     expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
   })
 
@@ -1025,17 +1192,17 @@ describe('Shikumi Local garden', () => {
 
     await openTodayWorkshop()
     await userEvent.type(
-      screen.getByLabelText('観測するRepositoryの場所'),
+      screen.getByLabelText('場所のパス'),
       '/tmp/not-git',
     )
     await userEvent.click(
-      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
+      screen.getByRole('button', { name: 'この場所を追加' }),
     )
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Git Repositoryではありません',
     )
-    expect(screen.getByText('Repository未登録')).toBeVisible()
+    expect(screen.getByText('場所はまだありません')).toBeVisible()
   })
 
   it('rechecks a provider and refreshes the catalog', async () => {

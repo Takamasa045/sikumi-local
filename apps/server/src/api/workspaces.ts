@@ -1,18 +1,27 @@
 import {
   AppError,
+  chooseWorkspaceFolderResponseSchema,
   registerWorkspaceRequestSchema,
+  unregisterWorkspaceResponseSchema,
   updateWorkspaceRequestSchema,
   workspaceSchema,
 } from '@sikumi-local/core'
 import type { FastifyInstance } from 'fastify'
 import type { AppStore } from '../storage/store.js'
 import { writeRegisteredRepositoryCatalog } from '@sikumi-local/observer-claude-desktop'
+import {
+  chooseLocalFolder,
+  type FolderChoice,
+} from '../workspaces/choose-folder.js'
 import { registerWorkspace } from '../workspaces/register-workspace.js'
 
 export function registerWorkspaceRoutes(
   app: FastifyInstance,
   store: AppStore,
-  options: { readonly dataDirectory?: string } = {},
+  options: {
+    readonly dataDirectory?: string
+    readonly chooseFolder?: () => Promise<FolderChoice>
+  } = {},
 ): void {
   app.get('/api/workspaces', async () => ({
     workspaces: store.listWorkspaces(),
@@ -23,18 +32,23 @@ export function registerWorkspaceRoutes(
     async (request, reply) => {
       const workspace = store.getWorkspace(request.params.id)
       if (!workspace) {
-        throw new AppError('NOT_FOUND', 'Workspaceが見つかりません', 404)
+        throw new AppError('NOT_FOUND', '場所が見つかりません', 404)
       }
       return reply.send({ workspace })
     },
   )
+
+  app.post('/api/workspaces/choose-folder', async () => {
+    const picker = options.chooseFolder ?? chooseLocalFolder
+    return chooseWorkspaceFolderResponseSchema.parse(await picker())
+  })
 
   app.post('/api/workspaces', async (request, reply) => {
     const parsed = registerWorkspaceRequestSchema.safeParse(request.body)
     if (!parsed.success) {
       throw new AppError(
         'VALIDATION_FAILED',
-        'Repository path is required',
+        '観測する場所のパスが必要です',
         400,
       )
     }
@@ -42,22 +56,7 @@ export function registerWorkspaceRoutes(
     const workspace = workspaceSchema.parse(
       registerWorkspace(store, parsed.data.path, parsed.data.employeeName),
     )
-    if (options.dataDirectory) {
-      writeRegisteredRepositoryCatalog(
-        options.dataDirectory,
-        store
-          .listWorkspaces()
-          .filter(
-            (workspace) =>
-              !workspace.repository.absolutePath.startsWith('unlinked:'),
-          )
-          .map((workspace) => ({
-            id: workspace.repository.id,
-            displayName: workspace.repository.displayName,
-            absolutePath: workspace.repository.absolutePath,
-          })),
-      )
-    }
+    syncRegisteredCatalog(store, options.dataDirectory)
     return reply.status(201).send({ workspace })
   })
 
@@ -68,7 +67,7 @@ export function registerWorkspaceRoutes(
       if (!parsed.success) {
         throw new AppError(
           'VALIDATION_FAILED',
-          'Workspace update is invalid',
+          '場所の更新内容が正しくありません',
           400,
         )
       }
@@ -85,5 +84,37 @@ export function registerWorkspaceRoutes(
         ),
       }
     },
+  )
+
+  app.delete<{ Params: { id: string } }>(
+    '/api/workspaces/:id',
+    async (request) => {
+      store.deleteWorkspace(request.params.id)
+      syncRegisteredCatalog(store, options.dataDirectory)
+      return unregisterWorkspaceResponseSchema.parse({ ok: true })
+    },
+  )
+}
+
+function syncRegisteredCatalog(
+  store: AppStore,
+  dataDirectory: string | undefined,
+): void {
+  if (!dataDirectory) {
+    return
+  }
+  writeRegisteredRepositoryCatalog(
+    dataDirectory,
+    store
+      .listWorkspaces()
+      .filter(
+        (workspace) =>
+          !workspace.repository.absolutePath.startsWith('unlinked:'),
+      )
+      .map((workspace) => ({
+        id: workspace.repository.id,
+        displayName: workspace.repository.displayName,
+        absolutePath: workspace.repository.absolutePath,
+      })),
   )
 }

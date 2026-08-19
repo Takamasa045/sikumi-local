@@ -596,6 +596,28 @@ main {
   color: #8a3b2b;
   font-size: 12px;
 }
+.repository-place-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.repository-place-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.repository-place-list .repository-panel__path {
+  margin: 4px 0 0;
+}
+.repository-panel button.is-quiet,
+.observer-add-repository button.is-quiet {
+  color: #5c5748;
+  background: #efe8d3;
+}
 
 .job-composer {
   display: grid;
@@ -1367,20 +1389,38 @@ footer span {
   list-style: none;
 }
 .observer-place-row {
-  appearance: none;
-  width: 100%;
   display: grid;
-  gap: 4px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
   padding: 14px 16px;
-  text-align: left;
   background: #f7f3e6;
   border: 1px solid #cfc6b0;
+}
+.observer-place-row.is-selected {
+  border-color: var(--copper);
+}
+.observer-place-row__select {
+  appearance: none;
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
-.observer-place-row.is-selected {
-  border-color: var(--copper);
+.observer-place-row__remove {
+  justify-self: end;
+  min-width: 0;
+  padding: 6px 10px;
+  color: #5c5748;
+  background: #efe8d3;
+  border: 1px solid #cfc6b0;
+  border-radius: 3px;
+  cursor: pointer;
 }
 .observer-place-row__name {
   font-size: 16px;
@@ -1455,6 +1495,9 @@ footer span {
   border: 0;
   border-radius: 3px;
   cursor: pointer;
+}
+.observer-add-repository button[type='button'] {
+  background: #4f6b4a;
 }
 .observer-adapters {
   display: grid;

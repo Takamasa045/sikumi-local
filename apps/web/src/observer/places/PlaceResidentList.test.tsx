@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
+import { UNREGISTER_PLACE_CONFIRM } from '../../workspace/confirmUnregisterPlace'
 import { PlaceResidentList } from './PlaceResidentList'
 
 type RepositoryView = TodayOverview['repositories'][number]
@@ -68,6 +69,40 @@ describe('PlaceResidentList', () => {
     render(<PlaceResidentList overview={overviewOf([])} onSelect={vi.fn()} />)
     expect(screen.queryByRole('button', { name: '仕事を頼む' })).toBeNull()
     expect(screen.getByText(/登録した場所がまだありません/)).toBeVisible()
+  })
+
+  it('asks before removing a registered place', async () => {
+    const onUnregister = vi.fn()
+    vi.stubGlobal('confirm', vi.fn(() => true))
+    render(
+      <PlaceResidentList
+        overview={overviewOf([repository('repo_a', 'notes', [])])}
+        onSelect={vi.fn()}
+        onUnregister={onUnregister}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'この場所を外す' }))
+    expect(window.confirm).toHaveBeenCalledWith(UNREGISTER_PLACE_CONFIRM)
+    expect(onUnregister).toHaveBeenCalledWith('ws_repo_a')
+    vi.unstubAllGlobals()
+  })
+
+  it('keeps the place when removal is cancelled', async () => {
+    const onUnregister = vi.fn()
+    vi.stubGlobal('confirm', vi.fn(() => false))
+    render(
+      <PlaceResidentList
+        overview={overviewOf([repository('repo_a', 'notes', [])])}
+        onSelect={vi.fn()}
+        onUnregister={onUnregister}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: 'この場所を外す' }))
+    expect(onUnregister).not.toHaveBeenCalled()
+    expect(screen.getByText('notes番')).toBeVisible()
+    vi.unstubAllGlobals()
   })
 })
 

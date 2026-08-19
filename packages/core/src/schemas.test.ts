@@ -15,10 +15,12 @@ import {
   installPackRequestSchema,
   jobSchema,
   portableGrowthExportSchema,
+  chooseWorkspaceFolderResponseSchema,
   previewPackRequestSchema,
   providerSchema,
   registerWorkspaceRequestSchema,
   resolveApprovalRequestSchema,
+  unregisterWorkspaceResponseSchema,
   updateWorkspaceRequestSchema,
   workspaceSchema,
 } from './schemas.js'
@@ -58,6 +60,31 @@ describe('registerWorkspaceRequestSchema', () => {
         employeeName: '  イトパン  ',
       }).employeeName,
     ).toBe('イトパン')
+  })
+})
+
+describe('chooseWorkspaceFolderResponseSchema', () => {
+  it('accepts a cancelled native folder pick', () => {
+    expect(chooseWorkspaceFolderResponseSchema.parse({ cancelled: true })).toEqual(
+      { cancelled: true },
+    )
+  })
+
+  it('accepts an absolute path from the native folder pick', () => {
+    expect(
+      chooseWorkspaceFolderResponseSchema.parse({
+        cancelled: false,
+        path: '/Users/example/blog',
+      }),
+    ).toEqual({ cancelled: false, path: '/Users/example/blog' })
+  })
+})
+
+describe('unregisterWorkspaceResponseSchema', () => {
+  it('accepts an ok acknowledgement', () => {
+    expect(unregisterWorkspaceResponseSchema.parse({ ok: true })).toEqual({
+      ok: true,
+    })
   })
 })
 

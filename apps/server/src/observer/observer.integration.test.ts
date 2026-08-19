@@ -77,6 +77,38 @@ describe('observer phase 1', () => {
     expect(activity.json().activity.worktrees.length).toBeGreaterThan(0)
   })
 
+  it('drops a place from today after unregistering without deleting the folder', async () => {
+    const dataDirectory = track(createTemporaryDirectory())
+    const repo = track(createTemporaryGitRepository())
+    const app = createApp(dataDirectory)
+
+    const created = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/workspaces',
+      payload: { path: repo },
+    })
+    const workspaceId = created.json().workspace.id as string
+    const before = await injectPublic(app, {
+      method: 'GET',
+      url: '/api/observer/today',
+    })
+    expect(before.json().overview.repositoryCount).toBe(1)
+
+    const removed = await injectAuthed(app, {
+      method: 'DELETE',
+      url: `/api/workspaces/${workspaceId}`,
+    })
+    expect(removed.statusCode).toBe(200)
+
+    const after = await injectPublic(app, {
+      method: 'GET',
+      url: '/api/observer/today',
+    })
+    expect(after.json().overview.repositoryCount).toBe(0)
+    expect(after.json().overview.repositories).toEqual([])
+    expect(existsSync(repo)).toBe(true)
+  })
+
   it('rejects invalid, huge, and secret-heavy API events while accepting allowlisted ones', async () => {
     const app = createApp(track(createTemporaryDirectory()))
 

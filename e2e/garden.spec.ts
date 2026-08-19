@@ -38,8 +38,8 @@ test('the garden shows registered places as characters, not a list', async ({
   writeFileSync(join(repositoryPath, 'uncommitted.txt'), 'uncommitted change\n')
 
   await page.goto('/#observer')
-  await page.getByLabel('観測するRepositoryの場所').fill(repositoryPath)
-  await page.getByRole('button', { name: '観測するRepositoryを追加' }).click()
+  await page.getByLabel('場所のパス').fill(repositoryPath)
+  await page.getByRole('button', { name: 'この場所を追加' }).click()
   await expect(
     page.getByText(basename(repositoryPath), { exact: false }).first(),
   ).toBeVisible()

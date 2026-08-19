@@ -18,7 +18,7 @@ export function registerWorkspace(
   if (existing) {
     throw new AppError(
       'REPOSITORY_DUPLICATE',
-      'このRepositoryはすでに登録されています',
+      'この場所はすでに観測しています',
       409,
     )
   }

@@ -1,5 +1,6 @@
 import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
+import { confirmUnregisterPlace } from '../../workspace/confirmUnregisterPlace'
 import {
   collectPlaceResidents,
   placeActivityLabel,
@@ -11,6 +12,7 @@ type PlaceResidentListProps = {
   readonly workspaces?: readonly Workspace[]
   readonly selectedRepositoryId?: string | null
   readonly onSelect: (repositoryId: string) => void
+  readonly onUnregister?: (workspaceId: string) => void
 }
 
 export function PlaceResidentList({
@@ -18,6 +20,7 @@ export function PlaceResidentList({
   workspaces = [],
   selectedRepositoryId = null,
   onSelect,
+  onUnregister,
 }: PlaceResidentListProps) {
   const residents = collectPlaceResidents(overview, workspaces)
 
@@ -32,7 +35,7 @@ export function PlaceResidentList({
       </div>
       {residents.length === 0 ? (
         <p className="observer-place-list__empty">
-          登録した場所がまだありません。下の欄からフォルダを追加してください。
+          登録した場所がまだありません。下の「フォルダを選ぶ」から追加してください。
         </p>
       ) : (
         <ul className="observer-place-list__rows" role="list">
@@ -42,6 +45,15 @@ export function PlaceResidentList({
                 resident={resident}
                 selected={resident.repositoryId === selectedRepositoryId}
                 onSelect={() => onSelect(resident.repositoryId)}
+                onUnregister={
+                  onUnregister
+                    ? () => {
+                        if (confirmUnregisterPlace()) {
+                          onUnregister(resident.workspaceId)
+                        }
+                      }
+                    : undefined
+                }
               />
             </li>
           ))}
@@ -55,38 +67,54 @@ function PlaceResidentRow({
   resident,
   selected,
   onSelect,
+  onUnregister,
 }: {
   readonly resident: PlaceResident
   readonly selected: boolean
   readonly onSelect: () => void
+  readonly onUnregister?: () => void
 }) {
   return (
-    <button
-      type="button"
+    <div
       className={
         selected ? 'observer-place-row is-selected' : 'observer-place-row'
       }
-      data-testid={`observer-place-${resident.repositoryId}`}
-      data-working={resident.working ? 'true' : 'false'}
-      data-waiting={resident.waiting ? 'true' : 'false'}
-      onClick={onSelect}
     >
-      <strong className="observer-place-row__name">{resident.placeName}</strong>
-      <span className="observer-place-row__repo">
-        {resident.repositoryName}
-      </span>
-      <span className="observer-place-row__status">
-        {placeActivityLabel(resident)}
-      </span>
-      <span className="observer-place-row__work">
-        {resident.lastObservedWork}
-      </span>
-      {resident.lastObservedLabel ? (
-        <small className="observer-place-row__observed">
-          最後の観測: {resident.lastObservedLabel}
-        </small>
+      <button
+        type="button"
+        className="observer-place-row__select"
+        data-testid={`observer-place-${resident.repositoryId}`}
+        data-working={resident.working ? 'true' : 'false'}
+        data-waiting={resident.waiting ? 'true' : 'false'}
+        onClick={onSelect}
+      >
+        <strong className="observer-place-row__name">{resident.placeName}</strong>
+        <span className="observer-place-row__repo">
+          {resident.repositoryName}
+        </span>
+        <span className="observer-place-row__status">
+          {placeActivityLabel(resident)}
+        </span>
+        <span className="observer-place-row__work">
+          {resident.lastObservedWork}
+        </span>
+        {resident.lastObservedLabel ? (
+          <small className="observer-place-row__observed">
+            最後の観測: {resident.lastObservedLabel}
+          </small>
+        ) : null}
+      </button>
+      {onUnregister ? (
+        <button
+          type="button"
+          className="observer-place-row__remove is-quiet"
+          data-testid={`observer-place-unregister-${resident.workspaceId}`}
+          onClick={onUnregister}
+        >
+          この場所を外す
+        </button>
       ) : null}
-    </button>
+    </div>
   )
 }
 

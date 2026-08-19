@@ -55,20 +55,26 @@ import {
   approvalRequests,
   artifacts,
   auditEntries,
+  conflictFindings,
   employeeInstances,
   employees,
   events,
+  externalSessions,
   growthApplications,
   growthRecords,
   installedPacks,
   jobWorktrees,
   jobs,
+  observerEvents,
   packPreviews,
   providerSessions,
   providerSettings,
   providers,
   repositories,
+  repositorySnapshots,
+  resourceClaims,
   runs,
+  sessionLabels,
   userQuestions,
   workspaces,
   worldFeatureUnlocks,
@@ -100,6 +106,7 @@ export interface AppStore {
     id: string,
     patch: Partial<Pick<Workspace, 'defaultProviderId' | 'employeeName'>>,
   ): Workspace
+  deleteWorkspace(id: string): void
   listProviders(): Provider[]
   insertEmployee(employee: Employee): Employee
   getEmployee(id: string): Employee | undefined
@@ -308,10 +315,70 @@ export function createStore(db: AppDatabase): CombinedStore {
       return created
     },
 
+    deleteWorkspace(id) {
+      const current = this.getWorkspace(id)
+      if (!current) {
+        throw new AppError('NOT_FOUND', '場所が見つかりません', 404)
+      }
+      const repositoryId = current.repository.id
+      const now = new Date().toISOString()
+
+      db.transaction((tx) => {
+        const sessions = tx
+          .select()
+          .from(externalSessions)
+          .where(eq(externalSessions.repositoryId, repositoryId))
+          .all()
+        for (const session of sessions) {
+          tx.delete(sessionLabels)
+            .where(eq(sessionLabels.externalSessionId, session.id))
+            .run()
+        }
+        tx.delete(resourceClaims)
+          .where(eq(resourceClaims.repositoryId, repositoryId))
+          .run()
+        tx.delete(observerEvents)
+          .where(eq(observerEvents.repositoryId, repositoryId))
+          .run()
+        tx.delete(repositorySnapshots)
+          .where(eq(repositorySnapshots.repositoryId, repositoryId))
+          .run()
+        tx.delete(conflictFindings)
+          .where(eq(conflictFindings.repositoryId, repositoryId))
+          .run()
+        tx.delete(externalSessions)
+          .where(eq(externalSessions.repositoryId, repositoryId))
+          .run()
+        tx.delete(worldUnlocks).where(eq(worldUnlocks.workspaceId, id)).run()
+        tx.delete(worldFeatureUnlocks)
+          .where(eq(worldFeatureUnlocks.workspaceId, id))
+          .run()
+        tx.delete(growthRecords).where(eq(growthRecords.workspaceId, id)).run()
+        tx.delete(providerSessions)
+          .where(eq(providerSessions.workspaceId, id))
+          .run()
+        tx.insert(auditEntries)
+          .values({
+            id: randomUUID(),
+            action: 'workspace.unregistered',
+            subjectType: 'workspace',
+            subjectId: id,
+            details: JSON.stringify({
+              absolutePath: current.repository.absolutePath,
+              displayName: current.repository.displayName,
+              diskPreserved: true,
+            }),
+            createdAt: now,
+          })
+          .run()
+        tx.delete(workspaces).where(eq(workspaces.id, id)).run()
+      })
+    },
+
     updateWorkspace(id, patch) {
       const current = this.getWorkspace(id)
       if (!current) {
-        throw new AppError('NOT_FOUND', 'Workspaceが見つかりません', 404)
+        throw new AppError('NOT_FOUND', '場所が見つかりません', 404)
       }
       const next = workspaceSchema.parse({
         ...current,

@@ -87,13 +87,13 @@ export function SettingsPanel({
       />
       <RepositoryPanel
         workspace={workspace}
-        workspaces={workspaces}
         busy={busy}
         error={error}
         onRegister={onRegister}
-        onChooseFolder={onChooseFolder}
-        onUnregister={onUnregister}
-        onEmployeeNameChange={onEmployeeNameChange}
+        {...(workspaces ? { workspaces } : {})}
+        {...(onChooseFolder ? { onChooseFolder } : {})}
+        {...(onUnregister ? { onUnregister } : {})}
+        {...(onEmployeeNameChange ? { onEmployeeNameChange } : {})}
       />
       {workspace && onWorkspaceProviderChange ? (
         <label className="settings-panel__tool">

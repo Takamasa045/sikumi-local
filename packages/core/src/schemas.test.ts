@@ -65,9 +65,9 @@ describe('registerWorkspaceRequestSchema', () => {
 
 describe('chooseWorkspaceFolderResponseSchema', () => {
   it('accepts a cancelled native folder pick', () => {
-    expect(chooseWorkspaceFolderResponseSchema.parse({ cancelled: true })).toEqual(
-      { cancelled: true },
-    )
+    expect(
+      chooseWorkspaceFolderResponseSchema.parse({ cancelled: true }),
+    ).toEqual({ cancelled: true })
   })
 
   it('accepts an absolute path from the native folder pick', () => {

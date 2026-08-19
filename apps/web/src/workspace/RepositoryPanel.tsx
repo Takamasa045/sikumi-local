@@ -87,7 +87,9 @@ export function RepositoryPanel({
           {places.map((place) => (
             <li key={place.id}>
               <div>
-                <strong>{place.employeeName ?? place.repository.displayName}</strong>
+                <strong>
+                  {place.employeeName ?? place.repository.displayName}
+                </strong>
                 <p className="repository-panel__path">
                   {place.repository.absolutePath}
                 </p>
@@ -116,7 +118,7 @@ export function RepositoryPanel({
         busy={busy}
         error={error}
         onRegister={onRegister}
-        onChooseFolder={onChooseFolder}
+        {...(onChooseFolder ? { onChooseFolder } : {})}
       />
     </section>
   )

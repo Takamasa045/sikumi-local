@@ -533,9 +533,10 @@ describe('Shikumi Local garden', () => {
           })
         }
         if (isObserverUrl(url)) {
-          return observerResponse(url, {
-            displayName: workspaces[0]?.repository.displayName,
-          })
+          const displayName = workspaces[0]?.repository.displayName
+          return displayName
+            ? observerResponse(url, { displayName })
+            : observerResponse(url)
         }
         return jsonResponse(
           { error: { code: 'NOT_FOUND', message: 'not found' } },

@@ -655,9 +655,7 @@ export function App() {
       return await chooseWorkspaceFolder()
     } catch (caught) {
       setError(
-        caught instanceof Error
-          ? caught.message
-          : 'フォルダを選べませんでした',
+        caught instanceof Error ? caught.message : 'フォルダを選べませんでした',
       )
       return null
     } finally {
@@ -940,7 +938,9 @@ export function App() {
             <div>
               <span className="eyebrow">観測している場所</span>
               <strong>
-                {placeCount > 0 ? `${placeCount} 件の場所` : '場所はまだありません'}
+                {placeCount > 0
+                  ? `${placeCount} 件の場所`
+                  : '場所はまだありません'}
               </strong>
             </div>
             <div>

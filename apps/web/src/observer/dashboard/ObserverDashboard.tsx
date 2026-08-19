@@ -64,14 +64,14 @@ export function ObserverDashboard({
         workspaces={workspaces}
         selectedRepositoryId={selectedRepositoryId}
         onSelect={onSelectRepository}
-        onUnregister={onUnregister}
+        {...(onUnregister ? { onUnregister } : {})}
       />
 
       <PlaceAddForm
         busy={busy}
         error={error}
         onRegister={onRegister}
-        onChooseFolder={onChooseFolder}
+        {...(onChooseFolder ? { onChooseFolder } : {})}
       />
     </section>
   )

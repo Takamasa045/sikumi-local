@@ -45,15 +45,15 @@ export function PlaceResidentList({
                 resident={resident}
                 selected={resident.repositoryId === selectedRepositoryId}
                 onSelect={() => onSelect(resident.repositoryId)}
-                onUnregister={
-                  onUnregister
-                    ? () => {
+                {...(onUnregister
+                  ? {
+                      onUnregister: () => {
                         if (confirmUnregisterPlace()) {
                           onUnregister(resident.workspaceId)
                         }
-                      }
-                    : undefined
-                }
+                      },
+                    }
+                  : {})}
               />
             </li>
           ))}
@@ -88,7 +88,9 @@ function PlaceResidentRow({
         data-waiting={resident.waiting ? 'true' : 'false'}
         onClick={onSelect}
       >
-        <strong className="observer-place-row__name">{resident.placeName}</strong>
+        <strong className="observer-place-row__name">
+          {resident.placeName}
+        </strong>
         <span className="observer-place-row__repo">
           {resident.repositoryName}
         </span>

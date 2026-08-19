@@ -7,13 +7,15 @@ import {
   readSync,
   statSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import {
   isPlainObject,
+  looksWindowsAbsolutePath,
   OBSERVER_LIVE_MAX_FILE_BYTES,
   OBSERVER_LIVE_MAX_SESSION_FILES,
   OBSERVER_LIVE_SESSION_MAX_AGE_MS,
   safeJoinUnderRoot,
+  type ObserverSurface,
 } from '@sikumi-local/observer-core'
 import { matchRegisteredRoot } from './match.js'
 import { firstExplicitTitle } from './titles.js'
@@ -25,10 +27,25 @@ import type {
 
 export interface SessionFileRecord {
   readonly source: LiveAgentSource
+  readonly surface?: ObserverSurface
   readonly cwd: string
   readonly title: string | null
   readonly lastObservedAt: string
   readonly externalSessionId: string
+}
+
+export function sessionHomeRoots(homeDir: string): {
+  readonly codexSessions: string | null
+  readonly claudeProjects: string | null
+  readonly cursorChats: string | null
+  readonly grokSessions: string | null
+} {
+  return {
+    codexSessions: safeJoinUnderRoot(homeDir, '.codex', 'sessions'),
+    claudeProjects: safeJoinUnderRoot(homeDir, '.claude', 'projects'),
+    cursorChats: safeJoinUnderRoot(homeDir, '.cursor', 'chats'),
+    grokSessions: safeJoinUnderRoot(homeDir, '.grok', 'sessions'),
+  }
 }
 
 export function listRecentSessionRecords(input: {
@@ -53,7 +70,7 @@ function readCodexSessions(
   now: number,
   maxAgeMs: number,
 ): SessionFileRecord[] {
-  const sessionsRoot = safeJoinUnderRoot(homeDir, '.codex', 'sessions')
+  const sessionsRoot = sessionHomeRoots(homeDir).codexSessions
   if (!sessionsRoot || !existsSync(sessionsRoot)) {
     return []
   }
@@ -73,6 +90,7 @@ function readCodexSessions(
     const id = readString(meta?.id) ?? file
     records.push({
       source: 'codex',
+      surface: inferCodexSessionSurface(meta),
       cwd,
       title: titles.get(id) ?? firstExplicitTitle(meta),
       lastObservedAt: new Date(fileMtime(file) ?? now).toISOString(),
@@ -98,7 +116,11 @@ function readCodexTitleIndex(homeDir: string): Map<string, string> {
   for (const line of raw.split(/\r?\n/)) {
     const parsed = parseJsonObject(line)
     const id = readString(parsed?.id)
-    const title = firstExplicitTitle(parsed, ['thread_name', 'threadName', 'title'])
+    const title = firstExplicitTitle(parsed, [
+      'thread_name',
+      'threadName',
+      'title',
+    ])
     if (id && title) {
       titles.set(id, title)
     }
@@ -112,15 +134,17 @@ function readClaudeSessions(
   now: number,
   maxAgeMs: number,
 ): SessionFileRecord[] {
-  const projectsRoot = safeJoinUnderRoot(homeDir, '.claude', 'projects')
+  const projectsRoot = sessionHomeRoots(homeDir).claudeProjects
   if (!projectsRoot || !existsSync(projectsRoot)) {
     return []
   }
   const records: SessionFileRecord[] = []
   for (const root of roots) {
-    const encoded = encodeClaudeProjectDir(root.absolutePath)
-    const projectDir = safeJoinUnderRoot(projectsRoot, encoded)
-    if (!projectDir || !existsSync(projectDir)) {
+    const projectDir = firstExistingJoin(
+      projectsRoot,
+      claudeProjectDirNames(root.absolutePath),
+    )
+    if (!projectDir) {
       continue
     }
     for (const file of listRecentFiles(projectDir, now, maxAgeMs, 1)) {
@@ -135,16 +159,12 @@ function readClaudeSessions(
       }
       const id =
         readString(head?.sessionId) ??
-        file.replace(/\.jsonl$/, '').split('/').pop() ??
+        basename(file.replace(/\.jsonl$/, '')) ??
         file
       records.push({
         source: 'claude-code',
         cwd,
-        title: firstExplicitTitle(head, [
-          'customTitle',
-          'sessionName',
-          'name',
-        ]),
+        title: firstExplicitTitle(head, ['customTitle', 'sessionName', 'name']),
         lastObservedAt: new Date(fileMtime(file) ?? now).toISOString(),
         externalSessionId: `live:claude-code:${id}`,
       })
@@ -162,13 +182,15 @@ function readCursorSessions(
   now: number,
   maxAgeMs: number,
 ): SessionFileRecord[] {
-  const chatsRoot = safeJoinUnderRoot(homeDir, '.cursor', 'chats')
+  const chatsRoot = sessionHomeRoots(homeDir).cursorChats
   const records: SessionFileRecord[] = []
   if (chatsRoot && existsSync(chatsRoot)) {
     for (const root of roots) {
-      const hashed = createHash('md5').update(root.absolutePath).digest('hex')
-      const workspaceDir = safeJoinUnderRoot(chatsRoot, hashed)
-      if (!workspaceDir || !existsSync(workspaceDir)) {
+      const workspaceDir = firstExistingJoin(
+        chatsRoot,
+        cursorWorkspaceKeyHashes(root.absolutePath),
+      )
+      if (!workspaceDir) {
         continue
       }
       for (const file of listRecentFiles(workspaceDir, now, maxAgeMs, 2)) {
@@ -180,7 +202,7 @@ function readCursorSessions(
         if (!matchRegisteredRoot(cwd, roots)) {
           continue
         }
-        const id = file.split('/').at(-2) ?? file
+        const id = basename(dirname(file)) || file
         records.push({
           source: 'cursor',
           cwd,
@@ -203,7 +225,7 @@ function readGrokSessions(
   now: number,
   maxAgeMs: number,
 ): SessionFileRecord[] {
-  const sessionsRoot = safeJoinUnderRoot(homeDir, '.grok', 'sessions')
+  const sessionsRoot = sessionHomeRoots(homeDir).grokSessions
   if (!sessionsRoot || !existsSync(sessionsRoot)) {
     return []
   }
@@ -234,6 +256,56 @@ function readGrokSessions(
 
 export function encodeClaudeProjectDir(cwd: string): string {
   return cwd.replace(/[^A-Za-z0-9]/g, '-')
+}
+
+export function claudeProjectDirNames(cwd: string): string[] {
+  return uniqueStrings(
+    pathVariants(cwd).map((item) => encodeClaudeProjectDir(item)),
+  )
+}
+
+export function cursorWorkspaceKeyHashes(absolutePath: string): string[] {
+  return uniqueStrings(
+    pathVariants(absolutePath).map((item) =>
+      createHash('md5').update(item).digest('hex'),
+    ),
+  )
+}
+
+function pathVariants(path: string): string[] {
+  const trimmed = path.trim()
+  const variants = new Set<string>([trimmed])
+  const unified = trimmed.replaceAll('\\', '/')
+  variants.add(unified)
+  if (looksWindowsAbsolutePath(trimmed) || trimmed.includes('\\')) {
+    variants.add(unified.replaceAll('/', '\\'))
+    if (/^[A-Za-z]:/.test(unified)) {
+      const letter = unified[0]!
+      const rest = unified.slice(1)
+      variants.add(letter.toUpperCase() + rest)
+      variants.add(letter.toLowerCase() + rest)
+      variants.add((letter.toUpperCase() + rest).replaceAll('/', '\\'))
+      variants.add((letter.toLowerCase() + rest).replaceAll('/', '\\'))
+    }
+  }
+  return [...variants]
+}
+
+function firstExistingJoin(
+  root: string,
+  names: readonly string[],
+): string | null {
+  for (const name of names) {
+    const candidate = safeJoinUnderRoot(root, name)
+    if (candidate && existsSync(candidate)) {
+      return candidate
+    }
+  }
+  return null
+}
+
+function uniqueStrings(values: readonly string[]): string[] {
+  return [...new Set(values)]
 }
 
 function listRecentFiles(
@@ -292,7 +364,71 @@ function readJsonHead(path: string): Record<string, unknown> | null {
     return null
   }
   const first = raw.split(/\r?\n/).find((line) => line.trim().length > 0)
-  return parseJsonObject(first ?? '')
+  if (!first) {
+    return null
+  }
+  return parseJsonObject(first) ?? recoverTruncatedJsonFields(first)
+}
+
+function recoverTruncatedJsonFields(
+  raw: string,
+): Record<string, unknown> | null {
+  const cwd = readQuotedJsonField(raw, 'cwd')
+  const id = readQuotedJsonField(raw, 'id')
+  const originator = readQuotedJsonField(raw, 'originator')
+  const source = readQuotedJsonField(raw, 'source')
+  if (!cwd && !id && !originator && !source) {
+    return null
+  }
+  const payload: Record<string, unknown> = {}
+  if (id) {
+    payload.id = id
+  }
+  if (cwd) {
+    payload.cwd = cwd
+  }
+  if (originator) {
+    payload.originator = originator
+  }
+  if (source) {
+    payload.source = source
+  }
+  return {
+    type: readQuotedJsonField(raw, 'type') ?? 'session_meta',
+    payload,
+  }
+}
+
+function readQuotedJsonField(raw: string, key: string): string | null {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = raw.match(
+    new RegExp(`"${escapedKey}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`),
+  )
+  if (!match?.[1]) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(`"${match[1]}"`) as unknown
+    return typeof parsed === 'string' && parsed.trim().length > 0
+      ? parsed.trim()
+      : null
+  } catch {
+    return null
+  }
+}
+
+function inferCodexSessionSurface(
+  meta: Record<string, unknown> | null,
+): ObserverSurface {
+  const originator = (readString(meta?.originator) ?? '').toLowerCase()
+  const client = (readString(meta?.source) ?? '').toLowerCase()
+  if (originator.includes('codex desktop') || originator.includes('desktop')) {
+    return 'desktop-app'
+  }
+  if (client.includes('vscode') || client.includes('ide')) {
+    return 'ide'
+  }
+  return 'cli'
 }
 
 function readJsonObjectFile(path: string): Record<string, unknown> | null {
@@ -372,13 +508,14 @@ export function toLiveSighting(
   return {
     source: record.source,
     surface:
-      record.source === 'cursor'
+      record.surface ??
+      (record.source === 'cursor'
         ? 'cursor-agent'
         : record.source === 'claude-code'
           ? 'cli'
           : record.source === 'grok-build'
             ? 'cli'
-            : 'cli',
+            : 'cli'),
     kind: 'session-file',
     cwd: record.cwd,
     repositoryId: matched.repositoryId,

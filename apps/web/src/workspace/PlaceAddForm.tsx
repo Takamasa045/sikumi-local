@@ -51,7 +51,7 @@ export function PlaceAddForm({
     >
       <h3>観測する場所を追加</h3>
       <p>
-        「フォルダを選ぶ」から登録します。フォルダそのものは消えません。複数の場所を並べて眺められます。
+        「フォルダを選ぶ」から登録します。選べないときは、場所のパスを貼っても大丈夫です。フォルダそのものは消えません。
       </p>
       {onChooseFolder ? (
         <button
@@ -81,7 +81,7 @@ export function PlaceAddForm({
         <input
           name="path"
           aria-label="場所のパス"
-          placeholder="/Users/example/Projects/my-website"
+          placeholder="例：自分のプロジェクトのフォルダ"
           autoComplete="off"
           spellCheck={false}
           disabled={blocked}

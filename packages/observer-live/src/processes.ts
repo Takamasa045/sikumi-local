@@ -13,9 +13,16 @@ const MAX_CANDIDATE_PIDS = 80
 export function listCurrentUserLiveProcesses(input?: {
   readonly currentUser?: string
   readonly listRaw?: () => readonly LiveProcessRow[]
+  readonly platform?: NodeJS.Platform
+  readonly hasProcFs?: boolean
 }): LiveProcessRow[] {
   const currentUser = input?.currentUser ?? userInfo().username
-  const rows = input?.listRaw?.() ?? readOsProcesses(currentUser)
+  const rows =
+    input?.listRaw?.() ??
+    readOsProcesses(currentUser, {
+      platform: input?.platform ?? process.platform,
+      hasProcFs: input?.hasProcFs ?? existsSync('/proc'),
+    })
   return rows.filter((row) => {
     if (row.user !== currentUser) {
       return false
@@ -24,11 +31,29 @@ export function listCurrentUserLiveProcesses(input?: {
   })
 }
 
-function readOsProcesses(currentUser: string): LiveProcessRow[] {
-  if (existsSync('/proc')) {
+export function liveProcessDiscoveryMode(
+  platform: NodeJS.Platform = process.platform,
+): 'process-scan' | 'session-files-only' {
+  return platform === 'win32' ? 'session-files-only' : 'process-scan'
+}
+
+function readOsProcesses(
+  currentUser: string,
+  input: {
+    readonly platform: NodeJS.Platform
+    readonly hasProcFs: boolean
+  },
+): LiveProcessRow[] {
+  if (input.platform === 'win32') {
+    return []
+  }
+  if (input.hasProcFs) {
     return readLinuxProcesses(currentUser)
   }
-  return readDarwinProcesses(currentUser)
+  if (input.platform === 'darwin') {
+    return readDarwinProcesses(currentUser)
+  }
+  return []
 }
 
 function readLinuxProcesses(currentUser: string): LiveProcessRow[] {
@@ -157,9 +182,7 @@ function readDarwinProcesses(currentUser: string): LiveProcessRow[] {
 function parsePsLine(
   line: string,
 ): Omit<LiveProcessRow, 'cwd' | 'childCwds'> | null {
-  const match = line
-    .trim()
-    .match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(.*)$/)
+  const match = line.trim().match(/^(\d+)\s+(\d+)\s+(\S+)\s+(\S+)\s+(.*)$/)
   if (!match) {
     return null
   }

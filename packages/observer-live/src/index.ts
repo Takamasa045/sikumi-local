@@ -9,10 +9,16 @@ export {
   matchRegisteredPlace,
   matchRegisteredRoot,
 } from './match.js'
-export { listCurrentUserLiveProcesses } from './processes.js'
 export {
+  listCurrentUserLiveProcesses,
+  liveProcessDiscoveryMode,
+} from './processes.js'
+export {
+  claudeProjectDirNames,
+  cursorWorkspaceKeyHashes,
   encodeClaudeProjectDir,
   listRecentSessionRecords,
+  sessionHomeRoots,
 } from './session-files.js'
 export { acceptStoredTitle, firstExplicitTitle } from './titles.js'
 export {

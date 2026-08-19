@@ -6,6 +6,8 @@ import {
   isDeniedObserverKey,
   looksWindowsAbsolutePath,
   normalizeComparablePath,
+  realUserHome,
+  safeJoinUnderRoot,
   OBSERVER_MAX_BATCH_BYTES,
   OBSERVER_MAX_BATCH_COUNT,
   OBSERVER_MAX_EVENT_BYTES,
@@ -195,6 +197,25 @@ describe('phase 8 cross-platform paths', () => {
     )
     expect(toRepoRelativePath('C:\\repo-other\\src\\a.ts', 'C:\\repo')).toBe(
       '/repo-other/src/a.ts',
+    )
+  })
+
+  it('reads the Windows home from USERPROFILE and joins session folders under it', () => {
+    expect(
+      realUserHome({
+        USERPROFILE: 'C:\\Users\\mei',
+        HOME: '/c/Users/mei',
+      }),
+    ).toBe('C:\\Users\\mei')
+    expect(safeJoinUnderRoot('C:\\Users\\mei', '.codex', 'sessions')).toBe(
+      'C:\\Users\\mei\\.codex\\sessions',
+    )
+    expect(safeJoinUnderRoot('C:/Users/mei', '.claude', 'projects')).toBe(
+      'C:\\Users\\mei\\.claude\\projects',
+    )
+    expect(safeJoinUnderRoot('C:\\Users\\mei', '..', 'other')).toBeNull()
+    expect(safeJoinUnderRoot('/tmp/home', '.codex', 'sessions')).toBe(
+      '/tmp/home/.codex/sessions',
     )
   })
 

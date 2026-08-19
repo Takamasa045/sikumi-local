@@ -174,9 +174,8 @@ export function presentObserverInstallApiResult(
   result: ObserverInstallResult,
 ): ObserverInstallResult {
   const sanitized = sanitizeInstallResultForApi(result)
-  const parsed = observerInstallResultSchema.safeParse(sanitized)
-  if (parsed.success) {
-    return parsed.data
+  if (observerInstallResultSchema.safeParse(sanitized).success) {
+    return sanitized
   }
   return fallbackInstallResult(result)
 }

@@ -7,6 +7,7 @@ import {
   listObserverAdapters,
   runObserverAdapterAction,
   type ObserverAdapterView,
+  type ObserverInstallView,
 } from '../../api/observer'
 
 type AdapterOutcome = {
@@ -359,7 +360,7 @@ function outcomeCopy(source: string, action: 'install' | 'uninstall'): string {
 
 function isConnectSuccess(
   source: string,
-  result: { readonly ok: boolean; readonly applied?: boolean },
+  result: ObserverInstallView,
 ): boolean {
   if (!result.ok) {
     return false
@@ -370,11 +371,7 @@ function isConnectSuccess(
   return result.applied === true
 }
 
-function connectFailureMessage(result: {
-  readonly ok: boolean
-  readonly message: string
-  readonly applied?: boolean
-}): string {
+function connectFailureMessage(result: ObserverInstallView): string {
   if (!result.ok) {
     return result.message
   }

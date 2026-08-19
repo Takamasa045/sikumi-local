@@ -262,7 +262,7 @@ describe('presentObserverInstallApiResult', () => {
           preview: 'z'.repeat(30_000),
         },
       ],
-    } as ObserverInstallResult)
+    } as unknown as ObserverInstallResult)
     expect(observerInstallResultSchema.safeParse(presented).success).toBe(true)
     expect(presented.ok).toBe(false)
     expect(presented.applied).toBe(false)

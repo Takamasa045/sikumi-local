@@ -1068,9 +1068,18 @@ function inspectNowLines(resident: PlaceResident): string[] {
     lines.push(leftoverSentence)
   } else if (
     leftover &&
-    !resident.working &&
     !hideLeftoverAreas &&
     leftoverKinds.length === 0 &&
+    !storyImpliesLeftover(resident.workStory) &&
+    !lines.some((line) => line.includes('途中の仕事'))
+  ) {
+    lines.push(LEFTOVER_WORK_REMAINING)
+  } else if (
+    leftover &&
+    !resident.working &&
+    leftoverKinds.length > 0 &&
+    leftoverKinds.every((area) => isVagueLeftoverArea(area)) &&
+    !hideLeftoverAreas &&
     !storyImpliesLeftover(resident.workStory) &&
     !lines.some((line) => line.includes('途中の仕事'))
   ) {
@@ -1187,6 +1196,9 @@ function leftoverKindsSentence(
 ): string | null {
   const named = leftoverKindAreas(resident)
   const shown = named.slice(0, 2)
+  if (shown.length > 0 && shown.every((area) => isVagueLeftoverArea(area))) {
+    return null
+  }
   if (shown.length === 2) {
     return `${shown[0]}と${shown[1]}の途中が残っています。`
   }
@@ -1207,11 +1219,7 @@ function leftoverKindAreas(
     resident.workStory && !labels.includes('記事')
       ? ['記事', ...labels]
       : labels
-  const shown = withArticle.slice(0, 2)
-  if (shown.length > 0 && shown.every((area) => isVagueLeftoverArea(area))) {
-    return []
-  }
-  return shown
+  return withArticle.slice(0, 2)
 }
 
 function leftoverWorkSummary(
@@ -1330,8 +1338,13 @@ function describeNextStep(
   if (leftoverKinds.length === 2) {
     return `${leftoverKinds[0]}と${leftoverKinds[1]}の途中を続ける`
   }
-  if (leftoverKinds.length === 1) {
-    return `${leftoverKinds[0]}の途中を続ける`
+  const leftoverKind = leftoverKinds[0]
+  if (
+    leftoverKinds.length === 1 &&
+    leftoverKind &&
+    !isVagueLeftoverArea(leftoverKind)
+  ) {
+    return `${leftoverKind}の途中を続ける`
   }
   if (resident.changedFileCount > 0) {
     return '途中の仕事を続ける'

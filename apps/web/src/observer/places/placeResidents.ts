@@ -25,6 +25,19 @@ const CONFIRMED_TOOL_SURFACES = new Set([
 const ATLAS_COLUMNS = 3
 const ATLAS_ROWS = 4
 const QUIET_STATIONS = ['rest', 'delivery'] as const
+const GENERIC_AREA_LABEL = '作業中のファイル'
+const GENERIC_AREA_DISPLAY = 'そのほか'
+const LEFTOVER_FILES_PER_AREA = 3
+const BUBBLE_AREA_SHORT: Readonly<Record<string, string>> = {
+  確認用の仕組み: '確認',
+  道具の一覧: '道具',
+  ユーザー情報: 'ユーザー',
+  ログイン状態: 'ログイン',
+  データの形: 'データ',
+  別作業場: '別の場所',
+}
+
+export const LEFTOVER_WORK_MEANING = '記録する前の、途中の仕事です'
 
 export const GARDEN_GROUND = {
   minX: 36,
@@ -45,6 +58,23 @@ type OverviewSession = OverviewRepository['sessions'][number]
 export type GardenPlaceStation = Exclude<GardenStationId, 'observatory'>
 export type GardenPlaceTone = 'waiting' | 'working' | 'observing'
 
+export type LeftoverWorkItem = {
+  readonly path: string
+  readonly name: string
+  readonly areaLabel: string
+  readonly changeLabel: string
+}
+
+export type LeftoverWorkGroup = {
+  readonly areaLabel: string
+  readonly names: readonly string[]
+}
+
+export type LeftoverWorkCopy = {
+  readonly groups: readonly LeftoverWorkGroup[]
+  readonly more: boolean
+}
+
 export type PlaceResident = {
   readonly repositoryId: string
   readonly workspaceId: string
@@ -58,6 +88,8 @@ export type PlaceResident = {
   readonly lastChangedAt: string | null
   readonly lastObservedAt: string | null
   readonly changedFileCount: number
+  readonly leftoverItems: readonly LeftoverWorkItem[]
+  readonly leftoverTruncated: boolean
   readonly areas: readonly string[]
   readonly conflictCount: number
   readonly latestRecordTitle: string | null
@@ -71,6 +103,7 @@ export type PlaceInspectCopy = {
   readonly implementationLook: string | null
   readonly nextStep: string | null
   readonly driverNote: string | null
+  readonly leftoverWork: LeftoverWorkCopy | null
 }
 
 export type GardenPlaceActor = {
@@ -81,6 +114,7 @@ export type GardenPlaceActor = {
   readonly workSummary: string
   readonly nowText: string | null
   readonly implementationLook: string | null
+  readonly leftoverWork: LeftoverWorkCopy | null
   readonly nextStep: string | null
   readonly driverNote: string | null
   readonly station: GardenPlaceStation
@@ -143,6 +177,7 @@ export function collectPlaceResidents(
     )
     const latest = latestSession(repository.sessions ?? [])
     const latestObserved = latestSession(observed)
+    const leftover = collectLeftoverItems(repository)
     return {
       repositoryId: repository.repositoryId,
       workspaceId: repository.workspaceId,
@@ -169,6 +204,8 @@ export function collectPlaceResidents(
       lastChangedAt: repository.lastChangedAt ?? null,
       lastObservedAt: latest?.lastObservedAt ?? null,
       changedFileCount: repository.changedFileCount,
+      leftoverItems: leftover.items,
+      leftoverTruncated: leftover.truncated,
       areas: lookAreas(repository),
       conflictCount: repository.conflicts.length,
       latestRecordTitle: everydayRecordTitle(repository.latestRecordTitle),
@@ -195,6 +232,8 @@ export function collectPlaceResidents(
       lastChangedAt: workspace.updatedAt,
       lastObservedAt: workspace.updatedAt,
       changedFileCount: 0,
+      leftoverItems: [],
+      leftoverTruncated: false,
       areas: [],
       conflictCount: 0,
       latestRecordTitle: null,
@@ -229,6 +268,7 @@ export function collectGardenActors(
         workSummary: describeVisibleFacts(resident),
         nowText: inspect.nowText,
         implementationLook: inspect.implementationLook,
+        leftoverWork: inspect.leftoverWork,
         nextStep: inspect.nextStep,
         driverNote: inspect.driverNote,
         station: plot?.station ?? stationForResident(resident),
@@ -246,10 +286,12 @@ export function collectGardenActors(
 }
 
 export function hasUnfinishedGardenWork(
-  resident: Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'> | {
-    readonly changedFileCount?: number
-    readonly outgoingCount?: number | null
-  },
+  resident:
+    | Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'>
+    | {
+        readonly changedFileCount?: number
+        readonly outgoingCount?: number | null
+      },
 ): boolean {
   return (
     (resident.changedFileCount ?? 0) > 0 || (resident.outgoingCount ?? 0) > 0
@@ -257,10 +299,7 @@ export function hasUnfinishedGardenWork(
 }
 
 export function stationForResident(
-  resident: Pick<
-    PlaceResident,
-    'waiting' | 'working' | 'repositoryId'
-  > &
+  resident: Pick<PlaceResident, 'waiting' | 'working' | 'repositoryId'> &
     Partial<Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'>>,
   hash = stableHash(resident.repositoryId),
 ): GardenPlaceStation {
@@ -337,8 +376,7 @@ export function assignGardenGroundPlots(
     })
   }
   for (const resident of ordered.filter(
-    (item) =>
-      !item.waiting && !item.working && hasUnfinishedGardenWork(item),
+    (item) => !item.waiting && !item.working && hasUnfinishedGardenWork(item),
   )) {
     const { plot, slot } = takeClosest(REST_POINT)
     assigned.set(resident.repositoryId, {
@@ -349,8 +387,7 @@ export function assignGardenGroundPlots(
     })
   }
   for (const resident of ordered.filter(
-    (item) =>
-      !item.waiting && !item.working && !hasUnfinishedGardenWork(item),
+    (item) => !item.waiting && !item.working && !hasUnfinishedGardenWork(item),
   )) {
     const plotIndex = unused.shift() ?? 0
     const plot = plots[plotIndex] ?? REST_POINT
@@ -465,7 +502,7 @@ export function describeVisibleFacts(resident: PlaceResident): string {
     return `${area}まわりを直している`
   }
   if (resident.changedFileCount > 0) {
-    return `しまっていない変更が${resident.changedFileCount}`
+    return leftoverWorkSummary(resident)
   }
   if (resident.waiting) {
     return '確認待ち'
@@ -488,8 +525,34 @@ export function describePlaceInspect(
   return {
     nowText: joinFactLines(inspectNowLines(resident)),
     implementationLook: joinFactLines(inspectLookLines(resident)),
+    leftoverWork: describeLeftoverWork(resident),
     nextStep: describeNextStep(resident),
     driverNote: resident.driverNote,
+  }
+}
+
+export function describeLeftoverWork(
+  resident: Pick<
+    PlaceResident,
+    'changedFileCount' | 'leftoverItems' | 'leftoverTruncated'
+  >,
+): LeftoverWorkCopy | null {
+  if (resident.changedFileCount <= 0 && resident.leftoverItems.length === 0) {
+    return null
+  }
+  const groups = groupLeftoverItems(
+    resident.leftoverItems,
+    LEFTOVER_FILES_PER_AREA,
+  )
+  if (groups.length === 0) {
+    return null
+  }
+  const shown = groups.reduce((sum, group) => sum + group.names.length, 0)
+  return {
+    groups,
+    more:
+      resident.leftoverTruncated ||
+      uniqueLeftoverNames(resident.leftoverItems).length > shown,
   }
 }
 
@@ -559,16 +622,17 @@ function inspectNowLines(resident: PlaceResident): string[] {
 function inspectLookLines(resident: PlaceResident): string[] {
   const lines: string[] = []
   if (resident.changedFileCount > 0) {
-    lines.push(`しまっていない変更が${resident.changedFileCount}`)
+    lines.push(LEFTOVER_WORK_MEANING)
+    lines.push(`途中の仕事が${resident.changedFileCount}`)
   }
-  const named = uniqueLabels(resident.areas).filter(
-    (area) => area !== '作業中のファイル',
-  )
-  const shown = named.slice(0, 2)
-  if (shown.length === 1) {
-    lines.push(`${shown[0]}あたり`)
-  } else if (shown.length >= 2) {
-    lines.push(`${shown[0]}や${shown[1]}あたり`)
+  if (resident.leftoverItems.length === 0) {
+    const named = namedAreas(resident.areas)
+    const shown = named.slice(0, 2)
+    if (shown.length === 1) {
+      lines.push(`${shown[0]}あたり`)
+    } else if (shown.length >= 2) {
+      lines.push(`${shown[0]}や${shown[1]}あたり`)
+    }
   }
   if ((resident.outgoingCount ?? 0) > 0) {
     lines.push('送っていない')
@@ -607,11 +671,32 @@ function spokenWorkTitle(
   return softened
 }
 
+function leftoverWorkSummary(resident: Pick<PlaceResident, 'areas'>): string {
+  const named = namedAreas(resident.areas).map(shortAreaForBubble)
+  const shown = named.slice(0, 2)
+  if (shown.length === 2) {
+    return `${shown[0]}や${shown[1]}まわりに、途中の仕事がある`
+  }
+  if (shown.length === 1) {
+    return `${shown[0]}まわりに、途中の仕事がある`
+  }
+  return '途中の仕事がある'
+}
+
 function primaryArea(resident: Pick<PlaceResident, 'areas'>): string | null {
-  return (
-    uniqueLabels(resident.areas).find((item) => item !== '作業中のファイル') ??
-    null
-  )
+  return namedAreas(resident.areas)[0] ?? null
+}
+
+function namedAreas(areas: readonly string[]): string[] {
+  return uniqueLabels(areas).filter((item) => !isGenericArea(item))
+}
+
+function shortAreaForBubble(area: string): string {
+  return BUBBLE_AREA_SHORT[area] ?? area
+}
+
+function isGenericArea(area: string): boolean {
+  return area === GENERIC_AREA_LABEL
 }
 
 function joinFactLines(lines: readonly string[]): string | null {
@@ -651,6 +736,81 @@ function lookAreas(repository: OverviewRepository): string[] {
     }
   }
   return uniqueLabels(fromFiles)
+}
+
+function collectLeftoverItems(repository: OverviewRepository): {
+  readonly items: LeftoverWorkItem[]
+  readonly truncated: boolean
+} {
+  const items: LeftoverWorkItem[] = []
+  const seen = new Set<string>()
+  let truncated = repository.truncated === true
+  for (const worktree of repository.worktrees) {
+    if (worktree.filesTruncated) {
+      truncated = true
+    }
+    for (const file of worktree.files) {
+      const path = file.path.trim()
+      const name = leftoverDisplayName(path)
+      if (!path || !name || seen.has(path)) {
+        continue
+      }
+      seen.add(path)
+      items.push({
+        path,
+        name,
+        areaLabel: file.areaLabel.trim() || GENERIC_AREA_LABEL,
+        changeLabel: file.changeLabel.trim(),
+      })
+    }
+  }
+  if (repository.changedFileCount > items.length) {
+    truncated = true
+  }
+  return { items, truncated }
+}
+
+function leftoverDisplayName(path: string): string {
+  const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '')
+  const parts = normalized.split('/').filter(Boolean)
+  return parts[parts.length - 1] ?? ''
+}
+
+function groupLeftoverItems(
+  items: readonly LeftoverWorkItem[],
+  limit: number,
+): LeftoverWorkGroup[] {
+  const order: string[] = []
+  const namesByArea = new Map<string, string[]>()
+  for (const item of items) {
+    const area = displayAreaLabel(item.areaLabel)
+    if (!namesByArea.has(area)) {
+      order.push(area)
+      namesByArea.set(area, [])
+    }
+    const names = namesByArea.get(area)!
+    if (!names.includes(item.name)) {
+      names.push(item.name)
+    }
+  }
+  const known = order.filter((area) => area !== GENERIC_AREA_DISPLAY)
+  const generic = order.filter((area) => area === GENERIC_AREA_DISPLAY)
+  return [...known, ...generic].map((area) => ({
+    areaLabel: area,
+    names: (namesByArea.get(area) ?? []).slice(0, limit),
+  }))
+}
+
+function uniqueLeftoverNames(items: readonly LeftoverWorkItem[]): string[] {
+  return uniqueLabels(items.map((item) => item.name))
+}
+
+function displayAreaLabel(area: string): string {
+  const trimmed = area.trim()
+  if (!trimmed || isGenericArea(trimmed)) {
+    return GENERIC_AREA_DISPLAY
+  }
+  return trimmed
 }
 
 function describeObservedDriver(

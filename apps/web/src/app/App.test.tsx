@@ -120,9 +120,7 @@ describe('Shikumi Local garden', () => {
     render(<App />)
     await openTodayWorkshop()
 
-    expect(
-      screen.getByRole('heading', { name: '登録した場所' }),
-    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: '登録した場所' })).toBeVisible()
     expect(screen.getByTestId('connection-badge')).toHaveAttribute(
       'data-status',
       'observing',
@@ -309,7 +307,13 @@ describe('Shikumi Local garden', () => {
     )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(' / ')
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      'しまっていない変更が2',
+      '記録する前の、途中の仕事です',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      '途中の仕事が2',
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
+      'しまっていない変更',
     )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       '作業中のファイル',
@@ -406,9 +410,7 @@ describe('Shikumi Local garden', () => {
         '1 件の場所',
       )
     })
-    expect(
-      screen.getByRole('heading', { name: '登録した場所' }),
-    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: '登録した場所' })).toBeVisible()
     await openSettings()
     expect(screen.getByText('✓ Gitの場所です')).toBeVisible()
     expect(screen.getByText('✓ いまの枝: main')).toBeVisible()
@@ -451,7 +453,10 @@ describe('Shikumi Local garden', () => {
         if (url.endsWith('/api/workspaces') && method === 'GET') {
           return jsonResponse({ workspaces: [] })
         }
-        if (url.endsWith('/api/workspaces/choose-folder') && method === 'POST') {
+        if (
+          url.endsWith('/api/workspaces/choose-folder') &&
+          method === 'POST'
+        ) {
           return jsonResponse({
             cancelled: false,
             path: '/Users/example/picked-blog',
@@ -497,8 +502,13 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
     await openTodayWorkshop()
-    await userEvent.type(screen.getByLabelText('担当の名前（任意）'), 'ブログ番')
-    await userEvent.click(screen.getByRole('button', { name: 'フォルダを選ぶ' }))
+    await userEvent.type(
+      screen.getByLabelText('担当の名前（任意）'),
+      'ブログ番',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: 'フォルダを選ぶ' }),
+    )
     expect(screen.getByLabelText('場所のパス')).toHaveValue(
       '/Users/example/picked-blog',
     )
@@ -574,13 +584,18 @@ describe('Shikumi Local garden', () => {
         )
       },
     )
-    vi.stubGlobal('confirm', vi.fn(() => true))
+    vi.stubGlobal(
+      'confirm',
+      vi.fn(() => true),
+    )
 
     render(<App />)
     expect(await screen.findByText('my-project番')).toBeVisible()
     await openTodayWorkshop()
     expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
-    await userEvent.click(screen.getByRole('button', { name: 'この場所を外す' }))
+    await userEvent.click(
+      screen.getByRole('button', { name: 'この場所を外す' }),
+    )
     await waitFor(() => {
       expect(screen.queryByTestId('observer-place-repo_1')).toBeNull()
     })
@@ -631,7 +646,8 @@ describe('Shikumi Local garden', () => {
       screen.getByText((content) => content === 'my-project'),
     ).toBeVisible()
     expect(screen.queryByText('まだ分かっていません')).toBeNull()
-    expect(screen.getByText(/しまっていない変更が1/)).toBeVisible()
+    expect(screen.getByText('ログインまわりに、途中の仕事がある')).toBeVisible()
+    expect(screen.queryByText(/しまっていない変更/)).toBeNull()
     expect(screen.queryByText('Codexが変更中')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: '仕事を頼む' }),
@@ -878,10 +894,9 @@ describe('Shikumi Local garden', () => {
     expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
     expect(screen.getByText('kept-project番')).toBeVisible()
     expect(screen.queryByText('まだ分かっていません')).toBeNull()
-    expect(screen.getByText(/しまっていない変更が1/)).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'この場所を追加' }),
-    ).toBeVisible()
+    expect(screen.getByText('ログインまわりに、途中の仕事がある')).toBeVisible()
+    expect(screen.queryByText(/しまっていない変更/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'この場所を追加' })).toBeVisible()
   })
 
   it('keeps an add-repository path after the first workspace exists', async () => {
@@ -968,9 +983,7 @@ describe('Shikumi Local garden', () => {
     render(<App />)
     await openTodayWorkshop()
     expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
-    expect(
-      screen.getByRole('button', { name: 'この場所を追加' }),
-    ).toBeVisible()
+    expect(screen.getByRole('button', { name: 'この場所を追加' })).toBeVisible()
     await userEvent.type(
       screen.getByLabelText('場所のパス'),
       '/Users/example/second-project',
@@ -1228,10 +1241,7 @@ describe('Shikumi Local garden', () => {
     render(<App />)
 
     await openTodayWorkshop()
-    await userEvent.type(
-      screen.getByLabelText('場所のパス'),
-      '/tmp/not-git',
-    )
+    await userEvent.type(screen.getByLabelText('場所のパス'), '/tmp/not-git')
     await userEvent.click(
       screen.getByRole('button', { name: 'この場所を追加' }),
     )

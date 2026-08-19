@@ -155,6 +155,56 @@ describe('live discovery without hooks', () => {
     ).toBe(false)
   })
 
+  it('marks a registered place as working from a huge Codex Desktop session file', async () => {
+    const { store, dataDirectory } = openIsolatedStore()
+    const repo = track(createTemporaryGitRepository())
+    const workspace = store.createWorkspace({
+      absolutePath: repo,
+      displayName: 'hataraki',
+      currentBranch: 'main',
+      remoteName: null,
+      remoteUrl: null,
+      readable: true,
+    })
+    const home = track(createTemporaryDirectory())
+    writeCodexRollout(home, repo, 'sess-huge-desktop', Date.now() - 15_000, {
+      originator: 'Codex Desktop',
+      clientSource: 'vscode',
+      firstLineBytes: 48_000,
+    })
+
+    const service = trackService(
+      createObserverService(store, dataDirectory, {
+        consistencyIntervalMs: 0,
+        liveHomeDir: home,
+        liveCurrentUser: 'mei',
+        listLiveProcesses: () => [
+          {
+            pid: 88,
+            user: 'mei',
+            command: 'ChatGPT',
+            args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+            cwd: '/',
+            childCwds: ['/', '/tmp', '/Users/takamasa'],
+          },
+        ],
+      }),
+    )
+    await service.recover()
+
+    const overview = service.today()
+    const repository = overview.repositories.find(
+      (item) => item.repositoryId === workspace.repository.id,
+    )
+    const session = repository?.sessions.find((item) => item.source === 'codex')
+    expect(session).toMatchObject({
+      source: 'codex',
+      surface: 'desktop-app',
+      status: 'active',
+    })
+    expect(session?.title).not.toBe('変更元不明の作業')
+  })
+
   it('binds Codex Desktop at / to a registered place via a same-repo twin session', async () => {
     const { store, dataDirectory } = openIsolatedStore()
     const registered = track(
@@ -218,6 +268,11 @@ function writeCodexRollout(
   cwd: string,
   id: string,
   mtime: number,
+  extras: {
+    readonly originator?: string
+    readonly clientSource?: string
+    readonly firstLineBytes?: number
+  } = {},
 ) {
   const folder = join(home, '.codex', 'sessions', '2026', '08', '19')
   mkdirSync(folder, { recursive: true })
@@ -226,7 +281,15 @@ function writeCodexRollout(
     file,
     `${JSON.stringify({
       type: 'session_meta',
-      payload: { id, cwd },
+      payload: {
+        id,
+        cwd,
+        ...(extras.originator ? { originator: extras.originator } : {}),
+        ...(extras.clientSource ? { source: extras.clientSource } : {}),
+        ...(extras.firstLineBytes
+          ? { base_instructions: 'X'.repeat(extras.firstLineBytes) }
+          : {}),
+      },
     })}\n`,
   )
   const at = new Date(mtime)

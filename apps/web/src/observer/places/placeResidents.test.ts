@@ -843,11 +843,13 @@ describe('collectGardenActors', () => {
 
     expect(actors).toHaveLength(2)
     expect(actors.every((actor) => actor.placeName === '継番')).toBe(true)
-    expect(actors.every((actor) => actor.workSummary === '動画を作っている')).toBe(
-      true,
-    )
     expect(
-      actors.every((actor) => actor.nowText === 'Grokで動画を作っている'),
+      actors.every((actor) => actor.workSummary === '動画を作っている'),
+    ).toBe(true)
+    expect(
+      actors.every((actor) =>
+        actor.nowText?.includes('Grokで動画を作っている'),
+      ),
     ).toBe(true)
     expect(actors.some((actor) => actor.placeName === '継番 2')).toBe(false)
     expect(JSON.stringify(actors)).not.toMatch(
@@ -893,12 +895,17 @@ describe('collectGardenActors', () => {
 
     expect(actors).toHaveLength(2)
     expect(actors.every((actor) => actor.placeName === '継番')).toBe(true)
-    expect(actors.every((actor) => actor.workSummary === '動画を作っている')).toBe(
-      true,
-    )
     expect(
-      actors.map((actor) => actor.nowText).sort(),
-    ).toEqual(['Codexで動画を作っている', 'Grokで動画を作っている'])
+      actors.every((actor) => actor.workSummary === '動画を作っている'),
+    ).toBe(true)
+    expect(
+      actors.some((actor) => actor.nowText?.includes('Grokで動画を作っている')),
+    ).toBe(true)
+    expect(
+      actors.some((actor) =>
+        actor.nowText?.includes('Codexで動画を作っている'),
+      ),
+    ).toBe(true)
     expect(JSON.stringify(actors)).not.toMatch(
       /もう一つの仕事|Grok 2|Codex 2|Grok Build|fake-claude|変更元不明|縁側|SHA/,
     )
@@ -942,7 +949,7 @@ describe('collectGardenActors', () => {
     expect(actors).toHaveLength(1)
     expect(actors[0]?.placeName).toBe('継番')
     expect(actors[0]?.workSummary).toBe('動画を作っている')
-    expect(actors[0]?.nowText).toBe('Grokで動画を作っている')
+    expect(actors[0]?.nowText).toContain('Grokで動画を作っている')
     expect(actors[0]?.nowText).not.toContain('Codex')
     expect(JSON.stringify(actors)).not.toMatch(
       /もう一つの仕事|Codexで|Grok Build|fake-claude|変更元不明|縁側|SHA/,

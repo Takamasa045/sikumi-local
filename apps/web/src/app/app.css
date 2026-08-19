@@ -1386,7 +1386,6 @@ footer span {
 .observer-garden-page {
   display: grid;
   gap: 16px;
-  justify-items: center;
 }
 .observer-place-list {
   display: grid;
@@ -2888,48 +2887,5 @@ footer span {
   .observer-garden.observer-garden--satoyama .observer-garden-look-button {
     flex: 1 1 auto;
     text-align: center;
-  }
-}
-
-/* Observer garden yard: square floor, no round crop. WorldStage is unchanged. */
-.observer-garden.observer-garden--satoyama[data-garden-floor='square'] {
-  width: min(100%, min(86vw, 820px));
-  aspect-ratio: 1 / 1;
-  height: auto;
-  min-height: 0;
-  margin-inline: auto;
-  border-radius: 2px;
-  box-shadow: none;
-}
-
-.observer-garden.observer-garden--satoyama[data-garden-floor='square']
-  .observer-garden-mist {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 250, 240, 0.1),
-    transparent 24%,
-    rgba(28, 24, 16, 0.1) 100%
-  );
-}
-
-.observer-garden.observer-garden--satoyama[data-garden-floor='square']
-  .observer-garden-ground {
-  inset: 0;
-  border-radius: 0;
-  clip-path: none;
-}
-
-.observer-garden.observer-garden--satoyama[data-garden-floor='square']
-  .observer-garden-station-pill {
-  writing-mode: horizontal-tb;
-  text-orientation: mixed;
-  letter-spacing: 0.12em;
-}
-
-@media (max-width: 760px) {
-  .observer-garden.observer-garden--satoyama[data-garden-floor='square'] {
-    width: 100%;
-    min-height: 0;
-    border-radius: 0;
   }
 }

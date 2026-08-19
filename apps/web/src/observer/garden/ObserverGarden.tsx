@@ -99,6 +99,10 @@ function actorPoint(actor: GardenPlaceActor): { x: number; y: number } {
   }
 }
 
+function isVisibleGardenPlace(id: string): id is StationId {
+  return (VISIBLE_GARDEN_PLACES as readonly string[]).includes(id)
+}
+
 export function ObserverGarden({
   overview,
   workspaces = [],
@@ -157,7 +161,7 @@ export function ObserverGarden({
         role="region"
         aria-label="観測の庭"
         data-world-pack={world.id}
-        data-garden-floor="square"
+        data-garden-floor="wide"
         style={gardenStyle}
       >
         <div className="observer-garden-mist" aria-hidden="true" />
@@ -415,17 +419,16 @@ function liveInspectSubject(
     return null
   }
   if (inspect.kind === 'station') {
+    if (!isVisibleGardenPlace(inspect.station)) {
+      return inspect
+    }
     const occupants = stationOccupants(inspect.station)
-    const place = inspect.station as StationId
-    const label = observerGardenPlaceLabels[place]
     return {
       ...inspect,
       occupants,
-      title: label ?? inspect.title,
-      meaning: observerGardenPlaceMeanings[place] ?? inspect.meaning,
-      occupantsText: label
-        ? describeObserverPlaceOccupants(place, occupants)
-        : inspect.occupantsText,
+      title: observerGardenPlaceLabels[inspect.station],
+      meaning: observerGardenPlaceMeanings[inspect.station],
+      occupantsText: describeObserverPlaceOccupants(inspect.station, occupants),
     }
   }
   const actor = actors.find((item) => item.key === selectedKey)

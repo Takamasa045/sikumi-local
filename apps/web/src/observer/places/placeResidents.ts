@@ -78,31 +78,31 @@ const HOOK_LEFTOVER_TITLE_PATTERNS = [
 ]
 
 export const GARDEN_GROUND = {
-  minX: 12,
+  minX: 16,
   maxX: 88,
-  minY: 16,
-  maxY: 86,
+  minY: 32,
+  maxY: 68,
 } as const
 
 export const GARDEN_WORK_GROUND = {
-  minX: 26,
-  maxX: 74,
-  minY: 60,
-  maxY: 82,
+  minX: 28,
+  maxX: 72,
+  minY: 54,
+  maxY: 66,
 } as const
 
 export const GARDEN_DELIVERY_GROUND = {
-  minX: 30,
-  maxX: 70,
-  minY: 16,
-  maxY: 30,
+  minX: 38,
+  maxX: 76,
+  minY: 32,
+  maxY: 42,
 } as const
 
 export const GARDEN_PLACE_POINTS = {
-  workbench: { x: 46, y: 72 },
-  delivery: { x: 58, y: 22 },
-  waiting: { x: 86, y: 50 },
-  rest: { x: 14, y: 50 },
+  workbench: { x: 48, y: 60 },
+  delivery: { x: 64, y: 36 },
+  waiting: { x: 84, y: 46 },
+  rest: { x: 20, y: 56 },
 } as const
 
 const WORKBENCH_POINT = GARDEN_PLACE_POINTS.workbench
@@ -668,17 +668,20 @@ export function assignGardenGroundPlots(
   )
   spreadAlongY(
     WAITING_POINT.x,
-    GARDEN_WORK_GROUND.minY - 22,
-    GARDEN_WORK_GROUND.minY - 2,
+    GARDEN_DELIVERY_GROUND.minY,
+    GARDEN_WORK_GROUND.maxY - 4,
     waiting.length,
   ).forEach((point, index) => {
     place(waiting[index]!, point, 'waiting')
   })
-  spreadAlongY(REST_POINT.x, 36, 70, leftover.length).forEach(
-    (point, index) => {
-      place(leftover[index]!, point, 'rest')
-    },
-  )
+  spreadAlongY(
+    REST_POINT.x,
+    GARDEN_DELIVERY_GROUND.maxY,
+    GARDEN_WORK_GROUND.maxY,
+    leftover.length,
+  ).forEach((point, index) => {
+    place(leftover[index]!, point, 'rest')
+  })
   spreadAroundX(GARDEN_DELIVERY_GROUND, DELIVERY_POINT.x, quiet.length).forEach(
     (point, index) => {
       place(quiet[index]!, point, 'delivery')

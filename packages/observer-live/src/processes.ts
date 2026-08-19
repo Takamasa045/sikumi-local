@@ -4,6 +4,7 @@ import { userInfo } from 'node:os'
 import { resolveCommandOnPath } from '@sikumi-local/process-runtime'
 import { identifyLiveAgent } from './identify.js'
 import { isBindableCwd } from './match.js'
+import { parseElapsedToMs } from './sitting.js'
 import type { LiveProcessRow } from './types.js'
 
 const PROCESS_TIMEOUT_MS = 3_000
@@ -123,10 +124,129 @@ function readLinuxProcesses(currentUser: string): LiveProcessRow[] {
     }
   }
 
+  const activity = readLinuxProcessActivity(identified.map((row) => row.pid))
+  const childCountByParent = countLinuxChildren(listed, identified)
   return identified.map((row) => ({
     ...row,
     childCwds: childCwdsByParent.get(row.pid) ?? [],
+    childCount: childCountByParent.get(row.pid) ?? 0,
+    ...(activity.get(row.pid) ?? {}),
   }))
+}
+
+function readLinuxProcessActivity(pids: readonly number[]): Map<
+  number,
+  {
+    readonly state: string | null
+    readonly cpuPercent: number | null
+    readonly startedAtMs: number | null
+  }
+> {
+  const found = new Map<
+    number,
+    {
+      readonly state: string | null
+      readonly cpuPercent: number | null
+      readonly startedAtMs: number | null
+    }
+  >()
+  const bootMs = readLinuxBootMs()
+  const hertz = 100
+  for (const pid of pids) {
+    const parsed = parseLinuxStat(readProcFile(`/proc/${pid}/stat`))
+    if (!parsed) {
+      continue
+    }
+    const elapsedTicks = parsed.elapsedTicks
+    const cpuPercent =
+      elapsedTicks > 0
+        ? ((parsed.utime + parsed.stime) / elapsedTicks) * 100
+        : 0
+    found.set(pid, {
+      state: parsed.state,
+      cpuPercent,
+      startedAtMs:
+        bootMs == null ? null : bootMs + (parsed.starttime / hertz) * 1000,
+    })
+  }
+  return found
+}
+
+function parseLinuxStat(stat: string | null): {
+  readonly state: string
+  readonly utime: number
+  readonly stime: number
+  readonly starttime: number
+  readonly elapsedTicks: number
+} | null {
+  if (!stat) {
+    return null
+  }
+  const close = stat.lastIndexOf(')')
+  if (close < 0) {
+    return null
+  }
+  const rest = stat
+    .slice(close + 1)
+    .trim()
+    .split(/\s+/)
+  const state = rest[0] ?? ''
+  const utime = Number(rest[11] ?? 0)
+  const stime = Number(rest[12] ?? 0)
+  const starttime = Number(rest[19] ?? 0)
+  if (!state) {
+    return null
+  }
+  const uptimeTicks = readLinuxUptimeTicks()
+  return {
+    state,
+    utime,
+    stime,
+    starttime,
+    elapsedTicks:
+      uptimeTicks == null ? 0 : Math.max(0, uptimeTicks - starttime),
+  }
+}
+
+function readLinuxBootMs(): number | null {
+  const stat = readProcFile('/proc/stat')
+  const match = stat?.match(/^btime\s+(\d+)/m)
+  if (!match) {
+    return null
+  }
+  return Number(match[1]) * 1000
+}
+
+function readLinuxUptimeTicks(): number | null {
+  const uptime = readProcFile('/proc/uptime')
+  if (!uptime) {
+    return null
+  }
+  const seconds = Number(uptime.split(/\s+/)[0] ?? '')
+  return Number.isFinite(seconds) ? seconds * 100 : null
+}
+
+function countLinuxChildren(
+  listed: readonly string[],
+  parents: readonly { readonly pid: number }[],
+): Map<number, number> {
+  const parentPids = new Set(parents.map((item) => item.pid))
+  const counts = new Map<number, number>()
+  for (const pid of parentPids) {
+    counts.set(pid, 0)
+  }
+  for (const entry of listed) {
+    if (!/^\d+$/.test(entry)) {
+      continue
+    }
+    const status = readProcFile(`/proc/${entry}/status`)
+    const ppid = status ? readLinuxPpid(status) : null
+    if (ppid == null || !parentPids.has(ppid)) {
+      continue
+    }
+    counts.set(ppid, (counts.get(ppid) ?? 0) + 1)
+  }
+  return counts
 }
 
 function readDarwinProcesses(currentUser: string): LiveProcessRow[] {
@@ -169,6 +289,8 @@ function readDarwinProcesses(currentUser: string): LiveProcessRow[] {
   )
   const childPids = childPidsOf(needsChildren, userRows)
   const childCwdByPid = readDarwinCwds(childPids)
+  const allChildPids = childPidsOf(identified, userRows)
+  const activity = readDarwinProcessActivity(identified.map((item) => item.pid))
   return identified.map((item) => ({
     ...item,
     cwd: cwdByPid.get(item.pid) ?? null,
@@ -176,7 +298,67 @@ function readDarwinProcesses(currentUser: string): LiveProcessRow[] {
       .filter((pid) => parentPid(userRows, pid) === item.pid)
       .map((pid) => childCwdByPid.get(pid))
       .filter((cwd): cwd is string => isBindableCwd(cwd)),
+    childCount: allChildPids.filter(
+      (pid) => parentPid(userRows, pid) === item.pid,
+    ).length,
+    ...(activity.get(item.pid) ?? {}),
   }))
+}
+
+function readDarwinProcessActivity(pids: readonly number[]): Map<
+  number,
+  {
+    readonly state: string | null
+    readonly cpuPercent: number | null
+    readonly startedAtMs: number | null
+  }
+> {
+  const found = new Map<
+    number,
+    {
+      readonly state: string | null
+      readonly cpuPercent: number | null
+      readonly startedAtMs: number | null
+    }
+  >()
+  if (pids.length === 0) {
+    return found
+  }
+  const ps = resolveCommandOnPath('ps')
+  if (!ps) {
+    return found
+  }
+  let stdout: string
+  try {
+    stdout = execFileSync(
+      ps,
+      ['-o', 'pid=,stat=,pcpu=,etime=', '-p', pids.join(',')],
+      {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: PROCESS_TIMEOUT_MS,
+        maxBuffer: PROCESS_MAX_BUFFER,
+        windowsHide: true,
+      },
+    )
+  } catch {
+    return found
+  }
+  const now = Date.now()
+  for (const line of stdout.split('\n')) {
+    const match = line.trim().match(/^(\d+)\s+(\S+)\s+(\S+)\s+(\S+)$/)
+    if (!match) {
+      continue
+    }
+    const elapsedMs = parseElapsedToMs(match[4])
+    const cpu = Number(match[3])
+    found.set(Number(match[1]), {
+      state: match[2] ?? null,
+      cpuPercent: Number.isFinite(cpu) ? cpu : null,
+      startedAtMs: elapsedMs == null ? null : now - elapsedMs,
+    })
+  }
+  return found
 }
 
 function parsePsLine(

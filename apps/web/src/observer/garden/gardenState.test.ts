@@ -56,7 +56,7 @@ describe('shouldShowGardenDog', () => {
     ).toBe(true)
   })
 
-  it('hides a waiting session last seen outside the short window', () => {
+  it('keeps a waiting session even when last seen outside the short window', () => {
     expect(
       shouldShowGardenDog(
         session({
@@ -65,6 +65,33 @@ describe('shouldShowGardenDog', () => {
           status: 'idle',
           activity: 'waiting-for-user',
           lastObservedAt: '2026-08-19T00:00:00.000Z',
+        }),
+        NOW_MS,
+      ),
+    ).toBe(true)
+    expect(
+      shouldShowGardenDog(
+        session({
+          id: 'stale-wait',
+          source: 'codex',
+          status: 'stale',
+          activity: 'waiting-for-user',
+          lastObservedAt: '2026-08-18T23:11:00.000Z',
+        }),
+        NOW_MS,
+      ),
+    ).toBe(true)
+  })
+
+  it('does not walk a live process that is only sitting idle', () => {
+    expect(
+      shouldShowGardenDog(
+        session({
+          id: 'sit',
+          source: 'grok',
+          status: 'active',
+          activity: 'idle',
+          lastObservedAt: NOW,
         }),
         NOW_MS,
       ),

@@ -911,6 +911,123 @@ describe('collectGardenActors', () => {
     )
   })
 
+  it('does not walk a sitting Grok when another Grok is the one making the video', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-248',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'grok-26794',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'idle',
+              lastObservedAt: '2026-08-19T00:09:00.000Z',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]?.placeName).toBe('継番')
+    expect(actors[0]?.tone).toBe('working')
+    expect(actors[0]?.workSummary).toBe('動画を作っている')
+    expect(actors[0]?.nowText).toContain('Grokで動画を作っている')
+    expect(actors[0]?.workSummary).not.toBe(ANOTHER_LIVE_WORK)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /もう一つの仕事|Grok 2|Codex 2|Grok Build|fake-claude|変更元不明|縁側|SHA/,
+    )
+  })
+
+  it('keeps Codex approval wait on 継 even when last seen is old', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-248',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'grok-26794',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'idle',
+              lastObservedAt: '2026-08-19T00:09:00.000Z',
+            }),
+            session({
+              id: 'codex',
+              source: 'codex',
+              surface: 'desktop-app',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'stale',
+              activity: 'waiting-for-user',
+              lastObservedAt: '2026-08-18T23:11:00.000Z',
+              lastObservedLabel: '1時間前',
+            }),
+          ],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.every((actor) => actor.placeName === '継番')).toBe(true)
+    const working = actors.find((actor) => actor.tone === 'working')
+    const waiting = actors.find((actor) => actor.tone === 'waiting')
+    expect(working?.workSummary).toBe('動画を作っている')
+    expect(working?.nowText).toContain('Grokで動画を作っている')
+    expect(working?.station).toBe('workbench')
+    expect(waiting?.workSummary).toBe('確認待ち')
+    expect(waiting?.nowText).toContain('確認待ち')
+    expect(waiting?.nowText).not.toContain('Grokで')
+    expect(waiting?.driverNote).toBe('Codexが動かしている')
+    expect(waiting?.station).toBe('waiting')
+    expect(
+      isGardenDeliveryGround({
+        x: waiting?.groundX ?? 0,
+        y: waiting?.groundY ?? 0,
+      }),
+    ).toBe(false)
+    expect(actors.some((actor) => actor.placeName === '継番 2')).toBe(false)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /もう一つの仕事|Grok 2|Codex 2|Grok Build|fake-claude|変更元不明|縁側|SHA/,
+    )
+  })
+
   it('does not name a live Grok walker Codex when Codex is stale', () => {
     const actors = collectGardenActors(
       overviewOf([

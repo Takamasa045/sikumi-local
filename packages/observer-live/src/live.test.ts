@@ -28,6 +28,12 @@ import {
   liveProcessDiscoveryMode,
 } from './processes.js'
 import { encodeClaudeProjectDir, sessionHomeRoots } from './session-files.js'
+import {
+  isSittingLiveProcess,
+  LIVE_SITTING_MIN_AGE_MS,
+  parseElapsedToMs,
+} from './sitting.js'
+import { liveSightingToEvent } from './events.js'
 import { acceptGoalText, acceptStoredTitle } from './titles.js'
 import type { LiveProcessRow, RegisteredLiveRoot } from './types.js'
 
@@ -39,6 +45,49 @@ afterEach(() => {
   for (const directory of tempDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+describe('sitting live processes', () => {
+  it('treats a days-old sleeping process with no children as sitting', () => {
+    expect(parseElapsedToMs('4-02:15:33')).toBe(
+      (((4 * 24 + 2) * 60 + 15) * 60 + 33) * 1000,
+    )
+    expect(parseElapsedToMs('01:05:30')).toBe((1 * 3600 + 5 * 60 + 30) * 1000)
+    expect(parseElapsedToMs('05:30')).toBe((5 * 60 + 30) * 1000)
+    expect(
+      isSittingLiveProcess(
+        {
+          state: 'S+',
+          cpuPercent: 0,
+          startedAtMs: NOW - LIVE_SITTING_MIN_AGE_MS - 1_000,
+          childCount: 0,
+        },
+        NOW,
+      ),
+    ).toBe(true)
+    expect(
+      isSittingLiveProcess(
+        {
+          state: 'R+',
+          cpuPercent: 8,
+          startedAtMs: NOW - 20 * 60_000,
+          childCount: 1,
+        },
+        NOW,
+      ),
+    ).toBe(false)
+    expect(
+      isSittingLiveProcess(
+        {
+          state: 'S+',
+          cpuPercent: 0,
+          startedAtMs: NOW - 20 * 60_000,
+          childCount: 0,
+        },
+        NOW,
+      ),
+    ).toBe(false)
+  })
 })
 
 describe('identifyLiveAgent', () => {
@@ -523,6 +572,130 @@ describe('discoverLiveSessions', () => {
     expect(groks.every((item) => item.kind === 'process')).toBe(true)
     expect(sightings.some((item) => item.source === 'claude-code')).toBe(false)
     expect(JSON.stringify(sightings)).not.toContain('fake-claude')
+  })
+
+  it('marks a days-old sleeping grok as idle and keeps the working one editing', () => {
+    const home = track(createTempDir('home-'))
+    const tsugite = track(createTempDir('tsugite-'))
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-tsugite', 'ws-tsugite', tsugite)],
+      listProcesses: () => [
+        processRow({
+          pid: 248,
+          user: 'mei',
+          command: 'grok',
+          args: 'grok',
+          cwd: tsugite,
+          state: 'R+',
+          cpuPercent: 12,
+          startedAtMs: NOW - 20 * 60_000,
+          childCount: 2,
+        }),
+        processRow({
+          pid: 26794,
+          user: 'mei',
+          command: 'grok',
+          args: 'grok',
+          cwd: tsugite,
+          state: 'S+',
+          cpuPercent: 0,
+          startedAtMs: NOW - 4 * 86_400_000,
+          childCount: 0,
+          childCwds: [],
+        }),
+      ],
+    })
+
+    const groks = sightings.filter((item) => item.source === 'grok-build')
+    expect(groks).toHaveLength(2)
+    expect(groks.find((item) => item.pid === 248)?.activity).toBe('editing')
+    expect(groks.find((item) => item.pid === 26794)?.activity).toBe('idle')
+    expect(
+      liveSightingToEvent(groks.find((item) => item.pid === 26794)!).activity,
+    ).toBe('idle')
+  })
+
+  it('binds a Codex app-server at / to an existing waiting tsugite session', () => {
+    const home = track(createTempDir('home-'))
+    const tsugite = track(createTempDir('tsugite-'))
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-tsugite', 'ws-tsugite', tsugite)],
+      existingSessions: [
+        {
+          source: 'codex',
+          cwd: tsugite,
+          repositoryId: 'repo-tsugite',
+          status: 'stale',
+          activity: 'waiting-for-user',
+        },
+      ],
+      listProcesses: () => [
+        processRow({
+          pid: 91,
+          user: 'mei',
+          command: 'ChatGPT',
+          args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+          cwd: '/',
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      kind: 'process',
+      repositoryId: 'repo-tsugite',
+      cwd: tsugite,
+      activity: 'waiting-for-user',
+    })
+  })
+
+  it('does not invent a waiting place when two stale Codex sessions exist', () => {
+    const home = track(createTempDir('home-'))
+    const tsugite = track(createTempDir('tsugite-'))
+    const hataraki = track(createTempDir('hataraki-'))
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [
+        root('repo-tsugite', 'ws-tsugite', tsugite),
+        root('repo-hataraki', 'ws-hataraki', hataraki),
+      ],
+      existingSessions: [
+        {
+          source: 'codex',
+          cwd: tsugite,
+          repositoryId: 'repo-tsugite',
+          status: 'stale',
+          activity: 'editing',
+        },
+        {
+          source: 'codex',
+          cwd: hataraki,
+          repositoryId: 'repo-hataraki',
+          status: 'stale',
+          activity: 'editing',
+        },
+      ],
+      listProcesses: () => [
+        processRow({
+          pid: 91,
+          user: 'mei',
+          command: 'ChatGPT',
+          args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+          cwd: '/',
+        }),
+      ],
+    })
+
+    expect(sightings.filter((item) => item.kind === 'process')).toHaveLength(0)
   })
 
   it('prefers a readable session title over a generic live 作業中 title', () => {

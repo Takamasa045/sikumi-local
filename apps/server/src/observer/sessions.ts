@@ -99,7 +99,16 @@ export function nextSessionStatus(
   current?: ExternalSessionStatus,
 ): ExternalSessionStatus {
   if (isLiveProcessPresence(event)) {
-    return current === 'waiting-for-user' ? 'waiting-for-user' : 'active'
+    if (
+      current === 'waiting-for-user' ||
+      event.activity === 'waiting-for-user'
+    ) {
+      return 'waiting-for-user'
+    }
+    if (event.activity === 'idle') {
+      return 'idle'
+    }
+    return 'active'
   }
   switch (event.normalizedType) {
     case 'session.started':
@@ -252,7 +261,9 @@ export function markStaleSessions(
       session.status === 'ended' ||
       session.status === 'failed' ||
       session.status === 'completed' ||
-      session.status === 'stale'
+      session.status === 'stale' ||
+      session.status === 'waiting-for-user' ||
+      session.activity === 'waiting-for-user'
     ) {
       continue
     }

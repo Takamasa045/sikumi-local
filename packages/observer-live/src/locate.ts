@@ -121,6 +121,7 @@ export function sightingFromLocatedProcess(input: {
   readonly located: NonNullable<ReturnType<typeof locateLiveProcess>>
   readonly title: string | null
   readonly lastObservedAt: string
+  readonly activity?: LiveSighting['activity']
 }): LiveSighting {
   return {
     source: input.source,
@@ -139,5 +140,6 @@ export function sightingFromLocatedProcess(input: {
       input.process.pid,
     ),
     pid: input.process.pid,
+    ...(input.activity ? { activity: input.activity } : {}),
   }
 }

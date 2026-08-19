@@ -753,6 +753,7 @@ export function createObserverService(
         homeDir: options.liveHomeDir ?? realUserHome(),
         currentUser: options.liveCurrentUser ?? userInfo().username,
         now,
+        existingSessions: collectAdoptableLiveSessions(store),
         ...(listProcesses ? { listProcesses } : {}),
       })
     } catch {
@@ -873,6 +874,35 @@ export function createObserverService(
   }
 
   return service
+}
+
+function collectAdoptableLiveSessions(store: CombinedStore): Array<{
+  readonly source: string
+  readonly cwd: string | null
+  readonly repositoryId: string | null
+  readonly status: string
+  readonly activity: string
+}> {
+  return store
+    .listExternalSessions()
+    .filter(
+      (session) =>
+        session.source !== 'git' &&
+        Boolean(session.cwd ?? session.worktreePath) &&
+        session.status !== 'completed' &&
+        session.status !== 'ended' &&
+        session.status !== 'failed' &&
+        (session.status === 'waiting-for-user' ||
+          session.activity === 'waiting-for-user' ||
+          session.status === 'stale'),
+    )
+    .map((session) => ({
+      source: session.source,
+      cwd: session.cwd ?? session.worktreePath,
+      repositoryId: session.repositoryId,
+      status: session.status,
+      activity: session.activity,
+    }))
 }
 
 function resolveLiveProcessLister(

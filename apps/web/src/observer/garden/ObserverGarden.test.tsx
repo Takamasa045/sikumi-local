@@ -369,8 +369,11 @@ describe('ObserverGarden', () => {
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('alpha番')
     expect(inspect).toHaveTextContent('いま')
+    expect(inspect).toHaveTextContent('いまの仕事')
     expect(inspect).toHaveTextContent('APIを直している')
-    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).toHaveTextContent('作業しています')
+    expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('画面まわりを直している')
     expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).not.toHaveTextContent('実装の様子')
@@ -383,7 +386,7 @@ describe('ObserverGarden', () => {
     expect(inspect).not.toHaveTextContent('いまの作業の続き')
     expect(inspect).not.toHaveTextContent('Codexが動かしている')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
-    expect(inspect).toHaveTextContent(/資料棚|作業台|確認の場所/)
+    expect(inspect).toHaveTextContent(/作業しています|仕事の合間にいます|確認を待っています/)
     expect(inspect.querySelector('.garden-inspect__title')).toHaveTextContent(
       'alpha番',
     )
@@ -500,7 +503,10 @@ describe('ObserverGarden', () => {
     await userEvent.click(
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認の場所')
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      '確認を待っています',
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('縁側')
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認待ち')
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('承認が必要')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(' / ')
@@ -599,8 +605,8 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('いちばん新しい記録：働きの直し')
-    expect(inspect).toHaveTextContent('画面まわりを直している')
-    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).not.toHaveTextContent('画面まわりを直している')
     expect(inspect).not.toHaveTextContent('記録する前の、途中の仕事です')
     expect(inspect).not.toHaveTextContent('途中の仕事が2')
     expect(inspect).toHaveTextContent('送っていない')
@@ -619,8 +625,9 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('画面まわりを直している')
-    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).not.toHaveTextContent('画面まわりを直している')
+    expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('記録する前の、途中の仕事です')
     expect(inspect).not.toHaveTextContent('途中の仕事が1')
     expect(inspect).not.toHaveTextContent('画面あたり')
@@ -660,8 +667,8 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('画面や確認まわりを直している')
-    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('画面と確認の仕組みの途中が残っています。')
+    expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('Office.tsx')
     expect(inspect).not.toHaveTextContent('garden.spec.ts')
     expect(inspect).not.toHaveTextContent('api-fixture-entry.ts')
@@ -680,6 +687,13 @@ describe('ObserverGarden', () => {
         repository('repo_blog', 'my-blog', [], 4, [], {
           workStory:
             'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+          articleTitles: [
+            {
+              title: 'AIチームは多いほど強い、ではなかった',
+              date: '2026-08-15',
+            },
+            { title: '短い下書き', date: '2026-08-01' },
+          ],
         }),
       ]),
       [workspace('ws_repo_blog', 'ブログ番')],
@@ -700,7 +714,13 @@ describe('ObserverGarden', () => {
     expect(inspect).toHaveTextContent(
       'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
     )
-    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('これまでの記事')
+    expect(inspect).toHaveTextContent(
+      '2026-08-15 AIチームは多いほど強い、ではなかった',
+    )
+    expect(inspect).toHaveTextContent('2026-08-01 短い下書き')
+    expect(inspect).toHaveTextContent('記事の途中が残っています。')
+    expect(within(residents).queryByText('これまでの記事')).toBeNull()
     expect(inspect).not.toHaveTextContent('MEMORY.md')
     expect(inspect).not.toHaveTextContent('BLOG_WORKSPACE.md')
     expect(inspect).not.toHaveTextContent('STYLE.md')
@@ -857,6 +877,7 @@ function repository(
   extras: {
     readonly latestRecordTitle?: string | null
     readonly workStory?: string | null
+    readonly articleTitles?: RepositoryView['articleTitles']
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
     readonly worktrees?: RepositoryView['worktrees']
@@ -873,6 +894,7 @@ function repository(
     lastChangedLabel: null,
     latestRecordTitle: extras.latestRecordTitle ?? null,
     workStory: extras.workStory ?? null,
+    articleTitles: extras.articleTitles ?? [],
     outgoingCount: extras.outgoingCount ?? null,
     incomingCount: extras.incomingCount ?? null,
     sessions,

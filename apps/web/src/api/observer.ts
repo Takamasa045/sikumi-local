@@ -10,6 +10,7 @@ const sessionViewSchema = z.object({
   activity: z.string(),
   attributionConfidence: z.string(),
   title: z.string(),
+  goal: z.string().nullable().optional(),
   lastObservedAt: z.string(),
   lastObservedLabel: z.string().nullable(),
 })
@@ -85,6 +86,14 @@ export const repositoryActivitySchema = z.object({
   lastChangedLabel: z.string().nullable(),
   latestRecordTitle: z.string().nullable().optional(),
   workStory: z.string().nullable().optional(),
+  articleTitles: z
+    .array(
+      z.object({
+        title: z.string(),
+        date: z.string().nullable().optional(),
+      }),
+    )
+    .optional(),
   outgoingCount: z.number().nullable().optional(),
   incomingCount: z.number().nullable().optional(),
   sessions: z.array(sessionViewSchema),

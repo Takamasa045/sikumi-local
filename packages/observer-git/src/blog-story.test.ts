@@ -2,7 +2,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { looksLikeBlogKit, readBlogWorkStory } from './blog-story.js'
+import {
+  looksLikeBlogKit,
+  readBlogArticleTitles,
+  readBlogWorkStory,
+} from './blog-story.js'
 
 const tempDirectories: string[] = []
 
@@ -103,6 +107,43 @@ describe('readBlogWorkStory', () => {
     expect(readBlogWorkStory(root, { changedPaths: ['MEMORY.md'] })).toBe(
       '記事の続きがある',
     )
+  })
+
+  it('lists readable article titles newest first without inventing one', () => {
+    const root = createBlogKit({
+      articlesLog: [
+        'date | title | characters | memo',
+        '2026-07-01 | 短い下書き | 400 |',
+        '2026-08-01 | 春のメモ | 800 |',
+        '2026-08-15 | AIチームは多いほど強い、ではなかった | 3200 | 公開',
+        '2026-08-16 | MEMORY.md | 12 |',
+      ].join('\n'),
+      topics: [
+        { folder: '2026-08-10_older', title: '古い下書き' },
+        { folder: '2026-08-18_later', title: 'まだ書いていない題' },
+      ],
+    })
+
+    expect(readBlogArticleTitles(root)).toEqual([
+      { title: 'まだ書いていない題', date: '2026-08-18' },
+      { title: 'AIチームは多いほど強い、ではなかった', date: '2026-08-15' },
+      { title: '古い下書き', date: '2026-08-10' },
+      { title: '春のメモ', date: '2026-08-01' },
+      { title: '短い下書き', date: '2026-07-01' },
+    ])
+    expect(readBlogWorkStory(root)).toBe(
+      'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+    )
+    expect(JSON.stringify(readBlogArticleTitles(root))).not.toContain(
+      'MEMORY.md',
+    )
+  })
+
+  it('omits the history when no article title can be read', () => {
+    const root = createBlogKit({
+      articlesLog: 'date | title | characters | memo\n',
+    })
+    expect(readBlogArticleTitles(root)).toEqual([])
   })
 
   it('does not treat a topics folder without the blog workspace as a kit', () => {

@@ -47,6 +47,21 @@ const EVERYDAY_INSPECT_AREAS: Readonly<Record<string, string>> = {
   ログイン状態: 'ログイン',
 }
 
+const LEFTOVER_KIND_AREAS: Readonly<Record<string, string>> = {
+  画面: '画面',
+  確認: '確認の仕組み',
+  確認用の仕組み: '確認の仕組み',
+  道具: '道具',
+  道具の一覧: '道具',
+  ユーザー: 'ユーザー',
+  ユーザー情報: 'ユーザー',
+  ログイン: 'ログイン',
+  ログイン状態: 'ログイン',
+  記事: '記事',
+}
+
+const BUBBLE_GOAL_MAX = 36
+
 export const LEFTOVER_WORK_REMAINING = '途中の仕事が残っている'
 export const ANOTHER_LIVE_WORK = 'もう一つの仕事が動いている'
 
@@ -96,6 +111,11 @@ export type PlaceResident = {
   readonly conflictCount: number
   readonly latestRecordTitle: string | null
   readonly workStory: string | null
+  readonly articleTitles: readonly {
+    readonly title: string
+    readonly date: string | null
+  }[]
+  readonly goal: string | null
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
   readonly driverNote: string | null
@@ -106,6 +126,11 @@ export type PlaceInspectCopy = {
   readonly implementationLook: string | null
   readonly nextStep: string | null
   readonly driverNote: string | null
+  readonly goal: string | null
+  readonly articleTitles: readonly {
+    readonly title: string
+    readonly date: string | null
+  }[]
 }
 
 type GardenActorSource = PlaceResident & {
@@ -123,6 +148,11 @@ export type GardenPlaceActor = {
   readonly implementationLook: string | null
   readonly nextStep: string | null
   readonly driverNote: string | null
+  readonly goal: string | null
+  readonly articleTitles: readonly {
+    readonly title: string
+    readonly date: string | null
+  }[]
   readonly station: GardenPlaceStation
   readonly tone: GardenPlaceTone
   readonly groundX: number
@@ -214,6 +244,8 @@ export function collectPlaceResidents(
       conflictCount: repository.conflicts.length,
       latestRecordTitle: everydayRecordTitle(repository.latestRecordTitle),
       workStory: everydayWorkStory(repository.workStory),
+      articleTitles: everydayArticleTitles(repository.articleTitles),
+      goal: pickResidentGoal(observed, nowMs),
       outgoingCount: repository.outgoingCount ?? null,
       incomingCount: repository.incomingCount ?? null,
       driverNote: describeObservedDriver(observed, nowMs),
@@ -241,6 +273,8 @@ export function collectPlaceResidents(
       conflictCount: 0,
       latestRecordTitle: null,
       workStory: null,
+      articleTitles: [],
+      goal: null,
       outgoingCount: null,
       incomingCount: null,
       driverNote: null,
@@ -346,6 +380,8 @@ function residentForLiveStream(
     lastObservedWorkLabel: session.lastObservedLabel,
     lastObservedAt: session.lastObservedAt,
     workStory: primary ? resident.workStory : null,
+    articleTitles: primary ? resident.articleTitles : [],
+    goal: sessionGoal(session) ?? (primary ? resident.goal : null),
     changedFileCount: primary ? resident.changedFileCount : 0,
     outgoingCount: primary ? resident.outgoingCount : null,
     incomingCount: primary ? resident.incomingCount : null,
@@ -421,6 +457,8 @@ export function collectGardenActors(
         implementationLook: inspect.implementationLook,
         nextStep: inspect.nextStep,
         driverNote: inspect.driverNote,
+        goal: inspect.goal,
+        articleTitles: inspect.articleTitles,
         station: plot?.station ?? stationForResident(source),
         tone,
         groundX: clamp(
@@ -721,7 +759,7 @@ export function placeActivityLabel(resident: PlaceResident): string {
 export function describeVisibleFacts(resident: PlaceResident): string {
   const spoken = spokenWorkTitle(resident)
   const area = primaryArea(resident)
-  if (resident.working && spoken) {
+  if (resident.working && spoken && spoken.length <= BUBBLE_GOAL_MAX) {
     return spoken
   }
   if (resident.working && resident.workStory) {
@@ -756,6 +794,8 @@ export function describePlaceInspect(
     implementationLook: null,
     nextStep: describeNextStep(resident),
     driverNote: resident.driverNote,
+    goal: resident.working ? resident.goal : null,
+    articleTitles: resident.articleTitles,
   }
 }
 
@@ -802,8 +842,8 @@ function inspectLastStateLines(resident: PlaceResident): string[] {
     !resident.waiting &&
     spoken === softenRecordTitle(resident.latestRecordTitle)
   const leftover = resident.changedFileCount > 0
-  const areaWork =
-    leftover || resident.working ? describeAreaWork(resident) : null
+  const leftoverKinds = leftover ? leftoverKindsSentence(resident) : null
+  const areaWork = resident.working ? describeAreaWork(resident) : null
 
   if (resident.waiting && !resident.working) {
     lines.push('確認待ち')
@@ -813,12 +853,10 @@ function inspectLastStateLines(resident: PlaceResident): string[] {
     lines.push(resident.workStory)
   } else if (spoken && spoken !== '確認待ち' && !spokenIsOnlyRecord) {
     lines.push(spoken)
-  } else if (resident.working && areaWork) {
+  } else if (resident.working && !resident.goal && areaWork) {
     lines.push(areaWork)
-  } else if (resident.working) {
+  } else if (resident.working && !resident.goal) {
     lines.push('動いている')
-  } else if (areaWork) {
-    lines.push(areaWork)
   }
 
   const record = describeLatestRecord(
@@ -831,6 +869,14 @@ function inspectLastStateLines(resident: PlaceResident): string[] {
 
   if (
     leftover &&
+    leftoverKinds &&
+    !storyImpliesLeftover(resident.workStory) &&
+    !lines.includes(leftoverKinds)
+  ) {
+    lines.push(leftoverKinds)
+  } else if (
+    leftover &&
+    !leftoverKinds &&
     !storyImpliesLeftover(resident.workStory) &&
     !lines.some((line) => line.includes('途中の仕事'))
   ) {
@@ -908,6 +954,30 @@ function spokenWorkTitle(
   return softened
 }
 
+function leftoverKindsSentence(
+  resident: Pick<PlaceResident, 'areas' | 'workStory'>,
+): string | null {
+  const named = leftoverKindAreas(resident)
+  const shown = named.slice(0, 2)
+  if (shown.length === 2) {
+    return `${shown[0]}と${shown[1]}の途中が残っています。`
+  }
+  if (shown.length === 1) {
+    return `${shown[0]}の途中が残っています。`
+  }
+  return null
+}
+
+function leftoverKindAreas(
+  resident: Pick<PlaceResident, 'areas' | 'workStory'>,
+): string[] {
+  const labels = mapEverydayAreas(resident.areas, LEFTOVER_KIND_AREAS)
+  if (resident.workStory && !labels.includes('記事')) {
+    return ['記事', ...labels].slice(0, 2)
+  }
+  return labels
+}
+
 function leftoverWorkSummary(resident: Pick<PlaceResident, 'areas'>): string {
   const named = namedAreas(resident.areas).map(shortAreaForBubble)
   const shown = named.slice(0, 2)
@@ -929,10 +999,17 @@ function namedAreas(areas: readonly string[]): string[] {
 }
 
 function everydayInspectAreas(areas: readonly string[]): string[] {
+  return mapEverydayAreas(areas, EVERYDAY_INSPECT_AREAS)
+}
+
+function mapEverydayAreas(
+  areas: readonly string[],
+  dictionary: Readonly<Record<string, string>>,
+): string[] {
   const seen = new Set<string>()
   const labels: string[] = []
   for (const area of uniqueLabels(areas)) {
-    const everyday = EVERYDAY_INSPECT_AREAS[area]
+    const everyday = dictionary[area]
     if (!everyday || seen.has(everyday)) {
       continue
     }
@@ -1047,6 +1124,82 @@ function everydayRecordTitle(value: string | null | undefined): string | null {
     return null
   }
   return softened
+}
+
+function everydayArticleTitles(
+  values:
+    | readonly {
+        readonly title: string
+        readonly date?: string | null | undefined
+      }[]
+    | undefined,
+): { readonly title: string; readonly date: string | null }[] {
+  const titles: { readonly title: string; readonly date: string | null }[] = []
+  const seen = new Set<string>()
+  for (const item of values ?? []) {
+    const title = item.title.trim()
+    if (
+      !title ||
+      seen.has(title) ||
+      title.includes('まだ分かっていません') ||
+      title.includes('変更元不明') ||
+      /\b(SHA|commit|HEAD|origin)\b/i.test(title) ||
+      /\.(ts|tsx|css|json|md)$/i.test(title)
+    ) {
+      continue
+    }
+    seen.add(title)
+    titles.push({
+      title,
+      date: item.date?.trim() || null,
+    })
+  }
+  return titles
+}
+
+function pickResidentGoal(
+  sessions: readonly OverviewSession[],
+  nowMs: number,
+): string | null {
+  const ranked = [...sessions]
+    .filter((session) => shouldShowGardenDog(session, nowMs))
+    .sort(compareObservedAt)
+  for (const session of ranked) {
+    const goal = sessionGoal(session)
+    if (goal) {
+      return goal
+    }
+  }
+  return null
+}
+
+function sessionGoal(session: OverviewSession): string | null {
+  const fromField = acceptInspectGoal(session.goal)
+  if (fromField) {
+    return fromField
+  }
+  return acceptInspectGoal(session.title)
+}
+
+function acceptInspectGoal(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed || isHookLeftoverTitle(trimmed) || isGenericWorkTitle(trimmed)) {
+    return null
+  }
+  if (
+    trimmed.includes('まだ分かっていません') ||
+    trimmed.includes('変更元不明') ||
+    trimmed === '動いている' ||
+    trimmed === '作業中' ||
+    /^[0-9a-f]{7,40}$/i.test(trimmed) ||
+    /\b(SHA|commit|HEAD|origin)\b/i.test(trimmed)
+  ) {
+    return null
+  }
+  if (trimmed.length > 80) {
+    return spokenRecordTitle(trimmed.slice(0, 80)) ?? null
+  }
+  return spokenRecordTitle(trimmed) ?? everydayWorkStory(trimmed)
 }
 
 function everydayWorkStory(value: string | null | undefined): string | null {

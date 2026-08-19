@@ -13,9 +13,15 @@ const KIT_FILE_NAMES = new Set([
 ])
 const MAX_FILE_BYTES = 64 * 1024
 const MAX_TITLE_LENGTH = 80
+const MAX_ARTICLE_TITLES = 10
 const DATE_PREFIX = /^(\d{4}-\d{2}-\d{2})/
 const TOPIC_FOLDER = /^(\d{4}-\d{2}-\d{2})_[A-Za-z0-9][A-Za-z0-9._-]*$/
 const TITLE_LINE = /^\s*title\s*:\s*(.+?)\s*$/i
+
+export type BlogArticleTitle = {
+  readonly title: string
+  readonly date: string | null
+}
 
 export function looksLikeBlogKit(root: string): boolean {
   const articlesLog = isFile(join(root, ARTICLES_LOG))
@@ -46,6 +52,52 @@ export function readBlogWorkStory(
   return '記事の続きがある'
 }
 
+export function readBlogArticleTitles(
+  root: string,
+  limit = MAX_ARTICLE_TITLES,
+): BlogArticleTitle[] {
+  if (!looksLikeBlogKit(root)) {
+    return []
+  }
+
+  const seen = new Set<string>()
+  const collected: BlogArticleTitle[] = []
+
+  for (const article of readArticlesLogTitles(root).reverse()) {
+    addArticleTitle(collected, seen, article)
+  }
+  for (const article of readTopicBriefTitles(root).reverse()) {
+    addArticleTitle(collected, seen, article)
+  }
+
+  collected.sort((left, right) => {
+    if (left.date && right.date && left.date !== right.date) {
+      return right.date.localeCompare(left.date)
+    }
+    if (left.date && !right.date) {
+      return -1
+    }
+    if (!left.date && right.date) {
+      return 1
+    }
+    return 0
+  })
+
+  return collected.slice(0, Math.min(12, Math.max(1, limit)))
+}
+
+function addArticleTitle(
+  collected: BlogArticleTitle[],
+  seen: Set<string>,
+  article: BlogArticleTitle,
+): void {
+  if (seen.has(article.title)) {
+    return
+  }
+  seen.add(article.title)
+  collected.push(article)
+}
+
 function readLatestArticleTitle(root: string): string | null {
   const fromLog = readLatestArticlesLogTitle(root)
   if (fromLog) {
@@ -55,21 +107,26 @@ function readLatestArticleTitle(root: string): string | null {
 }
 
 function readLatestArticlesLogTitle(root: string): string | null {
-  const text = readBoundedFile(join(root, ARTICLES_LOG))
-  if (text === null) {
-    return null
-  }
-  let latest: string | null = null
-  for (const rawLine of text.split(/\r?\n/)) {
-    const title = parseArticlesLogTitle(rawLine)
-    if (title) {
-      latest = title
-    }
-  }
-  return latest
+  const titles = readArticlesLogTitles(root)
+  return titles[titles.length - 1]?.title ?? null
 }
 
-function parseArticlesLogTitle(line: string): string | null {
+function readArticlesLogTitles(root: string): BlogArticleTitle[] {
+  const text = readBoundedFile(join(root, ARTICLES_LOG))
+  if (text === null) {
+    return []
+  }
+  const articles: BlogArticleTitle[] = []
+  for (const rawLine of text.split(/\r?\n/)) {
+    const article = parseArticlesLogEntry(rawLine)
+    if (article) {
+      articles.push(article)
+    }
+  }
+  return articles
+}
+
+function parseArticlesLogEntry(line: string): BlogArticleTitle | null {
   const trimmed = line.trim()
   if (!trimmed || trimmed.startsWith('#') || /^[-|: ]+$/.test(trimmed)) {
     return null
@@ -83,11 +140,24 @@ function parseArticlesLogTitle(line: string): string | null {
     return null
   }
   const date = cells[0] ?? ''
-  const title = cells[1] ?? ''
-  if (!DATE_PREFIX.test(date)) {
+  const title = sanitizeArticleTitle(cells[1] ?? '')
+  if (!DATE_PREFIX.test(date) || !title) {
     return null
   }
-  return sanitizeArticleTitle(title)
+  return { title, date }
+}
+
+function readTopicBriefTitles(root: string): BlogArticleTitle[] {
+  const articles: BlogArticleTitle[] = []
+  for (const folder of listTopicFolders(root)) {
+    const title = readTopicBriefTitle(root, folder)
+    if (!title) {
+      continue
+    }
+    const date = DATE_PREFIX.exec(folder)?.[1] ?? null
+    articles.push({ title, date })
+  }
+  return articles
 }
 
 function readInProgressTopicTitle(

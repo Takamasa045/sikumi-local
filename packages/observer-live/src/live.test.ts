@@ -24,7 +24,7 @@ import {
   liveProcessDiscoveryMode,
 } from './processes.js'
 import { encodeClaudeProjectDir, sessionHomeRoots } from './session-files.js'
-import { acceptStoredTitle } from './titles.js'
+import { acceptGoalText, acceptStoredTitle } from './titles.js'
 import type { LiveProcessRow, RegisteredLiveRoot } from './types.js'
 
 const NOW = Date.parse('2026-08-19T00:10:00.000Z')
@@ -113,6 +113,13 @@ describe('acceptStoredTitle', () => {
     expect(acceptStoredTitle('/Users/me/project')).toBeNull()
     expect(acceptStoredTitle(`${'長い依頼文です。'.repeat(20)}`)).toBeNull()
     expect(acceptStoredTitle('first line\nsecond line')).toBeNull()
+    expect(acceptGoalText(`${'あ'.repeat(40)}。${'い'.repeat(40)}。続きは出さない`)).toBe(
+      `${'あ'.repeat(40)}`,
+    )
+    expect(acceptGoalText('あ'.repeat(120))).toBe('あ'.repeat(80))
+    expect(acceptGoalText('作業中')).toBeNull()
+    expect(acceptGoalText('Codexの作業が始まりました')).toBeNull()
+    expect(acceptGoalText('Claude Codeがファイルを扱っています')).toBeNull()
   })
 })
 
@@ -243,6 +250,62 @@ describe('discoverLiveSessions', () => {
     expect(claude?.title).toBe('見出しの直し')
     expect(cursor?.title).toBeNull()
     expect(JSON.stringify(sightings)).not.toContain('this prompt must vanish')
+  })
+
+  it('uses a complete first user request when no thread name is stored', () => {
+    const home = track(createTempDir('home-'))
+    const blog = track(createTempDir('blog-'))
+    writeCodexSession(home, {
+      id: 'sess-request',
+      cwd: blog,
+      mtime: NOW - 20_000,
+      userMessage: 'ログイン画面の直しと確認の仕組みを見て',
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-blog', 'ws-blog', blog)],
+      listProcesses: () => [],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]?.title).toBe(
+      'ログイン画面の直しと確認の仕組みを見て',
+    )
+    expect(JSON.stringify(sightings)).not.toContain('base_instructions')
+  })
+
+  it('clips a long first request and ignores a truncated one', () => {
+    const home = track(createTempDir('home-'))
+    const blog = track(createTempDir('blog-'))
+    writeCodexSession(home, {
+      id: 'sess-long',
+      cwd: blog,
+      mtime: NOW - 15_000,
+      userMessage: `${'あ'.repeat(40)}。${'い'.repeat(40)}。続きは出さない`,
+    })
+    writeCodexSession(home, {
+      id: 'sess-cut',
+      cwd: blog,
+      mtime: NOW - 40_000,
+      dayOffset: -1,
+      truncatedUserMessage: true,
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-blog', 'ws-blog', blog)],
+      listProcesses: () => [],
+    })
+
+    const titled = sightings.find((item) => item.title)
+    expect(titled?.title).toBe(`${'あ'.repeat(40)}`)
+    expect(titled?.title?.length).toBeLessThanOrEqual(80)
+    expect(JSON.stringify(sightings)).not.toContain('do not invent this')
   })
 
   it('binds a session file to a Windows-style registered folder from the home sessions dir', () => {
@@ -751,6 +814,31 @@ describe('desktop and alias discovery', () => {
     })
   })
 
+  it('recovers a thread name from the same 16KB prefix as cwd', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = '/Users/takamasa/Projects/hataraki'
+    const file = writeCodexSession(home, {
+      id: '01a01863-16b8-7972-b137-89bc593e6a41',
+      cwd: hataraki,
+      mtime: NOW - 20_000,
+      originator: 'Codex Desktop',
+      clientSource: 'vscode',
+      firstLineBytes: 48_000,
+      threadName: '確認の仕組みを直している',
+    })
+    expect(firstJsonlLineLength(file)).toBeGreaterThan(OBSERVER_LIVE_MAX_FILE_BYTES)
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', hataraki)],
+      listProcesses: () => [],
+    })
+
+    expect(sightings[0]?.title).toBe('確認の仕組みを直している')
+  })
+
   it('binds Desktop at / through a huge session file when child cwds are not unique', () => {
     const home = track(createTempDir('home-'))
     const hataraki = '/Users/takamasa/Projects/hataraki'
@@ -929,6 +1017,9 @@ function writeCodexSession(
     readonly clientSource?: string
     readonly firstLineBytes?: number
     readonly truncatedWithoutCwd?: boolean
+    readonly userMessage?: string
+    readonly truncatedUserMessage?: boolean
+    readonly threadName?: string
   },
 ): string {
   const day = new Date(NOW + (input.dayOffset ?? 0) * 86_400_000)
@@ -950,6 +1041,14 @@ function writeCodexSession(
     touch(file, input.mtime)
     return file
   }
+  const followUp = input.truncatedUserMessage
+    ? '{"type":"event_msg","payload":{"type":"user_message","message":"do not invent this'
+    : input.userMessage
+      ? `${JSON.stringify({
+          type: 'event_msg',
+          payload: { type: 'user_message', message: input.userMessage },
+        })}\n`
+      : ''
   writeFileSync(
     file,
     `${JSON.stringify({
@@ -960,11 +1059,12 @@ function writeCodexSession(
         timestamp: new Date(input.mtime).toISOString(),
         ...(input.originator ? { originator: input.originator } : {}),
         ...(input.clientSource ? { source: input.clientSource } : {}),
+        ...(input.threadName ? { thread_name: input.threadName } : {}),
         ...(input.firstLineBytes
           ? { base_instructions: 'X'.repeat(input.firstLineBytes) }
           : {}),
       },
-    })}\n{"type":"event_msg","payload":{"type":"user_message","message":"do not use this"}}\n`,
+    })}\n${followUp}`,
   )
   touch(file, input.mtime)
   return file

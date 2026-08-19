@@ -98,6 +98,7 @@ describe('snapshotGitRepository', () => {
     const snapshot = snapshotGitRepository(repo)
     expect(snapshot.latestRecordTitle).toBe('ログイン画面の直し')
     expect(snapshot.workStory).toBeNull()
+    expect(snapshot.articleTitles).toEqual([])
     expect(snapshot.outgoingCount).toBe(1)
     expect(snapshot.incomingCount).toBe(0)
     expect(snapshot.headCommit).not.toBe('ログイン画面の直し')
@@ -118,6 +119,12 @@ describe('snapshotGitRepository', () => {
     expect(snapshot.workStory).toBe(
       'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
     )
+    expect(snapshot.articleTitles).toEqual([
+      {
+        title: 'AIチームは多いほど強い、ではなかった',
+        date: '2026-08-15',
+      },
+    ])
     expect(snapshot.workStory).not.toContain('MEMORY.md')
     expect(snapshot.workStory).not.toContain('BLOG_WORKSPACE.md')
   })

@@ -702,7 +702,7 @@ describe('collectGardenActors', () => {
       ),
     ).toBe(true)
     expect(JSON.stringify(actors)).not.toMatch(
-      /まだ分かっていません|SHA|article|働きの直し/,
+      /まだ分かっていません|SHA|articles\.log|働きの直し/,
     )
   })
 })
@@ -804,10 +804,13 @@ describe('describePlaceInspect', () => {
     )
 
     expect(describePlaceInspect(resident!)).toEqual({
-      nowText: 'APIを直している\n途中の仕事が残っている\n最後に見えたのは1分前',
+      nowText:
+        'APIを直している\n画面の途中が残っています。\n最後に見えたのは1分前',
       implementationLook: null,
       nextStep: null,
       driverNote: null,
+      goal: 'APIを直している',
+      articleTitles: [],
     })
   })
 
@@ -837,9 +840,7 @@ describe('describePlaceInspect', () => {
     )
 
     const inspect = describePlaceInspect(resident!)
-    expect(inspect.nowText).toBe(
-      'ログインまわりを直している\n途中の仕事が残っている',
-    )
+    expect(inspect.nowText).toBe('ログインの途中が残っています。')
     expect(inspect.implementationLook).toBeNull()
     expect(inspect.nextStep).toBeNull()
     expect(inspect.driverNote).toBeNull()
@@ -942,10 +943,12 @@ describe('describePlaceInspect', () => {
     expect(resident?.lastObservedWork).toBe('ログイン画面の直し')
     expect(describePlaceInspect(resident!)).toEqual({
       nowText:
-        '画面まわりを直している\nいちばん新しい記録：ログイン画面の直し\n途中の仕事が残っている\n送っていない\n取り込み待ち',
+        'いちばん新しい記録：ログイン画面の直し\n画面の途中が残っています。\n送っていない\n取り込み待ち',
       implementationLook: null,
       nextStep: null,
       driverNote: null,
+      goal: null,
+      articleTitles: [],
     })
     expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
       /SHA|commit|HEAD|origin|まだ分かっていません|Claude Code/,
@@ -1102,7 +1105,7 @@ describe('describeVisibleFacts', () => {
     expect(describeVisibleFacts(resident!)).not.toContain('しまっていない変更')
     const inspect = describePlaceInspect(resident!)
     expect(inspect.nowText).toBe(
-      '画面や確認まわりを直している\n途中の仕事が残っている',
+      '画面と確認の仕組みの途中が残っています。',
     )
     expect(inspect.implementationLook).toBeNull()
     expect(inspect.nowText).not.toContain('しまっていない変更')
@@ -1148,7 +1151,7 @@ describe('describeVisibleFacts', () => {
       '画面まわりに、途中の仕事がある',
     )
     expect(describePlaceInspect(resident!).nowText).toBe(
-      '画面まわりを直している\n途中の仕事が残っている',
+      '画面の途中が残っています。',
     )
     expect(describePlaceInspect(resident!).nowText).not.toContain('File0.tsx')
     expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain(
@@ -1189,7 +1192,7 @@ describe('describeVisibleFacts', () => {
       '道具や画面まわりに、途中の仕事がある',
     )
     expect(describePlaceInspect(resident!).nowText).toBe(
-      '道具や画面まわりを直している\n途中の仕事が残っている\n最後に見えたのは4時間前',
+      '道具と画面の途中が残っています。\n最後に見えたのは4時間前',
     )
     expect(describePlaceInspect(resident!).nowText).not.toContain('observer.ts')
     expect(describePlaceInspect(resident!).nowText).not.toContain('schema.ts')
@@ -1213,7 +1216,7 @@ describe('describeVisibleFacts', () => {
       'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
     )
     expect(describePlaceInspect(named!).nowText).toBe(
-      'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です\n途中の仕事が残っている',
+      'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です\n記事の途中が残っています。',
     )
     expect(describePlaceInspect(named!).nowText).not.toContain('MEMORY.md')
     expect(describePlaceInspect(named!).nowText).not.toContain(
@@ -1231,6 +1234,71 @@ describe('describeVisibleFacts', () => {
     expect(describeVisibleFacts(untitled!)).toBe('記事の続きがある')
     expect(describePlaceInspect(untitled!).nowText).toBe('記事の続きがある')
     expect(describePlaceInspect(untitled!).nowText).not.toContain('AIチーム')
+  })
+
+  it('puts a real live goal on inspect and keeps article history off the bubble', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_blog',
+          'ws_blog',
+          'my-blog',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              displayName: 'Codex',
+              title: '見出しの直し',
+              goal: '見出しの直し',
+              status: 'running',
+              activity: 'working',
+            }),
+          ],
+          {
+            workStory:
+              'いちばん新しい記事は『春のメモ』です',
+            articleTitles: [
+              { title: '春のメモ', date: '2026-08-15' },
+              { title: '短い下書き', date: '2026-08-01' },
+            ],
+          },
+        ),
+      ]),
+    )
+
+    expect(resident?.goal).toBe('見出しの直し')
+    expect(describeVisibleFacts(resident!)).toBe('見出しの直し')
+    expect(describeVisibleFacts(resident!)).not.toContain('短い下書き')
+    expect(describePlaceInspect(resident!).goal).toBe('見出しの直し')
+    expect(describePlaceInspect(resident!).articleTitles).toEqual([
+      { title: '春のメモ', date: '2026-08-15' },
+      { title: '短い下書き', date: '2026-08-01' },
+    ])
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain('縁側')
+  })
+
+  it('does not treat hook leftovers or fake-claude as a goal', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'sikumi-local', [
+          session({
+            id: 'fake',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: 'Claude Codeがファイルを扱っています',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(resident?.goal).toBeNull()
+    expect(describePlaceInspect(resident!).goal).toBeNull()
+    expect(describePlaceInspect(resident!).nowText).toBe('動いている')
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain(
+      'ファイルを扱っています',
+    )
   })
 })
 
@@ -1259,6 +1327,7 @@ function repository(
     readonly lastChangedAt?: string | null
     readonly latestRecordTitle?: string | null
     readonly workStory?: string | null
+    readonly articleTitles?: RepositoryView['articleTitles']
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
     readonly worktrees?: RepositoryView['worktrees']
@@ -1277,6 +1346,7 @@ function repository(
     lastChangedLabel: null,
     latestRecordTitle: extras.latestRecordTitle ?? null,
     workStory: extras.workStory ?? null,
+    articleTitles: extras.articleTitles ?? [],
     outgoingCount: extras.outgoingCount ?? null,
     incomingCount: extras.incomingCount ?? null,
     sessions,

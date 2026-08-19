@@ -11,7 +11,11 @@ import {
   resolveRepositoryBaseCommit,
   resolveWorktreeBaseCommit,
 } from './merge-base.js'
-import { readBlogWorkStory } from './blog-story.js'
+import {
+  readBlogArticleTitles,
+  readBlogWorkStory,
+  type BlogArticleTitle,
+} from './blog-story.js'
 import { resolveExistingRoot } from './paths.js'
 import {
   applyNameStatus,
@@ -60,6 +64,7 @@ export interface GitRepositorySnapshot {
   readonly baseCommit: string | null
   readonly latestRecordTitle: string | null
   readonly workStory: string | null
+  readonly articleTitles: readonly BlogArticleTitle[]
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
   readonly worktrees: readonly GitWorktreeSnapshot[]
@@ -83,6 +88,7 @@ export function snapshotGitRepository(
     baseCommit: null,
     latestRecordTitle: null,
     workStory: null,
+    articleTitles: [],
     outgoingCount: null,
     incomingCount: null,
     worktrees: [],
@@ -148,6 +154,7 @@ export function snapshotGitRepository(
         worktree.changedFiles.map((file) => file.path),
       ),
     }),
+    articleTitles: readBlogArticleTitles(root),
     outgoingCount: sync.outgoingCount,
     incomingCount: sync.incomingCount,
     worktrees,

@@ -41,7 +41,7 @@ describe('GardenInspect', () => {
       />,
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      '資料棚へ向かっています',
+      '資料のところへ向かっています',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('調査')
     expect(
@@ -64,9 +64,10 @@ describe('GardenInspect', () => {
           traveling: false,
           summary: 'APIを直している',
           nowText:
-            'APIを直している\n途中の仕事が残っている\n最後に見えたのは1分前',
+            'APIを直している\n画面の途中が残っています。\n最後に見えたのは1分前',
           implementationLook: null,
           nextStep: null,
+          goal: 'APIを直している',
           driverNote: 'Codexが動かしている',
         }}
         onClose={vi.fn()}
@@ -75,8 +76,11 @@ describe('GardenInspect', () => {
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('ブログ番')
     expect(inspect).toHaveTextContent('いま')
+    expect(inspect).toHaveTextContent('いまの仕事')
     expect(inspect).toHaveTextContent('APIを直している')
-    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).toHaveTextContent('作業しています')
+    expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).toHaveTextContent('最後に見えたのは1分前')
     expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).toHaveTextContent('Codexが動かしている')
@@ -100,7 +104,7 @@ describe('GardenInspect', () => {
           station: 'rest',
           traveling: false,
           summary: '',
-          nowText: '画面まわりを直している\n途中の仕事が残っている',
+          nowText: '画面の途中が残っています。',
           implementationLook: null,
           nextStep: null,
           live: false,
@@ -110,8 +114,8 @@ describe('GardenInspect', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('画面まわりを直している')
-    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).not.toHaveTextContent('次に動かすまで待つ')
@@ -158,7 +162,7 @@ describe('GardenInspect', () => {
           traveling: false,
           summary: '道具や画面まわりに、途中の仕事がある',
           nowText:
-            '道具や画面まわりを直している\n途中の仕事が残っている\n最後に見えたのは4時間前',
+            '道具と画面の途中が残っています。\n最後に見えたのは4時間前',
           implementationLook: null,
           nextStep: null,
           live: false,
@@ -168,8 +172,8 @@ describe('GardenInspect', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('道具や画面まわりを直している')
-    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('道具と画面の途中が残っています。')
+    expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).toHaveTextContent('最後に見えたのは4時間前')
     expect(inspect).not.toHaveTextContent('Office.tsx')
     expect(inspect).not.toHaveTextContent('observer.ts')
@@ -231,6 +235,59 @@ describe('GardenInspect', () => {
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       'サグル：作業台で整理しています',
+    )
+  })
+
+  it('lists past article titles only when they were actually read', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'ブログ番',
+          station: 'rest',
+          traveling: false,
+          summary: 'いちばん新しい記事は『春のメモ』です',
+          nowText: 'いちばん新しい記事は『春のメモ』です',
+          implementationLook: null,
+          nextStep: null,
+          live: false,
+          articleTitles: [
+            { title: '春のメモ', date: '2026-08-15' },
+            { title: '短い下書き', date: '2026-08-01' },
+            { title: 'MEMORY.md', date: '2026-08-16' },
+          ],
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('これまでの記事')
+    expect(inspect).toHaveTextContent('2026-08-15 春のメモ')
+    expect(inspect).toHaveTextContent('2026-08-01 短い下書き')
+    expect(inspect).not.toHaveTextContent('MEMORY.md')
+    expect(inspect).not.toHaveTextContent('縁側')
+  })
+
+  it('omits the article history when no title was read', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'ブログ番',
+          station: 'rest',
+          traveling: false,
+          summary: '記事の続きがある',
+          nowText: '記事の続きがある',
+          implementationLook: null,
+          nextStep: null,
+          live: false,
+          articleTitles: [],
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
+      'これまでの記事',
     )
   })
 })

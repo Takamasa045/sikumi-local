@@ -2667,6 +2667,17 @@ footer span {
   color: #6f6c5e;
   font-size: 12px;
 }
+.garden-inspect__articles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.garden-inspect__articles li {
+  line-height: 1.45;
+}
 .garden-inspect__meaning,
 .garden-inspect__occupants,
 .garden-inspect__summary {

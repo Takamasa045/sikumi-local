@@ -23,6 +23,7 @@ describe('observer views', () => {
         baseCommit: null,
         latestRecordTitle: 'ログイン画面の直し',
         workStory: null,
+        articleTitles: [],
         outgoingCount: 1,
         incomingCount: 0,
         worktrees: [],
@@ -90,6 +91,13 @@ describe('observer views', () => {
         latestRecordTitle: 'docs',
         workStory:
           'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+        articleTitles: [
+          {
+            title: 'AIチームは多いほど強い、ではなかった',
+            date: '2026-08-15',
+          },
+          { title: '短い下書き', date: '2026-08-01' },
+        ],
         outgoingCount: 0,
         incomingCount: 0,
         worktrees: [],
@@ -105,7 +113,99 @@ describe('observer views', () => {
     expect(activity.workStory).toBe(
       'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
     )
+    expect(activity.articleTitles).toEqual([
+      {
+        title: 'AIチームは多いほど強い、ではなかった',
+        date: '2026-08-15',
+      },
+      { title: '短い下書き', date: '2026-08-01' },
+    ])
     expect(activity.workStory).not.toContain('MEMORY.md')
+    expect(activity.sessions[0]?.goal).toBeUndefined()
+  })
+
+  it('keeps a real session goal and drops generic hook titles', () => {
+    const named = buildRepositoryActivity({
+      repository: {
+        id: 'repo-a',
+        workspaceId: 'ws-a',
+        absolutePath: '/tmp/repo',
+        displayName: 'demo',
+        currentBranch: 'main',
+        readable: true,
+      },
+      snapshot: {
+        available: true,
+        reason: null,
+        repositoryRoot: '/tmp/repo',
+        displayName: 'demo',
+        branch: 'main',
+        headCommit: 'abc',
+        baseCommit: null,
+        latestRecordTitle: 'ログイン画面の直し',
+        workStory: null,
+        articleTitles: [],
+        outgoingCount: 0,
+        incomingCount: 0,
+        worktrees: [],
+        changedFiles: [],
+        scannedAt: '2026-08-18T00:10:00.000Z',
+        truncated: false,
+      },
+      sessions: [
+        session({
+          id: 'agent',
+          surface: 'cursor-agent',
+          title: 'ログイン画面の直し',
+          lastObservedAt: '2026-08-18T00:09:00.000Z',
+        }),
+      ],
+      labels: {},
+      conflicts: [],
+      claims: [],
+    })
+    expect(named.sessions[0]?.goal).toBe('ログイン画面の直し')
+
+    const generic = buildRepositoryActivity({
+      repository: {
+        id: 'repo-a',
+        workspaceId: 'ws-a',
+        absolutePath: '/tmp/repo',
+        displayName: 'demo',
+        currentBranch: 'main',
+        readable: true,
+      },
+      snapshot: {
+        available: true,
+        reason: null,
+        repositoryRoot: '/tmp/repo',
+        displayName: 'demo',
+        branch: 'main',
+        headCommit: 'abc',
+        baseCommit: null,
+        latestRecordTitle: null,
+        workStory: null,
+        articleTitles: [],
+        outgoingCount: 0,
+        incomingCount: 0,
+        worktrees: [],
+        changedFiles: [],
+        scannedAt: '2026-08-18T00:10:00.000Z',
+        truncated: false,
+      },
+      sessions: [
+        session({
+          id: 'fake',
+          surface: 'cli',
+          title: 'Claude Codeがファイルを扱っています',
+          lastObservedAt: '2026-08-18T00:09:00.000Z',
+        }),
+      ],
+      labels: {},
+      conflicts: [],
+      claims: [],
+    })
+    expect(generic.sessions[0]?.goal).toBeNull()
   })
 })
 

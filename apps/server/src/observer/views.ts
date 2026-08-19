@@ -14,7 +14,11 @@ import {
   type ResourceClaim,
   type SessionLabel,
 } from '@sikumi-local/observer-core'
-import type { GitRepositorySnapshot } from '@sikumi-local/observer-git'
+import type {
+  BlogArticleTitle,
+  GitRepositorySnapshot,
+} from '@sikumi-local/observer-git'
+import { acceptGoalText } from '@sikumi-local/observer-live'
 import type { RegisteredRepository } from '../storage/observer-store.js'
 
 export interface RepositoryActivityView {
@@ -29,6 +33,7 @@ export interface RepositoryActivityView {
   readonly lastChangedLabel: string | null
   readonly latestRecordTitle: string | null
   readonly workStory: string | null
+  readonly articleTitles: readonly BlogArticleTitle[]
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
   readonly sessions: readonly SessionView[]
@@ -48,6 +53,7 @@ export interface SessionView {
   readonly activity: ExternalSession['activity']
   readonly attributionConfidence: ExternalSession['attributionConfidence']
   readonly title: string
+  readonly goal: string | null
   readonly lastObservedAt: string
   readonly lastObservedLabel: string | null
 }
@@ -190,6 +196,7 @@ export function buildRepositoryActivity(input: {
     lastChangedLabel: relativeTimeLabel(input.snapshot.scannedAt),
     latestRecordTitle: input.snapshot.latestRecordTitle,
     workStory: input.snapshot.workStory,
+    articleTitles: input.snapshot.articleTitles ?? [],
     outgoingCount: input.snapshot.outgoingCount,
     incomingCount: input.snapshot.incomingCount,
     sessions: sessions.items,
@@ -258,6 +265,10 @@ function toSessionView(
       label?.title ??
       session.title ??
       (session.source === 'git' ? '変更元不明の作業' : '作業中'),
+    goal:
+      session.source === 'git'
+        ? null
+        : acceptGoalText(label?.title ?? session.title),
     lastObservedAt: session.lastObservedAt,
     lastObservedLabel: relativeTimeLabel(session.lastObservedAt),
   }

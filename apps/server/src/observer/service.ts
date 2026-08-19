@@ -48,6 +48,7 @@ import {
 } from '@sikumi-local/observer-bridge'
 import {
   createGitObserverAdapter,
+  readBlogArticleTitles,
   readBlogWorkStory,
   readLatestRecordTitle,
   readSyncCounts,
@@ -968,6 +969,7 @@ function latestSnapshotView(
           ),
         })
       : null,
+    articleTitles: root ? readBlogArticleTitles(root) : [],
     outgoingCount: sync.outgoingCount,
     incomingCount: sync.incomingCount,
     worktrees: latest.map((item, index) => {

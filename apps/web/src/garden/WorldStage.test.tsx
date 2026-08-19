@@ -85,7 +85,8 @@ describe('WorldStage', () => {
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('サグル')
     expect(inspect).toHaveTextContent('調査担当')
-    expect(inspect).toHaveTextContent('縁側にいます')
+    expect(inspect).toHaveTextContent('仕事の合間にいます')
+    expect(inspect).not.toHaveTextContent('縁側にいます')
     expect(inspect).toHaveTextContent('まだ仕事は始まっていません')
 
     await userEvent.click(screen.getByRole('button', { name: '資料棚' }))

@@ -20,6 +20,11 @@ export type GardenInspectSubject =
       readonly nextStep?: string | null
       readonly driverNote?: string | null
       readonly live?: boolean
+      readonly goal?: string | null
+      readonly articleTitles?: readonly {
+        readonly title: string
+        readonly date?: string | null
+      }[]
     }
   | {
       readonly kind: 'station'
@@ -88,12 +93,12 @@ function CharacterBody({
 }: {
   readonly subject: Extract<GardenInspectSubject, { kind: 'character' }>
 }) {
-  const place = gardenStationLabels[subject.station]
   const hasProgress =
     subject.nowText !== undefined &&
     subject.implementationLook !== undefined &&
     subject.nextStep !== undefined
   const live = subject.live !== false
+  const articles = knownArticleTitles(subject.articleTitles)
   return (
     <dl className="garden-inspect__facts">
       {subject.role && !hasProgress ? (
@@ -103,9 +108,13 @@ function CharacterBody({
         </>
       ) : null}
       <dt>場所</dt>
-      <dd>
-        {subject.traveling ? `${place}へ向かっています` : `${place}にいます`}
-      </dd>
+      <dd>{describeInspectPlace(subject.station, subject.traveling)}</dd>
+      {knownLine(subject.goal) ? (
+        <>
+          <dt>いまの仕事</dt>
+          <dd>{subject.goal}</dd>
+        </>
+      ) : null}
       {hasProgress && live ? (
         <>
           {hasFactLines(subject.nowText) ? (
@@ -179,8 +188,79 @@ function CharacterBody({
           ) : null}
         </>
       )}
+      {articles.length > 0 ? (
+        <>
+          <dt>これまでの記事</dt>
+          <dd>
+            <ul className="garden-inspect__articles">
+              {articles.map((article) => (
+                <li key={`${article.date ?? ''}:${article.title}`}>
+                  {article.date
+                    ? `${article.date} ${article.title}`
+                    : article.title}
+                </li>
+              ))}
+            </ul>
+          </dd>
+        </>
+      ) : null}
     </dl>
   )
+}
+
+function describeInspectPlace(
+  station: GardenStationId,
+  traveling: boolean,
+): string {
+  if (traveling) {
+    switch (station) {
+      case 'rest':
+      case 'observatory':
+        return '仕事の合間へ向かっています'
+      case 'workbench':
+        return '作業するところへ向かっています'
+      case 'waiting':
+        return '確認を待っています'
+      case 'delivery':
+        return '届ける場所へ向かっています'
+      case 'archive':
+        return '資料のところへ向かっています'
+    }
+  }
+  switch (station) {
+    case 'rest':
+    case 'observatory':
+      return '仕事の合間にいます'
+    case 'workbench':
+      return '作業しています'
+    case 'waiting':
+      return '確認を待っています'
+    case 'delivery':
+      return '届ける場所にいます'
+    case 'archive':
+      return '資料を見ています'
+  }
+}
+
+function knownArticleTitles(
+  values:
+    | readonly { readonly title: string; readonly date?: string | null }[]
+    | undefined,
+): { readonly title: string; readonly date: string | null }[] {
+  const seen = new Set<string>()
+  const articles: { readonly title: string; readonly date: string | null }[] = []
+  for (const item of values ?? []) {
+    const title = item.title.trim()
+    if (!knownLine(title) || seen.has(title)) {
+      continue
+    }
+    seen.add(title)
+    articles.push({
+      title,
+      date: item.date?.trim() || null,
+    })
+  }
+  return articles
 }
 
 function knownLine(value: string | null | undefined): boolean {
@@ -194,6 +274,7 @@ function knownLine(value: string | null | undefined): boolean {
     trimmed.includes('の作業が始まりました') ||
     trimmed.includes('がファイルを扱っています') ||
     /^[0-9a-f]{7,40}$/i.test(trimmed) ||
+    /\.(md|ya?ml|log|ts|tsx|css|json)$/i.test(trimmed) ||
     /\b(SHA|commit|HEAD|origin)\b/i.test(trimmed) ||
     trimmed === '作業中' ||
     trimmed === '作業' ||

@@ -18,7 +18,7 @@ import {
   type ObserverSurface,
 } from '@sikumi-local/observer-core'
 import { matchRegisteredRoot } from './match.js'
-import { firstExplicitTitle } from './titles.js'
+import { acceptGoalText, firstExplicitTitle } from './titles.js'
 import type {
   LiveAgentSource,
   LiveSighting,
@@ -80,7 +80,8 @@ function readCodexSessions(
     if (!file.endsWith('.jsonl')) {
       continue
     }
-    const head = readJsonHead(file)
+    const raw = readBoundedText(file)
+    const head = readJsonHeadFromText(raw)
     const meta = asRecord(head?.payload) ?? head
     const cwd = readString(meta?.cwd)
     const matched = matchRegisteredRoot(cwd, roots)
@@ -92,7 +93,10 @@ function readCodexSessions(
       source: 'codex',
       surface: inferCodexSessionSurface(meta),
       cwd,
-      title: titles.get(id) ?? firstExplicitTitle(meta),
+      title:
+        titles.get(id) ??
+        firstExplicitTitle(meta) ??
+        acceptGoalText(readFirstUserRequest(raw)),
       lastObservedAt: new Date(fileMtime(file) ?? now).toISOString(),
       externalSessionId: `live:codex:${id}`,
     })
@@ -359,7 +363,12 @@ function walk(
 }
 
 function readJsonHead(path: string): Record<string, unknown> | null {
-  const raw = readBoundedText(path)
+  return readJsonHeadFromText(readBoundedText(path))
+}
+
+function readJsonHeadFromText(
+  raw: string | null,
+): Record<string, unknown> | null {
   if (!raw) {
     return null
   }
@@ -370,6 +379,64 @@ function readJsonHead(path: string): Record<string, unknown> | null {
   return parseJsonObject(first) ?? recoverTruncatedJsonFields(first)
 }
 
+function readFirstUserRequest(raw: string | null): string | null {
+  if (!raw) {
+    return null
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.trim()) {
+      continue
+    }
+    const parsed = parseJsonObject(line)
+    const request = userRequestFromRecord(parsed)
+    if (request) {
+      return request
+    }
+  }
+  if (
+    !/"type"\s*:\s*"user_message"/.test(raw) &&
+    !/"role"\s*:\s*"user"/.test(raw)
+  ) {
+    return null
+  }
+  return (
+    readQuotedJsonField(raw, 'message') ?? readQuotedJsonField(raw, 'text')
+  )
+}
+
+function userRequestFromRecord(
+  record: Record<string, unknown> | null,
+): string | null {
+  if (!record) {
+    return null
+  }
+  const payload = asRecord(record.payload) ?? record
+  const type = readString(payload.type) ?? readString(record.type)
+  if (type === 'user_message' || type === 'user_prompt_submit') {
+    return readString(payload.message) ?? readString(payload.text)
+  }
+  if (
+    readString(payload.role) === 'user' ||
+    readString(record.role) === 'user'
+  ) {
+    const content = payload.content
+    if (typeof content === 'string' && content.trim()) {
+      return content.trim()
+    }
+    if (Array.isArray(content)) {
+      for (const part of content) {
+        const item = asRecord(part)
+        const text = readString(item?.text)
+        if (text) {
+          return text
+        }
+      }
+    }
+    return readString(payload.text) ?? readString(payload.message)
+  }
+  return null
+}
+
 function recoverTruncatedJsonFields(
   raw: string,
 ): Record<string, unknown> | null {
@@ -377,7 +444,11 @@ function recoverTruncatedJsonFields(
   const id = readQuotedJsonField(raw, 'id')
   const originator = readQuotedJsonField(raw, 'originator')
   const source = readQuotedJsonField(raw, 'source')
-  if (!cwd && !id && !originator && !source) {
+  const threadName =
+    readQuotedJsonField(raw, 'thread_name') ??
+    readQuotedJsonField(raw, 'threadName')
+  const title = readQuotedJsonField(raw, 'title')
+  if (!cwd && !id && !originator && !source && !threadName && !title) {
     return null
   }
   const payload: Record<string, unknown> = {}
@@ -392,6 +463,12 @@ function recoverTruncatedJsonFields(
   }
   if (source) {
     payload.source = source
+  }
+  if (threadName) {
+    payload.thread_name = threadName
+  }
+  if (title) {
+    payload.title = title
   }
   return {
     type: readQuotedJsonField(raw, 'type') ?? 'session_meta',

@@ -20,7 +20,12 @@ export {
   listRecentSessionRecords,
   sessionHomeRoots,
 } from './session-files.js'
-export { acceptStoredTitle, firstExplicitTitle } from './titles.js'
+export {
+  acceptGoalText,
+  acceptStoredTitle,
+  clipGoalText,
+  firstExplicitTitle,
+} from './titles.js'
 export {
   isLiveAgentSource,
   liveAgentSources,

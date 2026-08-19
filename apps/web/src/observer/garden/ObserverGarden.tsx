@@ -229,6 +229,8 @@ export function ObserverGarden({
                       nextStep: actor.nextStep,
                       driverNote: actor.driverNote,
                       live: actor.tone === 'working' || presence.traveling,
+                      goal: actor.goal,
+                      articleTitles: actor.articleTitles,
                     })
                   }}
                 />

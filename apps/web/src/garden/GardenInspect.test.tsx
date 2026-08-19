@@ -78,9 +78,13 @@ describe('GardenInspect', () => {
       />,
     )
     const inspect = screen.getByTestId('garden-inspect')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
     expect(inspect).toHaveTextContent('ブログ番')
-    expect(inspect).toHaveTextContent('いま')
-    expect(inspect).toHaveTextContent('いまの仕事')
+    expect(labels).toContain('いま何をしているか')
+    expect(labels).not.toContain('いま')
+    expect(labels).not.toContain('いまの仕事')
     expect(inspect).toHaveTextContent('APIを直している')
     expect(inspect).toHaveTextContent('画面の途中が残っています。')
     expect(inspect).toHaveTextContent('作業しています')
@@ -93,7 +97,7 @@ describe('GardenInspect', () => {
     expect(inspect).not.toHaveTextContent('途中の仕事が2')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent('作業中のファイル')
-    expect(inspect).not.toHaveTextContent('これから')
+    expect(labels).not.toContain('これから')
     expect(inspect).not.toHaveTextContent('いまの作業の続き')
     expect(inspect).not.toHaveTextContent('役割')
     expect(inspect).not.toHaveTextContent('要約')
@@ -117,7 +121,7 @@ describe('GardenInspect', () => {
       />,
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('どこまでやったか')
+    expect(inspect).toHaveTextContent('いま何をしているか')
     expect(inspect).toHaveTextContent('画面の途中が残っています。')
     expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
@@ -126,7 +130,8 @@ describe('GardenInspect', () => {
     const labels = [...inspect.querySelectorAll('dt')].map(
       (item) => item.textContent,
     )
-    expect(labels).toContain('どこまでやったか')
+    expect(labels).toContain('いま何をしているか')
+    expect(labels).not.toContain('どこまでやったか')
     expect(labels).not.toContain('次はこんな感じか')
     expect(labels).not.toContain('いま')
     expect(labels).not.toContain('これから')
@@ -174,7 +179,7 @@ describe('GardenInspect', () => {
       />,
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('どこまでやったか')
+    expect(inspect).toHaveTextContent('いま何をしているか')
     expect(inspect).toHaveTextContent('道具と画面の途中が残っています。')
     expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).toHaveTextContent('最後に見えたのは4時間前')
@@ -348,5 +353,76 @@ describe('GardenInspect', () => {
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       'これまでの仕事',
     )
+  })
+
+  it('shows the four garden blocks only when they were actually read', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'hataraki番',
+          station: 'rest',
+          traveling: false,
+          summary: '画面まわりに、途中の仕事がある',
+          nowText: '画面の途中が残っています。',
+          implementationLook: null,
+          nextStep: '画面の途中を続ける',
+          live: false,
+          placeIntro: '働きの画面を整えるための場所です。',
+          workTitles: ['ログイン画面の直し', 'feat: add login', 'a1b2c3d'],
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
+    expect(labels).toEqual([
+      '場所',
+      'いま何をしているか',
+      '次はどうするか',
+      'この場所は何の仕事か',
+      'これまでの仕事',
+    ])
+    expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).toHaveTextContent('画面の途中を続ける')
+    expect(inspect).toHaveTextContent('働きの画面を整えるための場所です。')
+    expect(inspect).toHaveTextContent('ログイン画面の直し')
+    expect(inspect).not.toHaveTextContent('feat:')
+    expect(inspect).not.toHaveTextContent('a1b2c3d')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('縁側')
+  })
+
+  it('hides unread garden blocks instead of inventing copy', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'notes番',
+          station: 'rest',
+          traveling: false,
+          summary: '',
+          nowText: null,
+          implementationLook: null,
+          nextStep: null,
+          live: false,
+          placeIntro: null,
+          workTitles: [],
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
+    expect(labels).toEqual(['場所'])
+    expect(inspect).not.toHaveTextContent('いま何をしているか')
+    expect(inspect).not.toHaveTextContent('次はどうするか')
+    expect(inspect).not.toHaveTextContent('この場所は何の仕事か')
+    expect(inspect).not.toHaveTextContent('これまでの仕事')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
   })
 })

@@ -99,6 +99,7 @@ describe('snapshotGitRepository', () => {
     const snapshot = snapshotGitRepository(repo)
     expect(snapshot.latestRecordTitle).toBe('ログイン画面の直し')
     expect(snapshot.workStory).toBeNull()
+    expect(snapshot.placeIntro).toBeNull()
     expect(snapshot.articleTitles).toEqual([])
     expect(snapshot.workTitles).toEqual(['ログイン画面の直し', 'init'])
     expect(snapshot.outgoingCount).toBe(1)
@@ -131,6 +132,20 @@ describe('snapshotGitRepository', () => {
       'init',
     ])
     expect(snapshot.articleTitles).toEqual([])
+    expect(snapshot.placeIntro).toBeNull()
+  })
+
+  it('reads a Japanese README as the place intro without paths', () => {
+    const repo = createGitRepo()
+    writeFileSync(
+      join(repo, 'README.md'),
+      ['# はたらき', '', '働きの画面を整えるための場所です。', ''].join('\n'),
+    )
+    const snapshot = snapshotGitRepository(repo)
+    expect(snapshot.placeIntro).toBe(
+      'はたらき。働きの画面を整えるための場所です。',
+    )
+    expect(snapshot.placeIntro).not.toContain('README.md')
   })
 
   it('extracts a blog article title from articles.log when the place is a kit', () => {

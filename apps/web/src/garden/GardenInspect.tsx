@@ -25,6 +25,7 @@ export type GardenInspectSubject =
       readonly driverNote?: string | null
       readonly live?: boolean
       readonly goal?: string | null
+      readonly placeIntro?: string | null
       readonly articleTitles?: readonly {
         readonly title: string
         readonly date?: string | null
@@ -98,6 +99,10 @@ function CharacterBody({
 }: {
   readonly subject: Extract<GardenInspectSubject, { kind: 'character' }>
 }) {
+  const isGardenPlace =
+    subject.nowText !== undefined ||
+    subject.placeIntro !== undefined ||
+    subject.workTitles !== undefined
   const hasProgress =
     subject.nowText !== undefined &&
     subject.implementationLook !== undefined &&
@@ -105,6 +110,11 @@ function CharacterBody({
   const live = subject.live !== false
   const articles = knownArticleTitles(subject.articleTitles)
   const works = articles.length > 0 ? [] : knownWorkTitles(subject.workTitles)
+  const nowLook = isGardenPlace
+    ? subject.nowText
+    : live
+      ? subject.nowText
+      : describeStoppedLook(subject.nowText, subject.implementationLook)
   return (
     <dl className="garden-inspect__facts">
       {subject.role && !hasProgress ? (
@@ -115,13 +125,42 @@ function CharacterBody({
       ) : null}
       <dt>場所</dt>
       <dd>{describeInspectPlace(subject.station, subject.traveling)}</dd>
-      {knownLine(subject.goal) ? (
+      {isGardenPlace ? (
+        <>
+          {hasFactLines(nowLook) ? (
+            <>
+              <dt>いま何をしているか</dt>
+              <dd>
+                <FactLines value={nowLook} />
+                {knownLine(subject.driverNote) ? (
+                  <span className="garden-inspect__driver">
+                    {subject.driverNote}
+                  </span>
+                ) : null}
+              </dd>
+            </>
+          ) : null}
+          {hasFactLines(subject.nextStep) ? (
+            <>
+              <dt>次はどうするか</dt>
+              <dd>
+                <FactLines value={subject.nextStep} />
+              </dd>
+            </>
+          ) : null}
+          {knownLine(subject.placeIntro) ? (
+            <>
+              <dt>この場所は何の仕事か</dt>
+              <dd>{subject.placeIntro}</dd>
+            </>
+          ) : null}
+        </>
+      ) : knownLine(subject.goal) ? (
         <>
           <dt>いまの仕事</dt>
           <dd>{subject.goal}</dd>
         </>
-      ) : null}
-      {hasProgress && live ? (
+      ) : hasProgress && live ? (
         <>
           {hasFactLines(subject.nowText) ? (
             <>
@@ -147,18 +186,11 @@ function CharacterBody({
         </>
       ) : hasProgress ? (
         <>
-          {hasFactLines(
-            describeStoppedLook(subject.nowText, subject.implementationLook),
-          ) ? (
+          {hasFactLines(nowLook) ? (
             <>
               <dt>どこまでやったか</dt>
               <dd>
-                <FactLines
-                  value={describeStoppedLook(
-                    subject.nowText,
-                    subject.implementationLook,
-                  )}
-                />
+                <FactLines value={nowLook} />
                 {knownLine(subject.driverNote) ? (
                   <span className="garden-inspect__driver">
                     {subject.driverNote}

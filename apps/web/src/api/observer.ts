@@ -86,6 +86,7 @@ export const repositoryActivitySchema = z.object({
   lastChangedLabel: z.string().nullable(),
   latestRecordTitle: z.string().nullable().optional(),
   workStory: z.string().nullable().optional(),
+  placeIntro: z.string().nullable().optional(),
   articleTitles: z
     .array(
       z.object({

@@ -16,6 +16,7 @@ import {
   readBlogWorkStory,
   type BlogArticleTitle,
 } from './blog-story.js'
+import { readPlaceIntro } from './place-intro.js'
 import { resolveExistingRoot } from './paths.js'
 import {
   applyNameStatus,
@@ -66,6 +67,7 @@ export interface GitRepositorySnapshot {
   readonly baseCommit: string | null
   readonly latestRecordTitle: string | null
   readonly workStory: string | null
+  readonly placeIntro: string | null
   readonly articleTitles: readonly BlogArticleTitle[]
   readonly workTitles: readonly string[]
   readonly outgoingCount: number | null
@@ -91,6 +93,7 @@ export function snapshotGitRepository(
     baseCommit: null,
     latestRecordTitle: null,
     workStory: null,
+    placeIntro: null,
     articleTitles: [],
     workTitles: [],
     outgoingCount: null,
@@ -158,6 +161,7 @@ export function snapshotGitRepository(
         worktree.changedFiles.map((file) => file.path),
       ),
     }),
+    placeIntro: readPlaceIntro(root),
     articleTitles: readBlogArticleTitles(root),
     workTitles: readRecentRecordTitles(root),
     outgoingCount: sync.outgoingCount,

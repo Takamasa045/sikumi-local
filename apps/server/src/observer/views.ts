@@ -33,6 +33,7 @@ export interface RepositoryActivityView {
   readonly lastChangedLabel: string | null
   readonly latestRecordTitle: string | null
   readonly workStory: string | null
+  readonly placeIntro: string | null
   readonly articleTitles: readonly BlogArticleTitle[]
   readonly workTitles: readonly string[]
   readonly outgoingCount: number | null
@@ -197,6 +198,7 @@ export function buildRepositoryActivity(input: {
     lastChangedLabel: relativeTimeLabel(input.snapshot.scannedAt),
     latestRecordTitle: input.snapshot.latestRecordTitle,
     workStory: input.snapshot.workStory,
+    placeIntro: input.snapshot.placeIntro ?? null,
     articleTitles: input.snapshot.articleTitles ?? [],
     workTitles: input.snapshot.workTitles ?? [],
     outgoingCount: input.snapshot.outgoingCount,

@@ -23,6 +23,7 @@ describe('observer views', () => {
         baseCommit: null,
         latestRecordTitle: 'ログイン画面の直し',
         workStory: null,
+        placeIntro: '働きの画面を整えるための場所です。',
         articleTitles: [],
         workTitles: ['ログイン画面の直し'],
         outgoingCount: 1,
@@ -62,6 +63,7 @@ describe('observer views', () => {
     expect(activity.lastChangedAt).toBe('2026-08-18T00:10:00.000Z')
     expect(activity.latestRecordTitle).toBe('ログイン画面の直し')
     expect(activity.workTitles).toEqual(['ログイン画面の直し'])
+    expect(activity.placeIntro).toBe('働きの画面を整えるための場所です。')
     expect(activity.workStory).toBeNull()
     expect(activity.outgoingCount).toBe(1)
     expect(activity.incomingCount).toBe(0)
@@ -93,6 +95,7 @@ describe('observer views', () => {
         latestRecordTitle: 'docs',
         workStory:
           'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+        placeIntro: null,
         articleTitles: [
           {
             title: 'AIチームは多いほど強い、ではなかった',
@@ -148,6 +151,7 @@ describe('observer views', () => {
         baseCommit: null,
         latestRecordTitle: 'ログイン画面の直し',
         workStory: null,
+        placeIntro: null,
         articleTitles: [],
         workTitles: ['ログイン画面の直し'],
         outgoingCount: 0,
@@ -190,6 +194,7 @@ describe('observer views', () => {
         baseCommit: null,
         latestRecordTitle: null,
         workStory: null,
+        placeIntro: null,
         articleTitles: [],
         workTitles: [],
         outgoingCount: 0,

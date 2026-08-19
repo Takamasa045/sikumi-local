@@ -51,6 +51,7 @@ import {
   readBlogArticleTitles,
   readBlogWorkStory,
   readLatestRecordTitle,
+  readPlaceIntro,
   readRecentRecordTitles,
   readSyncCounts,
   snapshotGitRepository,
@@ -970,6 +971,7 @@ function latestSnapshotView(
           ),
         })
       : null,
+    placeIntro: root ? readPlaceIntro(root) : null,
     articleTitles: root ? readBlogArticleTitles(root) : [],
     workTitles: root ? readRecentRecordTitles(root) : [],
     outgoingCount: sync.outgoingCount,

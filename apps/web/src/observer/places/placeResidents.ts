@@ -113,6 +113,7 @@ export type PlaceResident = {
   readonly conflictCount: number
   readonly latestRecordTitle: string | null
   readonly workStory: string | null
+  readonly placeIntro: string | null
   readonly articleTitles: readonly {
     readonly title: string
     readonly date: string | null
@@ -130,6 +131,7 @@ export type PlaceInspectCopy = {
   readonly nextStep: string | null
   readonly driverNote: string | null
   readonly goal: string | null
+  readonly placeIntro: string | null
   readonly articleTitles: readonly {
     readonly title: string
     readonly date: string | null
@@ -153,6 +155,7 @@ export type GardenPlaceActor = {
   readonly nextStep: string | null
   readonly driverNote: string | null
   readonly goal: string | null
+  readonly placeIntro: string | null
   readonly articleTitles: readonly {
     readonly title: string
     readonly date: string | null
@@ -249,6 +252,7 @@ export function collectPlaceResidents(
       conflictCount: repository.conflicts.length,
       latestRecordTitle: everydayRecordTitle(repository.latestRecordTitle),
       workStory: everydayWorkStory(repository.workStory),
+      placeIntro: everydayPlaceIntro(repository.placeIntro),
       articleTitles: everydayArticleTitles(repository.articleTitles),
       workTitles: collectSpokenWorkTitles(repository),
       goal: pickResidentGoal(observed, nowMs),
@@ -279,6 +283,7 @@ export function collectPlaceResidents(
       conflictCount: 0,
       latestRecordTitle: null,
       workStory: null,
+      placeIntro: null,
       articleTitles: [],
       workTitles: [],
       goal: null,
@@ -387,6 +392,7 @@ function residentForLiveStream(
     lastObservedWorkLabel: session.lastObservedLabel,
     lastObservedAt: session.lastObservedAt,
     workStory: primary ? resident.workStory : null,
+    placeIntro: primary ? resident.placeIntro : null,
     articleTitles: primary ? resident.articleTitles : [],
     workTitles: primary ? resident.workTitles : [],
     goal: sessionGoal(session) ?? (primary ? resident.goal : null),
@@ -466,6 +472,7 @@ export function collectGardenActors(
         nextStep: inspect.nextStep,
         driverNote: inspect.driverNote,
         goal: inspect.goal,
+        placeIntro: inspect.placeIntro,
         articleTitles: inspect.articleTitles,
         workTitles: inspect.workTitles,
         station: plot?.station ?? stationForResident(source),
@@ -799,11 +806,12 @@ export function describePlaceInspect(
   resident: PlaceResident,
 ): PlaceInspectCopy {
   return {
-    nowText: joinFactLines(inspectLastStateLines(resident)),
+    nowText: joinFactLines(inspectNowLines(resident)),
     implementationLook: null,
     nextStep: describeNextStep(resident),
     driverNote: resident.driverNote,
     goal: resident.working ? resident.goal : null,
+    placeIntro: describePlaceIntro(resident),
     articleTitles: resident.articleTitles,
     workTitles: isBlogKitResident(resident) ? [] : resident.workTitles,
   }
@@ -849,38 +857,41 @@ function describePlaceWork(
   return spokenRecordTitle(repository.latestRecordTitle) ?? ''
 }
 
-function inspectLastStateLines(resident: PlaceResident): string[] {
+function inspectNowLines(resident: PlaceResident): string[] {
   const lines: string[] = []
   const spoken = spokenWorkTitle(resident)
-  const spokenIsOnlyRecord =
-    Boolean(spoken) &&
-    !resident.working &&
-    !resident.waiting &&
-    spoken === softenRecordTitle(resident.latestRecordTitle)
   const leftover = resident.changedFileCount > 0
   const leftoverKinds = leftover ? leftoverKindsSentence(resident) : null
   const areaWork = resident.working ? describeAreaWork(resident) : null
 
   if (resident.waiting && !resident.working) {
     lines.push('確認待ち')
+    if (resident.goal) {
+      lines.push(resident.goal)
+    } else if (spoken && spoken !== '確認待ち') {
+      lines.push(spoken)
+    }
   }
 
-  if (resident.workStory) {
+  if (resident.working) {
+    if (resident.goal) {
+      lines.push(resident.goal)
+    } else if (spoken && spoken !== '確認待ち') {
+      lines.push(spoken)
+    } else if (areaWork) {
+      lines.push(areaWork)
+    } else {
+      lines.push('動いている')
+    }
+  } else if (resident.workStory && leftover) {
     lines.push(resident.workStory)
-  } else if (spoken && spoken !== '確認待ち' && !spokenIsOnlyRecord) {
+  } else if (
+    spoken &&
+    spoken !== '確認待ち' &&
+    leftover &&
+    spoken !== softenRecordTitle(resident.latestRecordTitle)
+  ) {
     lines.push(spoken)
-  } else if (resident.working && !resident.goal && areaWork) {
-    lines.push(areaWork)
-  } else if (resident.working && !resident.goal) {
-    lines.push('動いている')
-  }
-
-  const record = describeLatestRecord(
-    resident,
-    resident.workStory ?? (spokenIsOnlyRecord ? null : spoken),
-  )
-  if (record && !resident.workStory) {
-    lines.push(record)
   }
 
   if (
@@ -900,18 +911,29 @@ function inspectLastStateLines(resident: PlaceResident): string[] {
   }
 
   const seen = lastSeenLabel(resident)
-  if (seen) {
+  if (seen && lines.length > 0) {
     lines.push(`最後に見えたのは${seen}`)
   }
 
-  if ((resident.outgoingCount ?? 0) > 0) {
-    lines.push('送っていない')
-  }
-  if ((resident.incomingCount ?? 0) > 0) {
-    lines.push('取り込み待ち')
-  }
-
   return lines
+}
+
+function describePlaceIntro(resident: PlaceResident): string | null {
+  const fromReadme = everydayPlaceIntro(resident.placeIntro)
+  if (fromReadme) {
+    return fromReadme
+  }
+  if (resident.workStory && resident.changedFileCount === 0 && !resident.working) {
+    return resident.workStory
+  }
+  const title = spokenRecordTitle(resident.latestRecordTitle)
+  if (!title) {
+    return null
+  }
+  if (resident.workStory && resident.workStory.includes(title)) {
+    return null
+  }
+  return `いちばん新しい記録は『${title}』です`
 }
 
 function describeAreaWork(
@@ -940,20 +962,6 @@ function storyImpliesLeftover(story: string | null): boolean {
   return Boolean(
     story && (story.includes('続き') || story.includes('書いています')),
   )
-}
-
-function describeLatestRecord(
-  resident: PlaceResident,
-  spoken: string | null,
-): string | null {
-  const title = softenRecordTitle(resident.latestRecordTitle)
-  if (!title || !isSpokenJapaneseTitle(title)) {
-    return null
-  }
-  if (spoken && (title === spoken || softenRecordTitle(spoken) === title)) {
-    return null
-  }
-  return `いちばん新しい記録：${title}`
 }
 
 function spokenWorkTitle(
@@ -1058,10 +1066,39 @@ function joinFactLines(lines: readonly string[]): string | null {
 }
 
 function describeNextStep(
-  resident: Pick<PlaceResident, 'waiting' | 'conflictCount'>,
+  resident: Pick<
+    PlaceResident,
+    | 'waiting'
+    | 'conflictCount'
+    | 'areas'
+    | 'workStory'
+    | 'changedFileCount'
+    | 'outgoingCount'
+    | 'incomingCount'
+  >,
 ): string | null {
   if (resident.waiting || resident.conflictCount > 0) {
     return '確認が必要'
+  }
+  const leftoverKinds =
+    resident.changedFileCount > 0 ? leftoverKindAreas(resident) : []
+  if (leftoverKinds.length === 2) {
+    return `${leftoverKinds[0]}と${leftoverKinds[1]}の途中を続ける`
+  }
+  if (leftoverKinds.length === 1) {
+    return `${leftoverKinds[0]}の途中を続ける`
+  }
+  if (resident.changedFileCount > 0) {
+    return '途中の仕事を続ける'
+  }
+  if (storyImpliesLeftover(resident.workStory)) {
+    return '記事の続きを書く'
+  }
+  if ((resident.outgoingCount ?? 0) > 0) {
+    return '送っていない仕事を届ける'
+  }
+  if ((resident.incomingCount ?? 0) > 0) {
+    return '取り込みを待つ'
   }
   return null
 }
@@ -1248,6 +1285,26 @@ function acceptInspectGoal(value: string | null | undefined): string | null {
     return spokenRecordTitle(trimmed.slice(0, 80)) ?? null
   }
   return spokenRecordTitle(trimmed) ?? everydayWorkStory(trimmed)
+}
+
+function everydayPlaceIntro(value: string | null | undefined): string | null {
+  const intro = value?.trim() ?? ''
+  if (!intro) {
+    return null
+  }
+  if (
+    intro.includes('まだ分かっていません') ||
+    intro.includes('変更元不明') ||
+    /\b(SHA|commit|HEAD|origin)\b/i.test(intro) ||
+    /[\\/]/.test(intro) ||
+    /\.(md|ya?ml|log|ts|tsx|css|json)$/i.test(intro)
+  ) {
+    return null
+  }
+  if (!/[\u3040-\u30ff\u4e00-\u9faf]/.test(intro)) {
+    return null
+  }
+  return intro
 }
 
 function everydayWorkStory(value: string | null | undefined): string | null {

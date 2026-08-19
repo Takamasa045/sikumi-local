@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { expect, test } from '@playwright/test'
@@ -42,6 +43,16 @@ test('the garden shows registered places as characters, not a list', async ({
   page,
 }) => {
   const repositoryPath = createTemporaryGitRepository('sikumi-e2e-garden-')
+  writeFileSync(
+    join(repositoryPath, 'README.md'),
+    ['# しくみローカル', '', '庭と作業場を見守るための場所です。', ''].join(
+      '\n',
+    ),
+  )
+  execFileSync('git', ['add', 'README.md'], { cwd: repositoryPath })
+  execFileSync('git', ['commit', '-m', '庭のクリック詳細を厚くする'], {
+    cwd: repositoryPath,
+  })
   writeFileSync(join(repositoryPath, 'uncommitted.txt'), 'uncommitted change\n')
 
   await page.goto('/#observer')
@@ -77,7 +88,14 @@ test('the garden shows registered places as characters, not a list', async ({
   await resident.getByRole('button').click()
   const inspect = page.getByTestId('garden-inspect')
   await expect(inspect).toContainText('しくみローカル番')
-  await expect(inspect).toContainText('どこまでやったか')
+  await expect(inspect).toContainText('いま何をしているか')
+  await expect(inspect).toContainText('次はどうするか')
+  await expect(inspect).toContainText('この場所は何の仕事か')
+  await expect(inspect).toContainText('これまでの仕事')
+  await expect(inspect).toContainText('庭と作業場を見守るための場所です。')
+  await expect(inspect).toContainText('庭のクリック詳細を厚くする')
+  await expect(inspect).toContainText('途中の仕事を続ける')
+  await expect(inspect).not.toContainText('どこまでやったか')
   await expect(inspect).not.toContainText('縁側')
   await expect(inspect).toContainText(/途中の仕事が残って|の途中が残っています/)
   await expect(inspect).not.toContainText('記録する前の、途中の仕事です')
@@ -87,6 +105,7 @@ test('the garden shows registered places as characters, not a list', async ({
   await expect(inspect).not.toContainText('次に動かすまで待つ')
   await expect(inspect).not.toContainText('次はこんな感じか')
   await expect(inspect).not.toContainText('変更元不明の作業')
+  await expect(inspect).not.toContainText('README.md')
 })
 
 test("a user can move between garden, today's workshop, and settings", async ({

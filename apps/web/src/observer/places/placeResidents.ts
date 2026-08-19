@@ -63,6 +63,7 @@ export type GardenPlaceActor = {
   readonly key: string
   readonly repositoryId: string
   readonly placeName: string
+  readonly repositoryName: string
   readonly workSummary: string
   readonly nowText: string
   readonly implementationLook: string
@@ -198,6 +199,7 @@ export function collectGardenActors(
         key: resident.repositoryId,
         repositoryId: resident.repositoryId,
         placeName: resident.placeName,
+        repositoryName: resident.repositoryName,
         workSummary: resident.lastObservedWork,
         nowText: inspect.nowText,
         implementationLook: inspect.implementationLook,

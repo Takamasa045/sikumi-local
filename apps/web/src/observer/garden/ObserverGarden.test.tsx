@@ -1,6 +1,7 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { WORKING_WALK_FIRST_STEP_MS, WORKING_WALK_STOPS } from './gardenWalk'
 import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
 import { ObserverGarden } from './ObserverGarden'
@@ -188,7 +189,7 @@ describe('ObserverGarden', () => {
     expect(inspect).toHaveTextContent('これから')
     expect(inspect).toHaveTextContent('いまの作業の続き')
     expect(inspect).toHaveTextContent('Codexが動かしている')
-    expect(inspect).toHaveTextContent('作業台')
+    expect(inspect).toHaveTextContent(/資料棚|作業台|確認の場所/)
     expect(inspect.querySelector('.garden-inspect__title')).toHaveTextContent(
       'alpha番',
     )
@@ -317,6 +318,79 @@ describe('ObserverGarden', () => {
       'data-station',
       'waiting',
     )
+    const labels = [
+      ...screen.getByTestId('garden-inspect').querySelectorAll('dt'),
+    ].map((item) => item.textContent)
+    expect(labels).toContain('どこまでやったか')
+    expect(labels).toContain('次はこんな感じか')
+    expect(labels).not.toContain('いま')
+  })
+
+  it('walks a working character between the shelf, bench, and check place', async () => {
+    vi.useFakeTimers()
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'alpha', [
+          session({
+            id: 's1',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+
+    const actor = screen.getByTestId('garden-place-repo_a')
+    const firstStop = actor.getAttribute('data-walk-stop')
+    expect(actor).toHaveAttribute('data-station', 'workbench')
+    expect(actor).toHaveAttribute('data-status', 'working')
+    expect(actor).toHaveAttribute('data-traveling', 'false')
+    expect(WORKING_WALK_STOPS).toContain(firstStop)
+
+    await act(async () => {
+      vi.advanceTimersByTime(WORKING_WALK_FIRST_STEP_MS + 20)
+    })
+
+    expect(actor).toHaveAttribute('data-traveling', 'true')
+    expect(actor).toHaveAttribute('data-gesture', 'walking')
+    const nextStop = actor.getAttribute('data-walk-stop')
+    expect(nextStop).not.toBe(firstStop)
+    expect(WORKING_WALK_STOPS).toContain(nextStop)
+    expect(actor.getAttribute('data-station')).toBe('workbench')
+  })
+
+  it('shows the repository name on the bubble when ○○番 does not already name it', () => {
+    renderGarden(overviewOf([repository('repo_a', 'my-blog', [])]), [
+      workspace('ws_repo_a', 'ブログ番'),
+    ])
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getByText('ブログ番')).toBeVisible()
+    expect(within(residents).getByText('my-blog')).toBeVisible()
+    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+  })
+
+  it('shows how far a still place got and what is next, without inventing', async () => {
+    renderGarden(overviewOf([repository('repo_a', 'notes', [], 1, ['画面'])]))
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('どこまでやったか')
+    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
+    expect(inspect).toHaveTextContent('作業中のファイルが1つある')
+    expect(inspect).toHaveTextContent('次はこんな感じか')
+    expect(inspect).toHaveTextContent('次に動かすまで待つ')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
+    expect(labels).not.toContain('いま')
+    expect(labels).not.toContain('これから')
+    expect(inspect).not.toHaveTextContent('変更元不明')
   })
 })
 

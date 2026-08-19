@@ -19,6 +19,7 @@ export type GardenInspectSubject =
       readonly implementationLook?: string
       readonly nextStep?: string
       readonly driverNote?: string | null
+      readonly live?: boolean
     }
   | {
       readonly kind: 'station'
@@ -90,6 +91,7 @@ function CharacterBody({
     subject.nowText !== undefined &&
     subject.implementationLook !== undefined &&
     subject.nextStep !== undefined
+  const live = subject.live !== false
   return (
     <dl className="garden-inspect__facts">
       {subject.role && !hasProgress ? (
@@ -102,7 +104,7 @@ function CharacterBody({
       <dd>
         {subject.traveling ? `${place}へ向かっています` : `${place}にいます`}
       </dd>
-      {hasProgress ? (
+      {hasProgress && live ? (
         <>
           <dt>いま</dt>
           <dd>
@@ -116,6 +118,20 @@ function CharacterBody({
           <dt>実装の様子</dt>
           <dd>{subject.implementationLook}</dd>
           <dt>これから</dt>
+          <dd>{subject.nextStep}</dd>
+        </>
+      ) : hasProgress ? (
+        <>
+          <dt>どこまでやったか</dt>
+          <dd>
+            {describeStoppedLook(subject.nowText, subject.implementationLook)}
+            {subject.driverNote ? (
+              <span className="garden-inspect__driver">
+                {subject.driverNote}
+              </span>
+            ) : null}
+          </dd>
+          <dt>次はこんな感じか</dt>
           <dd>{subject.nextStep}</dd>
         </>
       ) : (
@@ -132,6 +148,21 @@ function CharacterBody({
       )}
     </dl>
   )
+}
+
+function describeStoppedLook(
+  nowText: string | undefined,
+  implementationLook: string | undefined,
+): string {
+  const now = nowText?.trim() ?? ''
+  const look = implementationLook?.trim() ?? ''
+  if (!look || now.includes(look)) {
+    return now
+  }
+  if (!now) {
+    return look
+  }
+  return `${now} ${look}`
 }
 
 function StationBody({

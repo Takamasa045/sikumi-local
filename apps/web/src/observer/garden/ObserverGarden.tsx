@@ -13,12 +13,13 @@ import {
 } from '../../garden/GardenInspect'
 import { poseGesture } from '../../garden/motion'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
-import { useStationTravel } from '../../garden/useStationTravel'
 import { gardenStationLabels, getWorldPack } from '../../garden/worlds'
 import {
   collectGardenActors,
   type GardenPlaceActor,
 } from '../places/placeResidents'
+import { placeRepoLabel } from './gardenWalk'
+import { useWorkingWalk } from './useWorkingWalk'
 
 const WORLD_ID = 'dog-office' as const
 const ATLAS_COLUMNS = 3
@@ -61,8 +62,13 @@ function stationPoint(
   }
 }
 
-function actorAriaLabel(actor: GardenPlaceActor): string {
-  return [actor.placeName, actor.workSummary].join('、')
+function actorAriaLabel(
+  actor: GardenPlaceActor,
+  repoLabel: string | null,
+): string {
+  return [actor.placeName, repoLabel, actor.workSummary]
+    .filter((part): part is string => Boolean(part))
+    .join('、')
 }
 
 function actorPoint(actor: GardenPlaceActor): { x: number; y: number } {
@@ -194,18 +200,19 @@ export function ObserverGarden({
                   onTravelingChange={(next) => {
                     handleActorTravel(actor.key, next)
                   }}
-                  onSelect={() => {
+                  onSelect={(presence) => {
                     setSelectedKey(actor.key)
                     setInspect({
                       kind: 'character',
                       name: actor.placeName,
-                      station: actor.station,
-                      traveling: actorTravel[actor.key] === true,
+                      station: presence.station,
+                      traveling: presence.traveling,
                       summary: actor.workSummary,
                       nowText: actor.nowText,
                       implementationLook: actor.implementationLook,
                       nextStep: actor.nextStep,
                       driverNote: actor.driverNote,
+                      live: actor.tone === 'working' || presence.traveling,
                     })
                   }}
                 />
@@ -238,15 +245,19 @@ function ObserverGardenActor({
   readonly world: ReturnType<typeof getWorldPack>
   readonly reducedMotion: boolean
   readonly selected: boolean
-  readonly onSelect: () => void
+  readonly onSelect: (presence: {
+    readonly traveling: boolean
+    readonly station: GardenPlaceActor['station']
+  }) => void
   readonly onTravelingChange: (traveling: boolean) => void
 }) {
-  const destination = actorPoint(actor)
+  const home = actorPoint(actor)
   const {
     point: travelPoint,
     traveling,
     durationMs,
-  } = useStationTravel(destination, reducedMotion)
+    walkStation,
+  } = useWorkingWalk(actor, home, reducedMotion)
   const pose =
     actor.tone === 'waiting'
       ? 'waiting'
@@ -255,6 +266,7 @@ function ObserverGardenActor({
         : 'idle'
   const gesture = poseGesture(pose, traveling && !reducedMotion)
   const atlas = atlasPosition(actor.column, actor.row)
+  const repoLabel = placeRepoLabel(actor.placeName, actor.repositoryName)
   const spriteStyle = {
     '--observer-atlas-x': atlas.x,
     '--observer-atlas-y': atlas.y,
@@ -292,10 +304,11 @@ function ObserverGardenActor({
         .filter(Boolean)
         .join(' ')}
       role="listitem"
-      aria-label={actorAriaLabel(actor)}
+      aria-label={actorAriaLabel(actor, repoLabel)}
       data-testid={`garden-place-${actor.repositoryId}`}
       data-status={actor.tone}
       data-station={actor.station}
+      data-walk-stop={walkStation}
       data-ground-x={String(Math.round(actor.groundX))}
       data-ground-y={String(Math.round(actor.groundY))}
       data-gesture={gesture}
@@ -306,12 +319,17 @@ function ObserverGardenActor({
         type="button"
         className="observer-garden-actor-hit"
         aria-expanded={selected}
-        onClick={onSelect}
+        onClick={() => {
+          onSelect({ traveling, station: walkStation })
+        }}
       >
         <div className="observer-garden-actor-sprite" style={spriteStyle} />
       </button>
       <div className="observer-garden-bubble">
         <p className="observer-garden-bubble-source">{actor.placeName}</p>
+        {repoLabel ? (
+          <p className="observer-garden-bubble-repo">{repoLabel}</p>
+        ) : null}
         <p className="observer-garden-bubble-title">{actor.workSummary}</p>
       </div>
     </article>

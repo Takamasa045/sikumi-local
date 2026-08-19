@@ -60,6 +60,39 @@ describe('GardenInspect', () => {
     expect(inspect).not.toHaveTextContent('要約')
   })
 
+  it('uses stopped words for progress and next when the character is still', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'notes番',
+          station: 'rest',
+          traveling: false,
+          summary: 'まだ分かっていません',
+          nowText: '静か。まだ分かっていません',
+          implementationLook: '作業中のファイルが1つある',
+          nextStep: '次に動かすまで待つ',
+          live: false,
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('どこまでやったか')
+    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
+    expect(inspect).toHaveTextContent('作業中のファイルが1つある')
+    expect(inspect).toHaveTextContent('次はこんな感じか')
+    expect(inspect).toHaveTextContent('次に動かすまで待つ')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
+    expect(labels).toContain('どこまでやったか')
+    expect(labels).toContain('次はこんな感じか')
+    expect(labels).not.toContain('いま')
+    expect(labels).not.toContain('これから')
+    expect(inspect).not.toHaveTextContent('変更元不明')
+  })
+
   it('says the work is unknown instead of inventing missing facts', () => {
     render(
       <GardenInspect

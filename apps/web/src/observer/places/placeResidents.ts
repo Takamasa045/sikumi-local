@@ -624,7 +624,7 @@ function describeAreaWork(resident: Pick<PlaceResident, 'areas'>): string | null
 }
 
 function lastSeenLabel(resident: PlaceResident): string | null {
-  const label = resident.lastObservedWorkLabel ?? resident.lastObservedLabel
+  const label = resident.lastObservedWorkLabel
   if (!label || !/(前|たった今)$/.test(label)) {
     return null
   }

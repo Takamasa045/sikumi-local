@@ -9,7 +9,10 @@ import {
   type ObserverHealth,
   type ObserverInstallOptions,
 } from '@sikumi-local/observer-core'
-import { discoverClaudeCodeHooks, missingClaudeCodeEvents } from './discovery.js'
+import {
+  discoverClaudeCodeHooks,
+  missingClaudeCodeEvents,
+} from './discovery.js'
 import {
   applyClaudeCodeHookMutation,
   resolveClaudeCodeHookCommandPath,

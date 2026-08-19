@@ -1,10 +1,7 @@
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  listInboxFiles,
-  writeSpoolEvent,
-} from '@sikumi-local/observer-bridge'
+import { listInboxFiles, writeSpoolEvent } from '@sikumi-local/observer-bridge'
 import {
   OBSERVER_STALE_AFTER_MS,
   projectInboundEvent,
@@ -76,9 +73,11 @@ describe('observer watcher and consistency tick', () => {
     writeFileSync(join(repo, 'from-watch.txt'), 'changed\n')
     listeners.get(repo)?.('change', 'from-watch.txt')
 
-    expect(store.latestSnapshotsByRepository(workspace.repository.id).map((item) => item.id)).toEqual(
-      beforeIds,
-    )
+    expect(
+      store
+        .latestSnapshotsByRepository(workspace.repository.id)
+        .map((item) => item.id),
+    ).toEqual(beforeIds)
     expect(scheduled).toHaveLength(1)
 
     scheduled[0]?.()
@@ -221,7 +220,9 @@ describe('observer watcher and consistency tick', () => {
       source: 'codex',
       nativeEventType: 'SessionStart',
       session_id: 'stale-on-tick',
-      occurredAt: new Date(Date.now() - OBSERVER_STALE_AFTER_MS - 1_000).toISOString(),
+      occurredAt: new Date(
+        Date.now() - OBSERVER_STALE_AFTER_MS - 1_000,
+      ).toISOString(),
     })
     expect(
       store

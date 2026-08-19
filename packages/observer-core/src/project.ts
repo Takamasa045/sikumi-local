@@ -1,6 +1,10 @@
 import { AppError } from '@sikumi-local/core'
 import { normalizeObserverDateTime } from './datetime.js'
-import { buildIdempotencyKey, createObserverEventId, nowIso } from './idempotency.js'
+import {
+  buildIdempotencyKey,
+  createObserverEventId,
+  nowIso,
+} from './idempotency.js'
 import { toRepoRelativePath } from './paths.js'
 import {
   classifyCommandCategory,
@@ -59,11 +63,7 @@ export function projectInboundEvent(
   const inbound = parsed.data
   const source = inbound.source
   if (!isObserverSourceId(source)) {
-    throw new AppError(
-      'OBSERVER_EVENT_INVALID',
-      'Unknown observer source',
-      400,
-    )
+    throw new AppError('OBSERVER_EVENT_INVALID', 'Unknown observer source', 400)
   }
 
   const nativeEventType =
@@ -74,7 +74,8 @@ export function projectInboundEvent(
     'unknown'
   const normalizedType =
     inbound.normalizedType ?? inferNormalizedType(nativeEventType)
-  const receivedAt = normalizeObserverDateTime(options?.receivedAt ?? nowIso()) ?? nowIso()
+  const receivedAt =
+    normalizeObserverDateTime(options?.receivedAt ?? nowIso()) ?? nowIso()
   const rawOccurredAt = inbound.occurredAt ?? readString(record.timestamp)
   if (rawOccurredAt && !normalizeObserverDateTime(rawOccurredAt)) {
     throw new AppError(
@@ -83,7 +84,8 @@ export function projectInboundEvent(
       400,
     )
   }
-  const occurredAt = normalizeObserverDateTime(rawOccurredAt ?? receivedAt) ?? receivedAt
+  const occurredAt =
+    normalizeObserverDateTime(rawOccurredAt ?? receivedAt) ?? receivedAt
   const externalSessionId =
     inbound.externalSessionId ??
     readString(record.session_id) ??
@@ -100,8 +102,7 @@ export function projectInboundEvent(
     toolName,
     toolInput,
   })
-  const filePath =
-    readString(extracted.filePath) ?? extractedPaths[0] ?? null
+  const filePath = readString(extracted.filePath) ?? extractedPaths[0] ?? null
   const commandCategory =
     readString(extracted.commandCategory) ??
     (isPlainObject(toolInput)
@@ -185,13 +186,17 @@ export function projectInboundEvent(
           ? 'reported'
           : 'verified'),
     ingestionMethod:
-      inbound.ingestionMethod ?? options?.ingestionMethod ?? inferIngestion(source),
+      inbound.ingestionMethod ??
+      options?.ingestionMethod ??
+      inferIngestion(source),
     idempotencyKey,
     payload,
   }
 }
 
-export function inferNormalizedType(nativeEventType: string): ObserverNormalizedType {
+export function inferNormalizedType(
+  nativeEventType: string,
+): ObserverNormalizedType {
   const value = nativeEventType.toLowerCase()
   if (isObserverNormalizedType(nativeEventType)) {
     return nativeEventType
@@ -208,7 +213,11 @@ export function inferNormalizedType(nativeEventType: string): ObserverNormalized
   if (value.includes('prompt')) {
     return 'prompt.submitted'
   }
-  if (value.includes('readfile') || value.includes('fileread') || value.endsWith('.read')) {
+  if (
+    value.includes('readfile') ||
+    value.includes('fileread') ||
+    value.endsWith('.read')
+  ) {
     return 'file.read'
   }
   if (value.includes('file') || value.includes('edit')) {
@@ -315,7 +324,11 @@ function inferActor(type: ObserverNormalizedType) {
   if (type === 'prompt.submitted' || type === 'permission.resolved') {
     return 'human' as const
   }
-  if (type.startsWith('session.') || type.startsWith('file.') || type.startsWith('command.')) {
+  if (
+    type.startsWith('session.') ||
+    type.startsWith('file.') ||
+    type.startsWith('command.')
+  ) {
     return 'agent' as const
   }
   return 'unknown' as const
@@ -351,7 +364,11 @@ function inferSurface(record: Record<string, unknown>): ObserverSurface {
   if (hint.includes('cli') || hint.includes('terminal')) {
     return 'cli'
   }
-  if (hint.includes('ide') || hint.includes('vscode') || hint.includes('cursor')) {
+  if (
+    hint.includes('ide') ||
+    hint.includes('vscode') ||
+    hint.includes('cursor')
+  ) {
     return 'ide'
   }
   if (hint.includes('mcp')) {
@@ -371,9 +388,15 @@ function inferIngestion(source: ObserverSourceId): IngestionMethod {
 }
 
 function readString(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : null
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && Array.isArray(value) === false
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Array.isArray(value) === false
+  )
 }

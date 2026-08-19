@@ -41,9 +41,7 @@ function normalizeClaudeCodeHookOrNull(
   const receivedAt = nowIso()
   const occurredAt =
     normalizeObserverDateTime(
-      readString(input.occurredAt) ??
-        readString(input.timestamp) ??
-        receivedAt,
+      readString(input.occurredAt) ?? readString(input.timestamp) ?? receivedAt,
     ) ?? receivedAt
   const sessionId =
     readString(input.session_id) ?? readString(input.sessionId) ?? null
@@ -80,7 +78,9 @@ function normalizeClaudeCodeHookOrNull(
     ...(safeFilePath ? { filePath: safeFilePath } : {}),
     ...(toolUseId ? { toolUseId } : {}),
     ...(commandCategory !== 'unknown' ? { commandCategory } : {}),
-    ...(readString(input.matcher) ? { matcher: readString(input.matcher) } : {}),
+    ...(readString(input.matcher)
+      ? { matcher: readString(input.matcher) }
+      : {}),
     ...(readString(input.permission_mode)
       ? { permissionMode: readString(input.permission_mode) }
       : {}),
@@ -108,9 +108,7 @@ function normalizeClaudeCodeHookOrNull(
     cwd,
     repositoryId: null,
     worktreePath:
-      readString(input.worktree_path) ??
-      readString(input.worktreePath) ??
-      cwd,
+      readString(input.worktree_path) ?? readString(input.worktreePath) ?? cwd,
     branch: readString(input.branch),
     baseCommit: null,
     headCommit: null,
@@ -179,7 +177,10 @@ function summarize(
   if (nativeEventType === 'SessionEnd') {
     return 'Claude Codeの作業が終わりました'
   }
-  if (nativeEventType === 'PermissionRequest' || nativeEventType === 'Notification') {
+  if (
+    nativeEventType === 'PermissionRequest' ||
+    nativeEventType === 'Notification'
+  ) {
     return 'Claude Codeが確認を待っています'
   }
   if (nativeEventType === 'SubagentStart') {

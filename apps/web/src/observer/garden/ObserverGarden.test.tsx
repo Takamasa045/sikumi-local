@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
 import { ObserverGarden } from './ObserverGarden'
@@ -122,10 +123,14 @@ describe('ObserverGarden', () => {
     expect(within(agents).queryByText('Codexらしい')).toBeNull()
     expect(within(agents).queryByText('推測された作業')).toBeNull()
 
-    const unverified = screen.getByRole('list', { name: '出どころ未確認の変更' })
+    const unverified = screen.getByRole('list', {
+      name: '出どころ未確認の変更',
+    })
     expect(within(unverified).getByText('alpha')).toBeVisible()
     expect(within(unverified).getByText('beta')).toBeVisible()
-    expect(within(unverified).getAllByText('出どころ未確認の変更')).toHaveLength(2)
+    expect(
+      within(unverified).getAllByText('出どころ未確認の変更'),
+    ).toHaveLength(2)
     expect(within(unverified).getByText('4 件')).toBeVisible()
     expect(within(unverified).getByText('2 件')).toBeVisible()
   })
@@ -206,6 +211,50 @@ describe('ObserverGarden', () => {
     expect(within(agents).queryByText('Cursor')).toBeNull()
     expect(within(agents).queryByText('Claudeアプリ')).toBeNull()
   })
+
+  it('maps remaining tones, unnamed sessions, and known sources', async () => {
+    const onWorkshop = vi.fn()
+    const onSettings = vi.fn()
+    render(
+      <ObserverGarden
+        overview={overviewOf([
+          repository('repo_a', 'alpha', [
+            session({
+              id: 'done',
+              source: 'copilot',
+              displayName: '   ',
+              title: '',
+              status: 'finished',
+              activity: 'idle',
+            }),
+            session({
+              id: 'obs',
+              source: null as never,
+              displayName: '',
+              title: '観測だけ',
+              status: 'idle',
+              activity: 'idle',
+            }),
+            session({
+              id: 'vs',
+              source: 'vscode',
+              displayName: 'VS Code',
+              title: '編集',
+              status: 'completed',
+              activity: 'done',
+            }),
+          ]),
+        ])}
+        onOpenWorkshop={onWorkshop}
+        onOpenSettings={onSettings}
+      />,
+    )
+    expect(screen.getAllByText('完了')).toHaveLength(2)
+    expect(screen.getByText('観測中')).toBeVisible()
+    expect(screen.getByText('無題')).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: /今日の作業場/ }))
+    expect(onWorkshop).toHaveBeenCalled()
+  })
 })
 
 function renderGarden(overview: TodayOverview | null) {
@@ -218,7 +267,9 @@ function renderGarden(overview: TodayOverview | null) {
   )
 }
 
-function overviewOf(repositories: TodayOverview['repositories']): TodayOverview {
+function overviewOf(
+  repositories: TodayOverview['repositories'],
+): TodayOverview {
   return {
     generatedAt: '2026-08-19T00:00:00.000Z',
     repositoryCount: repositories.length,
@@ -251,7 +302,9 @@ function repository(
   }
 }
 
-function session(partial: Partial<SessionView> & Pick<SessionView, 'id' | 'source'>): SessionView {
+function session(
+  partial: Partial<SessionView> & Pick<SessionView, 'id' | 'source'>,
+): SessionView {
   return {
     displayName: partial.displayName ?? partial.source,
     status: 'idle',

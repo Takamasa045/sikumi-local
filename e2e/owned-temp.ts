@@ -10,7 +10,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { isSafeOwnedTempDirectory } from './owned-temp-guard.mjs'
 
-export { isSafeOwnedTempDirectory, OWNED_E2E_TEMP_PREFIXES } from './owned-temp-guard.mjs'
+export {
+  isSafeOwnedTempDirectory,
+  OWNED_E2E_TEMP_PREFIXES,
+} from './owned-temp-guard.mjs'
 
 const OWNED_PATHS_FILE = 'e2e-owned-paths.json'
 
@@ -47,9 +50,7 @@ export function readOwnedDirectories(): string[] {
 }
 
 export function createTemporaryGitRepository(prefix: string): string {
-  const directory = trackOwnedDirectory(
-    mkdtempSync(join(tmpdir(), prefix)),
-  )
+  const directory = trackOwnedDirectory(mkdtempSync(join(tmpdir(), prefix)))
   execFileSync('git', ['init', '-b', 'main'], { cwd: directory })
   execFileSync('git', ['config', 'user.email', 'e2e@example.com'], {
     cwd: directory,

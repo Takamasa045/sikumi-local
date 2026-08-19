@@ -22,7 +22,11 @@ import {
 
 const USER_CONFIG_SEGMENTS = ['.grok', 'config.toml'] as const
 const REPO_HOOK_SEGMENTS = ['.grok', 'hooks', 'sikumi-observer.json'] as const
-const LEGACY_REPO_HOOK_SEGMENTS = ['.grok', 'hooks', 'sikumi-observer.toml'] as const
+const LEGACY_REPO_HOOK_SEGMENTS = [
+  '.grok',
+  'hooks',
+  'sikumi-observer.toml',
+] as const
 const PLUGIN_MANIFEST_SEGMENTS = [
   '.grok',
   'plugins',
@@ -175,7 +179,11 @@ function planInstallFiles(input: {
   if (input.scope === 'repo') {
     const existingJson = readTextIfExists(input.hookTarget)
     return [
-      filePlan(input.hookTarget, renderGrokHooksJson(input.command), existingJson),
+      filePlan(
+        input.hookTarget,
+        renderGrokHooksJson(input.command),
+        existingJson,
+      ),
       ...legacyCleanupPlans(input.root, { includePlugin: true }),
     ]
   }

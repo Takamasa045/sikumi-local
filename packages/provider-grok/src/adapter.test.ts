@@ -14,7 +14,12 @@ import {
   spawnManagedProcess,
   type ManagedProcess,
 } from '@sikumi-local/process-runtime'
-import { createGrokProvider, resolveFakeGrokPath } from './adapter.js'
+import {
+  createGrokProvider,
+  DEFAULT_GROK_RUN_TIMEOUT_MS,
+  resolveFakeGrokPath,
+  resolveGrokRunTimeoutMs,
+} from './adapter.js'
 import {
   assertSupportedGrokProtocol,
   loadGrokProtocolFixture,
@@ -25,7 +30,11 @@ import {
   grokCommonArgs,
   mapGrokSandbox,
 } from './sandbox.js'
-import { mapGrokSessionUpdate, permissionOptionId } from './map-event.js'
+import {
+  isDuplicateNonTerminalProgress,
+  mapGrokSessionUpdate,
+  permissionOptionId,
+} from './map-event.js'
 
 const directories: string[] = []
 const adapters: Array<ReturnType<typeof createGrokProvider>> = []
@@ -118,6 +127,49 @@ describe('Grok sandbox and mapping', () => {
     expect(() => assertGrokArgsSafe(['--worktree'])).toThrow(AppError)
     assertGrokArgsSafe(['--sandbox', 'read-only'])
   })
+
+  it('detects only consecutive identical non-terminal progress events', () => {
+    const organizing = {
+      type: 'run.state_changed' as const,
+      runId: 'r',
+      occurredAt: 't',
+      summary: '調査結果を整理しています',
+      state: 'organizing' as const,
+    }
+    const planning = {
+      type: 'run.state_changed' as const,
+      runId: 'r',
+      occurredAt: 't2',
+      summary: '計画を立てています',
+      state: 'planning' as const,
+    }
+    const read = {
+      type: 'repository.read' as const,
+      runId: 'r',
+      occurredAt: 't3',
+      summary: 'この工房の資料を読んでいます',
+    }
+    const tool = {
+      type: 'tool.started' as const,
+      runId: 'r',
+      occurredAt: 't4',
+      summary: '作業を進めています',
+    }
+    expect(isDuplicateNonTerminalProgress(undefined, organizing)).toBe(false)
+    expect(isDuplicateNonTerminalProgress(organizing, organizing)).toBe(true)
+    expect(isDuplicateNonTerminalProgress(organizing, planning)).toBe(false)
+    expect(isDuplicateNonTerminalProgress(organizing, read)).toBe(false)
+    expect(isDuplicateNonTerminalProgress(read, read)).toBe(false)
+    expect(isDuplicateNonTerminalProgress(tool, tool)).toBe(false)
+    expect(
+      isDuplicateNonTerminalProgress(organizing, {
+        type: 'run.completed',
+        runId: 'r',
+        occurredAt: 't5',
+        summary: '調査が完了しました',
+      }),
+    ).toBe(false)
+  })
 })
 
 describe('Grok adapter', () => {
@@ -146,6 +198,59 @@ describe('Grok adapter', () => {
     await expect(
       adapter.respondToQuestion('q', { text: 'n' }),
     ).rejects.toBeInstanceOf(AppError)
+  })
+
+  it('selects the schema-matching answer from a repair prompt and schema echo', async () => {
+    const adapter = track(createFixtureAdapter())
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun(specification(trackDir(), '[schema-echo]調べて')),
+    )
+    const artifact = events.find((event) => event.type === 'artifact.created')
+    const completed = events.find((event) => event.type === 'run.completed')
+    expect(completed).toMatchObject({ type: 'run.completed' })
+    expect(completed).not.toHaveProperty('invalidResult', true)
+    expect(artifact).toMatchObject({
+      type: 'artifact.created',
+      artifactType: 'report',
+      title: '調査メモ',
+      content: JSON.stringify({ title: '調査メモ', summary: '完了 {ok}' }),
+    })
+    expect(JSON.stringify(events)).not.toContain('指定Schemaだけで出力')
+    expect(JSON.stringify(events)).not.toContain('raw result')
+  })
+
+  it('suppresses consecutive organizing progress but keeps read, tool, and state changes', async () => {
+    const adapter = track(createFixtureAdapter())
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun(
+        specification(trackDir(), '[repeat-progress]調べて'),
+      ),
+    )
+    const organizing = events.filter(
+      (event) =>
+        event.type === 'run.state_changed' &&
+        event.summary === '調査結果を整理しています',
+    )
+    expect(organizing).toHaveLength(3)
+    expect(
+      events.filter((event) => event.type === 'repository.read').length,
+    ).toBeGreaterThanOrEqual(1)
+    expect(events.some((event) => event.type === 'tool.started')).toBe(true)
+    expect(events.some((event) => event.type === 'tool.completed')).toBe(true)
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'run.state_changed' &&
+          event.summary === '計画を立てています',
+      ),
+    ).toBe(true)
+    expect(
+      events.filter((event) => event.type === 'run.state_changed'),
+    ).toHaveLength(4)
+    expect(events.some((event) => event.type === 'run.completed')).toBe(true)
+    expect(events.at(-1)).not.toMatchObject({ invalidResult: true })
   })
 
   it('repairs invalid schema twice then keeps a raw artifact', async () => {
@@ -311,6 +416,23 @@ describe('Grok adapter', () => {
     ).toBe(true)
   })
 
+  it('selects the matching answer JSON on a streaming-json schema echo', async () => {
+    const adapter = track(createStreamingFixtureAdapter())
+    const probe = await adapter.probe()
+    expect(probe.transport).toBe('streaming-json')
+    const events = await collect(
+      await adapter.startRun(specification(trackDir(), '[schema-echo]調べて')),
+    )
+    const artifact = events.find((event) => event.type === 'artifact.created')
+    expect(events.some((event) => event.type === 'run.completed')).toBe(true)
+    expect(events.at(-1)).not.toMatchObject({ invalidResult: true })
+    expect(artifact).toMatchObject({
+      artifactType: 'report',
+      title: '調査メモ',
+      content: JSON.stringify({ title: '調査メモ', summary: '完了 {ok}' }),
+    })
+  })
+
   it('fails after wait() when output overflows even if the process exit looks successful', async () => {
     const adapter = track(
       createGrokProvider({
@@ -446,6 +568,61 @@ describe('Grok adapter', () => {
     ).rejects.toBeInstanceOf(AppError)
   })
 
+  it('resolves the ACP session/prompt timeout from the run maxDuration', () => {
+    expect(resolveGrokRunTimeoutMs(120_000)).toBe(120_000)
+    expect(resolveGrokRunTimeoutMs(undefined)).toBe(DEFAULT_GROK_RUN_TIMEOUT_MS)
+    expect(resolveGrokRunTimeoutMs(0)).toBe(DEFAULT_GROK_RUN_TIMEOUT_MS)
+    expect(resolveGrokRunTimeoutMs(-5)).toBe(DEFAULT_GROK_RUN_TIMEOUT_MS)
+    expect(DEFAULT_GROK_RUN_TIMEOUT_MS).toBeGreaterThan(30_000)
+    expect(Number.isFinite(DEFAULT_GROK_RUN_TIMEOUT_MS)).toBe(true)
+  })
+
+  it('lets a slow session/prompt finish inside the run maxDuration', async () => {
+    const adapter = track(createFixtureAdapter())
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun({
+        ...specification(trackDir(), '[slow-prompt]調べて'),
+        maxDurationMs: 1_000,
+      }),
+    )
+    expect(events.some((event) => event.type === 'run.completed')).toBe(true)
+    expect(events.some((event) => event.type === 'run.failed')).toBe(false)
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'artifact.created' &&
+          typeof event.content === 'string',
+      ),
+    ).toBe(true)
+  })
+
+  it('fails closed when the ACP process exits before a terminal result', async () => {
+    const adapter = track(createFixtureAdapter())
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun(specification(trackDir(), '[exit-now]調べて')),
+    )
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.at(-1)?.type).toBe('run.failed')
+  })
+
+  it('fails a session/prompt that outlives the run maxDuration', async () => {
+    const adapter = track(createFixtureAdapter())
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun({
+        ...specification(trackDir(), '[slow-prompt]調べて'),
+        maxDurationMs: 80,
+      }),
+    )
+    expect(events.some((event) => event.type === 'run.completed')).toBe(false)
+    expect(events.at(-1)?.type).toBe('run.failed')
+    expect(JSON.stringify(events)).not.toContain(
+      'JSON-RPC request timed out: initialize',
+    )
+  })
+
   it('completes a supported protocol fixture run', async () => {
     const adapter = track(createFixtureAdapter({ protocol: 'supported' }))
     await adapter.probe()
@@ -532,6 +709,45 @@ async function expectProcessesExited(pids: number[]): Promise<void> {
     }
     expect(isProcessAlive(pid)).toBe(false)
   }
+}
+
+function createStreamingFixtureAdapter() {
+  return createGrokProvider({
+    executable: process.execPath,
+    argsPrefix: [resolveFakeGrokPath()],
+    probeCwd: trackDir(),
+    parentEnv: {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME,
+    },
+    capture: async (request) => {
+      if (request.args.includes('stdio') && request.args.includes('--help')) {
+        return {
+          code: 2,
+          signal: null,
+          stdout: '',
+          stderr: 'missing',
+          timedOut: false,
+        }
+      }
+      if (request.args.includes('--help')) {
+        return {
+          code: 0,
+          signal: null,
+          stdout: 'streaming-json\n--sandbox\n',
+          stderr: '',
+          timedOut: false,
+        }
+      }
+      return {
+        code: 0,
+        signal: null,
+        stdout: '{"currentVersion":"1.0.5"}',
+        stderr: '',
+        timedOut: false,
+      }
+    },
+  })
 }
 
 function createCodexLikeMissingAcp() {

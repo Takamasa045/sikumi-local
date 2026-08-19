@@ -58,10 +58,7 @@ import {
   type RepositoryWatcherHandle,
 } from './repository-watcher.js'
 import { createScanScheduler } from './scan-scheduler.js'
-import {
-  markStaleSessions,
-  upsertSessionFromEvent,
-} from './sessions.js'
+import { markStaleSessions, upsertSessionFromEvent } from './sessions.js'
 import {
   buildRepositoryActivity,
   buildTodayOverview,
@@ -103,7 +100,9 @@ export interface ObserverService {
   scanAll(): TodayOverview
   today(mode?: ObserverViewMode): TodayOverview
   listAdapters(): ReturnType<CombinedStore['listAdapters']>
-  checkAdapter(source: string): Promise<ReturnType<CombinedStore['listAdapters']>[number]>
+  checkAdapter(
+    source: string,
+  ): Promise<ReturnType<CombinedStore['listAdapters']>[number]>
   installAdapter(
     source: string,
     options?: ObserverInstallOptions,
@@ -247,7 +246,9 @@ export function createObserverService(
           })
           continue
         }
-        const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0)
+        const lines = raw
+          .split(/\r?\n/)
+          .filter((line) => line.trim().length > 0)
         let hadFailure = false
         let lineIndex = 0
         for (const line of lines) {
@@ -396,10 +397,7 @@ export function createObserverService(
     scanRepository(repositoryId, mode = 'simple') {
       reconcileRegisteredWatchers()
       scheduler.force(repositoryId)
-      return presentRepositoryActivity(
-        activityFromStore(repositoryId),
-        mode,
-      )
+      return presentRepositoryActivity(activityFromStore(repositoryId), mode)
     },
     scanAll() {
       reconcileRegisteredWatchers()
@@ -423,20 +421,24 @@ export function createObserverService(
           // keep the rest visible
         }
       }
-      const repositories = store.listRegisteredRepositories().map((repository) => {
-        const snapshot = latestSnapshotView(store, repository.id)
-        return presentRepositoryActivity(
-          buildRepositoryActivity({
-            repository,
-            snapshot,
-            sessions: store.listExternalSessions({ repositoryId: repository.id }),
-            labels: {},
-            conflicts: store.listConflicts({ repositoryId: repository.id }),
-            claims: store.listResourceClaims({ repositoryId: repository.id }),
-          }),
-          mode,
-        )
-      })
+      const repositories = store
+        .listRegisteredRepositories()
+        .map((repository) => {
+          const snapshot = latestSnapshotView(store, repository.id)
+          return presentRepositoryActivity(
+            buildRepositoryActivity({
+              repository,
+              snapshot,
+              sessions: store.listExternalSessions({
+                repositoryId: repository.id,
+              }),
+              labels: {},
+              conflicts: store.listConflicts({ repositoryId: repository.id }),
+              claims: store.listResourceClaims({ repositoryId: repository.id }),
+            }),
+            mode,
+          )
+        })
       return buildTodayOverview(repositories)
     },
     listAdapters() {
@@ -476,7 +478,11 @@ export function createObserverService(
     source?: ObserverSourceId,
   ): NormalizedObserverEvent {
     const inferredSource = source ?? readSource(raw)
-    if (!alreadyProjected(raw) && inferredSource && shouldNormalizeWithAdapter(raw)) {
+    if (
+      !alreadyProjected(raw) &&
+      inferredSource &&
+      shouldNormalizeWithAdapter(raw)
+    ) {
       const adapter = adapters.get(inferredSource)
       const normalized = adapter?.normalize(raw)
       if (normalized) {
@@ -503,7 +509,9 @@ export function createObserverService(
       )
     }
     if (adapter.id === 'git') {
-      return action === 'install' ? adapter.install(options) : adapter.uninstall(options)
+      return action === 'install'
+        ? adapter.install(options)
+        : adapter.uninstall(options)
     }
     const withDataDirectory: ObserverInstallOptions = {
       ...(options ?? {}),
@@ -553,7 +561,8 @@ export function createObserverService(
       ...current,
       lastEventAt: at,
       installationStatus: health.status,
-      enabled: current.source === 'git' || isEnabledInstallationStatus(health.status),
+      enabled:
+        current.source === 'git' || isEnabledInstallationStatus(health.status),
       health,
       updatedAt: at,
     })
@@ -631,7 +640,10 @@ export function createObserverService(
       sessions,
       labels: Object.fromEntries(
         sessions
-          .map((session) => [session.id, store.getSessionLabel(session.id)] as const)
+          .map(
+            (session) =>
+              [session.id, store.getSessionLabel(session.id)] as const,
+          )
           .filter((entry) => entry[1]),
       ),
       conflicts: store.listConflicts({ repositoryId }),
@@ -818,7 +830,8 @@ function latestSnapshotView(
     available: true,
     reason: null,
     repositoryRoot: latest[0]?.worktreePath ?? null,
-    displayName: store.getRegisteredRepository(repositoryId)?.displayName ?? null,
+    displayName:
+      store.getRegisteredRepository(repositoryId)?.displayName ?? null,
     branch: latest.find((item) => item.worktreePath)?.branch ?? null,
     headCommit: latest[0]?.headCommit ?? null,
     baseCommit: latest[0]?.baseCommit ?? null,
@@ -836,13 +849,20 @@ function latestSnapshotView(
         baseCommit: item.baseCommit,
         changedFiles: files,
         changedFileCount: status.changedFileCount ?? files.length,
-        truncated: status.truncated === true || files.length < (status.changedFileCount ?? files.length),
+        truncated:
+          status.truncated === true ||
+          files.length < (status.changedFileCount ?? files.length),
       }
     }),
-    changedFiles: latest.flatMap((item) => item.changedFiles as ChangedFileRecord[]),
+    changedFiles: latest.flatMap(
+      (item) => item.changedFiles as ChangedFileRecord[],
+    ),
     scannedAt: latest[0]?.createdAt ?? nowIso(),
     truncated: latest.some((item) => {
-      const status = item.status as { truncated?: boolean; changedFileCount?: number }
+      const status = item.status as {
+        truncated?: boolean
+        changedFileCount?: number
+      }
       return status.truncated === true
     }),
   }

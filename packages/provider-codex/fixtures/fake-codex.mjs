@@ -153,9 +153,14 @@ async function runAppServer() {
     if (message.method === 'turn/start') {
       globalThis.__lastTurn = message.params
       turnId = 'turn-1'
+      const prompt = extractPrompt(message.params)
+      if (prompt.includes('[slow-turn]')) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 200)
+        })
+      }
       reply(message.id, { turn: { id: turnId, status: 'inProgress' } })
       emit({ method: 'turn/started', params: { turn: { id: turnId }, turnId } })
-      const prompt = extractPrompt(message.params)
       if (prompt.includes('[malformed]')) {
         process.stdout.write('this is not json\n')
         process.stdout.write(`${'{"huge":"'.padEnd(32, 'x')}\n`)

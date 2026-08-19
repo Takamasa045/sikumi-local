@@ -41,4 +41,41 @@ describe('openEventStream', () => {
     }).not.toThrow()
     vi.unstubAllGlobals()
   })
+
+  it('ignores a constructor failure and malformed frames', () => {
+    class Boom {
+      constructor() {
+        throw new Error('no sse')
+      }
+    }
+    vi.stubGlobal('EventSource', Boom)
+    const stop = openEventStream('/api/events', vi.fn(), vi.fn())
+    expect(() => {
+      stop()
+    }).not.toThrow()
+    vi.unstubAllGlobals()
+
+    const instances: Array<{
+      onmessage: ((event: MessageEvent) => void) | null
+      onerror: (() => void) | null
+    }> = []
+    class Capture {
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: (() => void) | null = null
+      constructor() {
+        instances.push(this)
+      }
+      close() {}
+    }
+    vi.stubGlobal('EventSource', Capture)
+    const onEvent = vi.fn()
+    const onError = vi.fn()
+    const close = openEventStream('/api/events', onEvent, onError)
+    instances[0]!.onmessage?.({ data: 'not-json' } as MessageEvent)
+    instances[0]!.onerror?.()
+    expect(onEvent).not.toHaveBeenCalled()
+    expect(onError).toHaveBeenCalled()
+    close()
+    vi.unstubAllGlobals()
+  })
 })

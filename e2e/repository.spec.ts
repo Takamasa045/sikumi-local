@@ -2,10 +2,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import {
-  createTemporaryGitRepository,
-  trackOwnedDirectory,
-} from './owned-temp'
+import { createTemporaryGitRepository, trackOwnedDirectory } from './owned-temp'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -26,7 +23,7 @@ test('a non-git path is rejected from the garden form', async ({ page }) => {
   ).toBeVisible()
 })
 
-test('a user can register a local git repository from today\'s workshop', async ({
+test("a user can register a local git repository from today's workshop", async ({
   page,
 }) => {
   const repositoryPath = createTemporaryGitRepository('sikumi-e2e-git-')
@@ -44,7 +41,7 @@ test('a user can register a local git repository from today\'s workshop', async 
   await expect(page.getByTestId('observer-stats')).toBeVisible()
 })
 
-test('a user can register a second repository from today\'s workshop', async ({
+test("a user can register a second repository from today's workshop", async ({
   page,
 }) => {
   const first = createTemporaryGitRepository('sikumi-e2e-git-')

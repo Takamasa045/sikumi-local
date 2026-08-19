@@ -186,6 +186,68 @@ describe('artifact content API', () => {
     expect(response.json().content.length).toBe(MAX_ARTIFACT_CONTENT_BYTES)
     expect(JSON.stringify(response.json())).not.toContain(dataDirectory)
   })
+
+  it('hides storagePath and canary absolute paths from list and detail JSON', async () => {
+    const dataDirectory = track(createTemporaryDirectory())
+    const app = startApp(dataDirectory)
+    const canary = join(dataDirectory, 'CANARY_ABS_PATH_MUST_NOT_LEAK.txt')
+    writeFileSync(canary, 'secret-body')
+    const id = 'art-canary'
+    seedBareArtifact({
+      dataDirectory,
+      id,
+      type: 'report',
+      title: '公開してもよい題名',
+      storagePath: canary,
+    })
+
+    const listed = await injectPublic(app, {
+      method: 'GET',
+      url: '/api/artifacts',
+    })
+    expect(listed.statusCode).toBe(200)
+    const listedBody = JSON.stringify(listed.json())
+    expect(listedBody).not.toContain('storagePath')
+    expect(listedBody).not.toContain(canary)
+    expect(listedBody).not.toContain(dataDirectory)
+    expect(listedBody).not.toContain('CANARY_ABS_PATH_MUST_NOT_LEAK')
+    const listedArtifact = listed
+      .json()
+      .artifacts.find((artifact: { id: string }) => artifact.id === id)
+    expect(listedArtifact).toMatchObject({
+      id,
+      jobId: 'job-1',
+      type: 'report',
+      title: '公開してもよい題名',
+      createdAt: 't',
+    })
+    expect(listedArtifact).not.toHaveProperty('storagePath')
+    expect(Object.keys(listedArtifact as object).sort()).toEqual(
+      ['createdAt', 'id', 'jobId', 'title', 'type'].sort(),
+    )
+
+    const detail = await injectPublic(app, {
+      method: 'GET',
+      url: `/api/artifacts/${id}`,
+    })
+    expect(detail.statusCode).toBe(200)
+    const detailBody = JSON.stringify(detail.json())
+    expect(detailBody).not.toContain('storagePath')
+    expect(detailBody).not.toContain(canary)
+    expect(detailBody).not.toContain(dataDirectory)
+    expect(detailBody).not.toContain('CANARY_ABS_PATH_MUST_NOT_LEAK')
+    expect(detail.json().artifact).toMatchObject({
+      id,
+      jobId: 'job-1',
+      type: 'report',
+      title: '公開してもよい題名',
+      createdAt: 't',
+    })
+    expect(detail.json().artifact).not.toHaveProperty('storagePath')
+    expect(Object.keys(detail.json().artifact as object).sort()).toEqual(
+      ['createdAt', 'id', 'jobId', 'title', 'type'].sort(),
+    )
+  })
 })
 
 function startApp(dataDirectory: string) {

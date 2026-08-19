@@ -45,7 +45,10 @@ describe('official SDK client against packed MCPB server', () => {
       },
     ])
 
-    const archive = join(track(mkdtempSync(join(tmpdir(), 'mcp-sdk-pack-'))), 'sikumi.mcpb')
+    const archive = join(
+      track(mkdtempSync(join(tmpdir(), 'mcp-sdk-pack-'))),
+      'sikumi.mcpb',
+    )
     const packed = packageClaudeDesktopMcpb(archive)
     expect(packed.ok).toBe(true)
     const extracted = track(mkdtempSync(join(tmpdir(), 'mcp-sdk-extract-')))
@@ -72,7 +75,9 @@ describe('official SDK client against packed MCPB server', () => {
     await client.connect(transport)
     try {
       const listed = await client.listTools()
-      expect(listed.tools.map((tool) => tool.name)).toEqual([...SIKUMI_MCP_TOOLS])
+      expect(listed.tools.map((tool) => tool.name)).toEqual([
+        ...SIKUMI_MCP_TOOLS,
+      ])
       expect(listed.tools).toHaveLength(7)
 
       const repositories = await client.callTool({
@@ -98,7 +103,10 @@ describe('official SDK client against packed MCPB server', () => {
       expect(begunPayload.ok).toBe(true)
       expect(typeof begunPayload.sessionId).toBe('string')
 
-      writeFileSync(join(repo, 'src/profile/avatar.tsx'), 'export const n = 2\n')
+      writeFileSync(
+        join(repo, 'src/profile/avatar.tsx'),
+        'export const n = 2\n',
+      )
       const noted = await client.callTool({
         name: 'sikumi.note_resource',
         arguments: {
@@ -168,7 +176,10 @@ function resolveUnpackedRoot(extracted: string): string {
   return extracted
 }
 
-async function waitForProcessExit(pid: number | null, timeoutMs = 5000): Promise<void> {
+async function waitForProcessExit(
+  pid: number | null,
+  timeoutMs = 5000,
+): Promise<void> {
   if (!pid) {
     return
   }

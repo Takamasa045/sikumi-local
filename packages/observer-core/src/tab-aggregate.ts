@@ -16,7 +16,9 @@ export interface CursorTabAggregation {
   readonly summarySession: ExternalSession | null
 }
 
-export function isCursorTabSession(session: Pick<ExternalSession, 'source' | 'surface'>): boolean {
+export function isCursorTabSession(
+  session: Pick<ExternalSession, 'source' | 'surface'>,
+): boolean {
   return session.source === 'cursor' && session.surface === 'cursor-tab'
 }
 

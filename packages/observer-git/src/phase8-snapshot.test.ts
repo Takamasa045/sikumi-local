@@ -47,7 +47,9 @@ describe('phase 8 large repository snapshots', () => {
     const snapshot = snapshotGitRepository(repo)
     expect(snapshot.available).toBe(true)
     expect(snapshot.worktrees[0]?.changedFileCount).toBe(total)
-    expect(snapshot.worktrees[0]?.changedFiles.length).toBe(OBSERVER_MAX_SNAPSHOT_FILES)
+    expect(snapshot.worktrees[0]?.changedFiles.length).toBe(
+      OBSERVER_MAX_SNAPSHOT_FILES,
+    )
     expect(snapshot.worktrees[0]?.truncated).toBe(true)
     expect(snapshot.truncated).toBe(true)
     expect(JSON.stringify(snapshot)).not.toContain('export const n =')

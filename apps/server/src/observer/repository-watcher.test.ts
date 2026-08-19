@@ -9,8 +9,9 @@ import {
 } from './repository-watcher.js'
 
 const tempDirectories: string[] = []
-const coordinators: Array<ReturnType<typeof createRepositoryWatcherCoordinator>> =
-  []
+const coordinators: Array<
+  ReturnType<typeof createRepositoryWatcherCoordinator>
+> = []
 
 afterEach(() => {
   vi.useRealTimers()
@@ -55,9 +56,7 @@ describe('createRepositoryWatcherCoordinator', () => {
       }),
     )
 
-    coordinator.reconcile([
-      { repositoryId: 'repo-1', rootPath: registered },
-    ])
+    coordinator.reconcile([{ repositoryId: 'repo-1', rootPath: registered }])
 
     expect(watched).toEqual([registered])
     expect(watched).not.toContain(parent)
@@ -131,9 +130,9 @@ describe('createRepositoryWatcherCoordinator', () => {
       ]),
     ).not.toThrow()
     expect(watched).toEqual(['/registered/ok'])
-    expect(coordinator.watchedRoots().map((item) => item.repositoryId)).toEqual([
-      'ok',
-    ])
+    expect(coordinator.watchedRoots().map((item) => item.repositoryId)).toEqual(
+      ['ok'],
+    )
 
     expect(() =>
       errorListeners.get('/registered/ok')?.(new Error('native watch error')),
@@ -149,9 +148,7 @@ describe('createRepositoryWatcherCoordinator', () => {
       createRepositoryWatcherCoordinator({ schedule }),
     )
 
-    coordinator.reconcile([
-      { repositoryId: 'repo-1', rootPath: directory },
-    ])
+    coordinator.reconcile([{ repositoryId: 'repo-1', rootPath: directory }])
     expect(coordinator.watchedRoots()).toEqual([
       { repositoryId: 'repo-1', rootPath: resolve(directory) },
     ])
@@ -159,22 +156,16 @@ describe('createRepositoryWatcherCoordinator', () => {
     coordinator.reconcile([])
     expect(coordinator.watchedRoots()).toEqual([])
 
-    coordinator.reconcile([
-      { repositoryId: 'repo-1', rootPath: directory },
-    ])
+    coordinator.reconcile([{ repositoryId: 'repo-1', rootPath: directory }])
     coordinator.dispose()
     expect(coordinator.watchedRoots()).toEqual([])
-    coordinator.reconcile([
-      { repositoryId: 'repo-1', rootPath: directory },
-    ])
+    coordinator.reconcile([{ repositoryId: 'repo-1', rootPath: directory }])
     expect(coordinator.watchedRoots()).toEqual([])
     expect(schedule).not.toHaveBeenCalled()
   })
 })
 
-function createInjectedCoordinator(
-  schedule: (repositoryId: string) => void,
-): {
+function createInjectedCoordinator(schedule: (repositoryId: string) => void): {
   readonly coordinator: ReturnType<typeof createRepositoryWatcherCoordinator>
   readonly listeners: Map<
     string,

@@ -21,7 +21,9 @@ export async function runClaudeDesktopMcpServer(
   } catch (error) {
     // fail-open: never block Claude, but keep the failure visible
     const message =
-      error instanceof Error ? error.message : String(error ?? 'mcp server failed')
+      error instanceof Error
+        ? error.message
+        : String(error ?? 'mcp server failed')
     io.stderr.write(`sikumi-observer-claude-desktop: ${message}\n`)
   }
   return 0

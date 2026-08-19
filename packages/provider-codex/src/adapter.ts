@@ -82,6 +82,19 @@ const DISCONNECTED: ProviderCapabilities = {
   costReporting: false,
 }
 
+export const DEFAULT_CODEX_RUN_TIMEOUT_MS = 15 * 60 * 1000
+
+export function resolveCodexRunTimeoutMs(maxDurationMs?: number): number {
+  if (
+    typeof maxDurationMs === 'number' &&
+    Number.isFinite(maxDurationMs) &&
+    maxDurationMs > 0
+  ) {
+    return maxDurationMs
+  }
+  return DEFAULT_CODEX_RUN_TIMEOUT_MS
+}
+
 export interface CodexProviderOptions {
   readonly commandName?: string
   readonly executable?: string
@@ -254,6 +267,7 @@ export function createCodexProvider(
     sandbox: ReturnType<typeof mapCodexSandbox>,
     resume: boolean,
   ): Promise<ProviderRunHandle> {
+    const runTimeoutMs = resolveCodexRunTimeoutMs(specification.maxDurationMs)
     const child = spawn({
       executable,
       args: [...prefixArgs(), 'app-server', '--stdio'],
@@ -261,9 +275,7 @@ export function createCodexProvider(
       env: specification.environment,
       allowedCwdRoots: specification.allowedCwdRoots,
       parentEnv,
-      ...(specification.maxDurationMs === undefined
-        ? {}
-        : { timeoutMs: specification.maxDurationMs }),
+      timeoutMs: runTimeoutMs,
     })
     const rpc = createJsonRpcClient(child)
     const events = new AsyncQueue<CanonicalEvent>()
@@ -365,16 +377,20 @@ export function createCodexProvider(
       }
       active.threadId = startedThreadId
       const turn = asObject(
-        await rpc.request('turn/start', {
-          threadId: startedThreadId,
-          input: [{ type: 'text', text: specification.prompt }],
-          sandboxPolicy: sandbox.sandboxPolicy,
-          approvalPolicy: 'on-request',
-          ...(specification.outputSchema
-            ? { outputSchema: specification.outputSchema }
-            : {}),
-          ...(specification.model ? { model: specification.model } : {}),
-        }),
+        await rpc.request(
+          'turn/start',
+          {
+            threadId: startedThreadId,
+            input: [{ type: 'text', text: specification.prompt }],
+            sandboxPolicy: sandbox.sandboxPolicy,
+            approvalPolicy: 'on-request',
+            ...(specification.outputSchema
+              ? { outputSchema: specification.outputSchema }
+              : {}),
+            ...(specification.model ? { model: specification.model } : {}),
+          },
+          { timeoutMs: runTimeoutMs },
+        ),
       )
       const turnObject = asObject(turn.turn)
       if (typeof turnObject.id === 'string') {
@@ -428,9 +444,7 @@ export function createCodexProvider(
       env: specification.environment,
       allowedCwdRoots: specification.allowedCwdRoots,
       parentEnv,
-      ...(specification.maxDurationMs === undefined
-        ? {}
-        : { timeoutMs: specification.maxDurationMs }),
+      timeoutMs: resolveCodexRunTimeoutMs(specification.maxDurationMs),
     })
     const events = new AsyncQueue<CanonicalEvent>()
     const active: ActiveRun = {
@@ -490,6 +504,15 @@ export function createCodexProvider(
           runId: active.specification.runId,
           occurredAt: now(),
           summary: '仕事を中止しました',
+        })
+        return
+      }
+      if (exit.timedOut) {
+        finishRun(active, {
+          type: 'run.failed',
+          runId: active.specification.runId,
+          occurredAt: now(),
+          summary: '制限時間を超えたため仕事を止めました',
         })
         return
       }

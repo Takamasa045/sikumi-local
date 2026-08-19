@@ -1,11 +1,29 @@
 import {
   AppError,
   artifactContentSchema,
-  artifactSchema,
   confirmWriteRequestSchema,
 } from '@sikumi-local/core'
+import type { Artifact, ArtifactType } from '@sikumi-local/core'
 import type { FastifyInstance } from 'fastify'
 import type { JobManager } from '../jobs/job-manager.js'
+
+export type PublicArtifact = {
+  readonly id: string
+  readonly jobId: string
+  readonly type: ArtifactType
+  readonly title: string
+  readonly createdAt: string
+}
+
+export function toPublicArtifact(artifact: Artifact): PublicArtifact {
+  return {
+    id: artifact.id,
+    jobId: artifact.jobId,
+    type: artifact.type,
+    title: artifact.title,
+    createdAt: artifact.createdAt,
+  }
+}
 
 export function registerArtifactRoutes(
   app: FastifyInstance,
@@ -20,15 +38,13 @@ export function registerArtifactRoutes(
         ? request.query.jobId
         : undefined
     return {
-      artifacts: jobs
-        .listArtifacts(jobId)
-        .map((artifact) => artifactSchema.parse(artifact)),
+      artifacts: jobs.listArtifacts(jobId).map(toPublicArtifact),
     }
   })
 
   app.get<{ Params: { id: string } }>('/api/artifacts/:id', async (request) => {
     return {
-      artifact: artifactSchema.parse(jobs.getArtifact(request.params.id)),
+      artifact: toPublicArtifact(jobs.getArtifact(request.params.id)),
     }
   })
 
@@ -53,7 +69,7 @@ export function registerArtifactRoutes(
         )
       }
       return {
-        artifact: artifactSchema.parse(
+        artifact: toPublicArtifact(
           jobs.applyArtifact(request.params.id, parsed.data.confirm),
         ),
       }

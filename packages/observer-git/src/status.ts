@@ -17,17 +17,27 @@ export function parseWorktreeList(output: string): Array<{
   readonly head: string | null
   readonly branch: string | null
 }> {
-  const items: Array<{ path: string; head: string | null; branch: string | null }> =
-    []
-  let current: { path: string; head: string | null; branch: string | null } | null =
-    null
+  const items: Array<{
+    path: string
+    head: string | null
+    branch: string | null
+  }> = []
+  let current: {
+    path: string
+    head: string | null
+    branch: string | null
+  } | null = null
   for (const rawLine of output.split('\n')) {
     const line = rawLine.trimEnd()
     if (line.startsWith('worktree ')) {
       if (current) {
         items.push(current)
       }
-      current = { path: line.slice('worktree '.length), head: null, branch: null }
+      current = {
+        path: line.slice('worktree '.length),
+        head: null,
+        branch: null,
+      }
       continue
     }
     if (!current) {

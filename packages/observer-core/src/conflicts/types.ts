@@ -108,7 +108,10 @@ export interface ScoreHit {
 
 export function analyzedToFinding(
   analyzed: AnalyzedConflict,
-  extras: Pick<ConflictFinding, 'status' | 'detectedAt' | 'updatedAt' | 'resolvedAt'>,
+  extras: Pick<
+    ConflictFinding,
+    'status' | 'detectedAt' | 'updatedAt' | 'resolvedAt'
+  >,
 ): ConflictFinding {
   return {
     id: analyzed.id,

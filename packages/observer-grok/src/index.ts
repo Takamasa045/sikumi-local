@@ -32,8 +32,5 @@ export {
   resolveGrokPluginSourceDir,
   stripSikumiToml,
 } from './plugin.js'
-export {
-  isDroppedGrokStreamEvent,
-  normalizeGrokStreamEvent,
-} from './stream.js'
+export { isDroppedGrokStreamEvent, normalizeGrokStreamEvent } from './stream.js'
 export { inspectGrokVersion } from './version.js'

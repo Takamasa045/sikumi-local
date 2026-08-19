@@ -46,10 +46,26 @@ afterEach(async () => {
 describe('phase 8 adapter compatibility matrix', () => {
   it('normalizes supported, future, malformed, and missing-tool shapes without storing bodies', async () => {
     const adapters = [
-      { id: 'codex', adapter: createCodexObserverAdapter(), event: { hook_event_name: 'SessionStart', session_id: 'c1' } },
-      { id: 'cursor', adapter: createCursorObserverAdapter(), event: { hook_event_name: 'sessionStart', conversation_id: 'u1' } },
-      { id: 'grok-build', adapter: createGrokObserverAdapter(), event: { type: 'SessionStart', session_id: 'g1' } },
-      { id: 'claude-code', adapter: createClaudeCodeObserverAdapter(), event: { hook_event_name: 'SessionStart', session_id: 'l1' } },
+      {
+        id: 'codex',
+        adapter: createCodexObserverAdapter(),
+        event: { hook_event_name: 'SessionStart', session_id: 'c1' },
+      },
+      {
+        id: 'cursor',
+        adapter: createCursorObserverAdapter(),
+        event: { hook_event_name: 'sessionStart', conversation_id: 'u1' },
+      },
+      {
+        id: 'grok-build',
+        adapter: createGrokObserverAdapter(),
+        event: { type: 'SessionStart', session_id: 'g1' },
+      },
+      {
+        id: 'claude-code',
+        adapter: createClaudeCodeObserverAdapter(),
+        event: { hook_event_name: 'SessionStart', session_id: 'l1' },
+      },
       {
         id: 'claude-desktop',
         adapter: createClaudeDesktopObserverAdapter(),
@@ -70,7 +86,9 @@ describe('phase 8 adapter compatibility matrix', () => {
         tool_output: 'tool body',
       })
       expect(supported).not.toBeNull()
-      expect(JSON.stringify(supported)).not.toContain('do not store this prompt')
+      expect(JSON.stringify(supported)).not.toContain(
+        'do not store this prompt',
+      )
       expect(JSON.stringify(supported)).not.toContain('hidden response')
       expect(JSON.stringify(supported)).not.toContain('tool body')
 
@@ -132,7 +150,9 @@ describe('phase 8 adapter compatibility matrix', () => {
       ...digestFields(preview),
     })
     expect(applied.applied).toBe(true)
-    expect(existsSync(join(dataDirectory, 'observer', 'claude-desktop'))).toBe(true)
+    expect(existsSync(join(dataDirectory, 'observer', 'claude-desktop'))).toBe(
+      true,
+    )
     expect(existsSync(join(home, 'Library'))).toBe(false)
   })
 })
@@ -149,14 +169,32 @@ describe('phase 8 event flood, dedupe, and spool bounds', () => {
       occurredAt: '2026-08-18T08:00:00.000Z',
     }
     const [first, second, third] = await Promise.all([
-      injectAuthed(app, { method: 'POST', url: '/api/observer/events', payload }),
-      injectAuthed(app, { method: 'POST', url: '/api/observer/events', payload }),
-      injectAuthed(app, { method: 'POST', url: '/api/observer/events', payload }),
+      injectAuthed(app, {
+        method: 'POST',
+        url: '/api/observer/events',
+        payload,
+      }),
+      injectAuthed(app, {
+        method: 'POST',
+        url: '/api/observer/events',
+        payload,
+      }),
+      injectAuthed(app, {
+        method: 'POST',
+        url: '/api/observer/events',
+        payload,
+      }),
     ])
     expect(first.statusCode).toBe(201)
     expect(second.statusCode).toBe(201)
     expect(third.statusCode).toBe(201)
-    expect(new Set([first.json().event.id, second.json().event.id, third.json().event.id]).size).toBe(1)
+    expect(
+      new Set([
+        first.json().event.id,
+        second.json().event.id,
+        third.json().event.id,
+      ]).size,
+    ).toBe(1)
 
     const events = []
     for (let index = 0; index < 80; index += 1) {
@@ -188,7 +226,11 @@ describe('phase 8 event flood, dedupe, and spool bounds', () => {
     const dataDirectory = track(createTemporaryDirectory())
     const repo = track(createTemporaryGitRepository())
     const first = createApp(dataDirectory)
-    await injectAuthed(first, { method: 'POST', url: '/api/workspaces', payload: { path: repo } })
+    await injectAuthed(first, {
+      method: 'POST',
+      url: '/api/workspaces',
+      payload: { path: repo },
+    })
     const started = Date.now()
     for (let index = 0; index < 1_200; index += 1) {
       writeSpoolEvent(
@@ -198,45 +240,63 @@ describe('phase 8 event flood, dedupe, and spool bounds', () => {
           nativeEventType: 'heartbeat',
           session_id: `stress-${index}`,
           cwd: repo,
-          occurredAt: new Date(Date.parse('2026-08-18T09:00:00.000Z') + index * 1000).toISOString(),
+          occurredAt: new Date(
+            Date.parse('2026-08-18T09:00:00.000Z') + index * 1000,
+          ).toISOString(),
         }),
       )
     }
     const inbox = observerInboxDir(dataDirectory, 'codex')
-    writeFileSync(join(inbox, '000-broken-then-valid.ndjson'), [
-      '{not-json',
-      JSON.stringify({
-        source: 'codex',
-        nativeEventType: 'SessionStart',
-        session_id: 'after-broken',
-        cwd: repo,
-        occurredAt: '2026-08-18T12:00:00.000Z',
-        prompt: 'must vanish',
-      }),
-      '',
-    ].join('\n'))
-    writeFileSync(join(inbox, 'zzz-oversized.ndjson'), `${'x'.repeat(300_000)}\n`)
+    writeFileSync(
+      join(inbox, '000-broken-then-valid.ndjson'),
+      [
+        '{not-json',
+        JSON.stringify({
+          source: 'codex',
+          nativeEventType: 'SessionStart',
+          session_id: 'after-broken',
+          cwd: repo,
+          occurredAt: '2026-08-18T12:00:00.000Z',
+          prompt: 'must vanish',
+        }),
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(
+      join(inbox, 'zzz-oversized.ndjson'),
+      `${'x'.repeat(300_000)}\n`,
+    )
     await first.close()
 
     const second = createApp(dataDirectory)
     await second.ready()
-    const sessions = await injectPublic(second, { method: 'GET', url: '/api/external-sessions' })
-    const listed = sessions.json().sessions as Array<{ externalSessionId: string | null }>
+    const sessions = await injectPublic(second, {
+      method: 'GET',
+      url: '/api/external-sessions',
+    })
+    const listed = sessions.json().sessions as Array<{
+      externalSessionId: string | null
+    }>
     const ids = listed.map((session) => session.externalSessionId)
     expect(sessions.json().total).toBeGreaterThan(100)
     expect(ids).toContain('after-broken')
     expect(ids.some((id) => id?.startsWith('stress-'))).toBe(true)
     const dumped = readdirSync(observerFailedDir(dataDirectory))
-      .map((name) => readFileSync(join(observerFailedDir(dataDirectory), name), 'utf8'))
+      .map((name) =>
+        readFileSync(join(observerFailedDir(dataDirectory), name), 'utf8'),
+      )
       .join('\n')
     expect(dumped).toContain('oversized')
     expect(dumped).toContain('json-parse')
     expect(dumped).not.toContain('must vanish')
-    const stored = await injectPublic(second, { method: 'GET', url: '/api/observer/today' })
+    const stored = await injectPublic(second, {
+      method: 'GET',
+      url: '/api/observer/today',
+    })
     expect(JSON.stringify(stored.json())).not.toContain('must vanish')
     expect(JSON.stringify(stored.json())).not.toMatch(/\+export const/)
     expect(Date.now() - started).toBeLessThan(30_000)
-  })
+  }, 40_000)
 })
 
 describe('phase 8 restart recovery', () => {
@@ -258,7 +318,9 @@ describe('phase 8 restart recovery', () => {
         nativeEventType: 'SessionStart',
         session_id: 'stale-soon',
         cwd: repo,
-        occurredAt: new Date(Date.now() - OBSERVER_STALE_AFTER_MS - 60_000).toISOString(),
+        occurredAt: new Date(
+          Date.now() - OBSERVER_STALE_AFTER_MS - 60_000,
+        ).toISOString(),
       },
     })
     await injectAuthed(first, {
@@ -308,15 +370,27 @@ describe('phase 8 restart recovery', () => {
     )
 
     const second = createApp(dataDirectory)
-    const sessions = await injectPublic(second, { method: 'GET', url: '/api/external-sessions' })
+    const sessions = await injectPublic(second, {
+      method: 'GET',
+      url: '/api/external-sessions',
+    })
     const listed = sessions.json().sessions as Array<{
       source: string
       status: string
       externalSessionId: string | null
     }>
-    expect(listed.filter((session) => session.externalSessionId === 'cursor-after-down')).toHaveLength(1)
-    expect(listed.find((session) => session.externalSessionId === 'stale-soon')?.status).toBe('stale')
-    expect(listed.find((session) => session.source === 'claude-desktop')?.status).toBe('completed')
+    expect(
+      listed.filter(
+        (session) => session.externalSessionId === 'cursor-after-down',
+      ),
+    ).toHaveLength(1)
+    expect(
+      listed.find((session) => session.externalSessionId === 'stale-soon')
+        ?.status,
+    ).toBe('stale')
+    expect(
+      listed.find((session) => session.source === 'claude-desktop')?.status,
+    ).toBe('completed')
     const activity = await injectPublic(second, {
       method: 'GET',
       url: `/api/repositories/${repositoryId}/activity`,
@@ -328,7 +402,9 @@ describe('phase 8 restart recovery', () => {
       url: `/api/external-sessions`,
     })
     expect(events.statusCode).toBe(200)
-    expect(events.json().truncated === true || Array.isArray(events.json().sessions)).toBe(true)
+    expect(
+      events.json().truncated === true || Array.isArray(events.json().sessions),
+    ).toBe(true)
   })
 })
 
@@ -371,7 +447,10 @@ describe('phase 8 install lifecycle sandbox', () => {
         planDigest: digest,
       })
       expect(applied.applied).toBe(true)
-      const againPreview = await adapter.install({ homeDir: home, repoDir: repo })
+      const againPreview = await adapter.install({
+        homeDir: home,
+        repoDir: repo,
+      })
       const again = await adapter.install({
         homeDir: home,
         repoDir: repo,
@@ -379,7 +458,10 @@ describe('phase 8 install lifecycle sandbox', () => {
         ...digestFields(againPreview),
       })
       expect(again.ok).toBe(true)
-      const uninstallPreview = await adapter.uninstall({ homeDir: home, repoDir: repo })
+      const uninstallPreview = await adapter.uninstall({
+        homeDir: home,
+        repoDir: repo,
+      })
       const removed = await adapter.uninstall({
         homeDir: home,
         repoDir: repo,
@@ -410,8 +492,16 @@ describe('phase 8 scenario G git fallback', () => {
           cwd: repo,
         }),
       ]),
-      stdout: new Writable({ write(_chunk, _encoding, callback) { callback() } }),
-      stderr: new Writable({ write(_chunk, _encoding, callback) { callback() } }),
+      stdout: new Writable({
+        write(_chunk, _encoding, callback) {
+          callback()
+        },
+      }),
+      stderr: new Writable({
+        write(_chunk, _encoding, callback) {
+          callback()
+        },
+      }),
       env: {},
     })
     expect(code).toBe(0)

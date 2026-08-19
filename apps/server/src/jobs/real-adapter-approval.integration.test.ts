@@ -70,6 +70,48 @@ describe('real adapter approval resolution', () => {
     )
   })
 
+  it('persists a Grok fixture report through JobManager events and artifacts', async () => {
+    const adapter = trackAdapter(
+      createGrokProvider({
+        executable: process.execPath,
+        argsPrefix: [resolveFakeGrokPath()],
+        probeCwd: trackDir(),
+        parentEnv: { PATH: process.env.PATH, HOME: process.env.HOME },
+      }),
+    )
+    await adapter.probe()
+    const { manager, store, dataDirectory, workspaceId } = openManager(adapter)
+    const seen: string[] = []
+    const unsubscribe = manager.subscribeAll((event) => {
+      seen.push(event.type)
+    })
+    const job = await manager.createJob({
+      workspaceId,
+      request: '[schema-echo]READMEの見出しを調べて',
+      selectedProvider: 'grok-build',
+    })
+    const finished = await waitForJob(manager, job.id, 'completed')
+    unsubscribe()
+    expect(finished.status).toBe('completed')
+    expect(
+      store.listEvents(job.id).some((event) => event.type === 'run.started'),
+    ).toBe(true)
+    expect(seen).toContain('run.completed')
+    expect(seen).toContain('artifact.created')
+    const artifact = manager
+      .listArtifacts(job.id)
+      .find((item) => item.type === 'report')
+    expect(artifact).toBeDefined()
+    expect(artifact?.storagePath).toBeTruthy()
+    const content = manager.getArtifactContent(artifact!.id)
+    expect(content.content).toContain('調査メモ')
+    expect(content.content).not.toContain('指定Schemaだけで出力')
+    expect(JSON.stringify(store.listEvents(job.id))).not.toMatch(
+      /thought|chain-of-thought|sk-|BEGIN PRIVATE/i,
+    )
+    expect(dataDirectory).toBeTruthy()
+  })
+
   it('records a single JobManager approval.resolved for Claude', async () => {
     await expectSingleResolvedApproval(
       trackAdapter(
@@ -127,7 +169,7 @@ function openManager(adapter: AgentProviderAdapter) {
     dataDirectory,
   })
   managers.push(manager)
-  return { manager, store, workspaceId: workspace.id }
+  return { manager, store, dataDirectory, workspaceId: workspace.id }
 }
 
 async function waitForApproval(

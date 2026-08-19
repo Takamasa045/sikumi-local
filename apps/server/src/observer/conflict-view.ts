@@ -92,8 +92,14 @@ export function presentConflictActors(
   return {
     leftAttributionConfidence,
     rightAttributionConfidence,
-    leftActorLabel: safeActorLabel(finding.leftSource, leftAttributionConfidence),
-    rightActorLabel: safeActorLabel(finding.rightSource, rightAttributionConfidence),
+    leftActorLabel: safeActorLabel(
+      finding.leftSource,
+      leftAttributionConfidence,
+    ),
+    rightActorLabel: safeActorLabel(
+      finding.rightSource,
+      rightAttributionConfidence,
+    ),
   }
 }
 
@@ -137,9 +143,7 @@ export function presentConflictTechnical(input: {
     rightWorktreePath,
     allowedRoots,
   )
-  const resolvedBase = cwd
-    ? resolveMergeBase(cwd, leftHead, rightHead)
-    : null
+  const resolvedBase = cwd ? resolveMergeBase(cwd, leftHead, rightHead) : null
   return {
     leftBranch: leftSnapshot?.branch ?? input.leftSession?.branch ?? null,
     rightBranch: rightSnapshot?.branch ?? input.rightSession?.branch ?? null,
@@ -180,7 +184,9 @@ function snapshotForSide(
     (value): value is string => Boolean(value),
   )
   for (const candidate of candidates) {
-    const exact = snapshots.find((item) => samePath(item.worktreePath, candidate))
+    const exact = snapshots.find((item) =>
+      samePath(item.worktreePath, candidate),
+    )
     if (exact) {
       return exact
     }
@@ -233,7 +239,10 @@ function collectChangedPaths(input: {
   readonly rightSnapshot?: StoredRepositorySnapshot | undefined
 }): string[] {
   const raw = [
-    ...input.finding.evidence.flatMap((item) => [item.leftPath, item.rightPath]),
+    ...input.finding.evidence.flatMap((item) => [
+      item.leftPath,
+      item.rightPath,
+    ]),
     ...snapshotPaths(input.leftSnapshot),
     ...snapshotPaths(input.rightSnapshot),
   ]

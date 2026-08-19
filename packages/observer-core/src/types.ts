@@ -449,7 +449,9 @@ export function installationStatusLabel(
 export function isEnabledInstallationStatus(
   status: AdapterInstallationStatus,
 ): boolean {
-  return status === 'ready' || status === 'needs_review' || status === 'degraded'
+  return (
+    status === 'ready' || status === 'needs_review' || status === 'degraded'
+  )
 }
 
 export function displayNameForSource(source: ObserverSourceId): string {

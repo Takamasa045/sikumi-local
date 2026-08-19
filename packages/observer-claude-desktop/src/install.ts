@@ -12,7 +12,10 @@ import {
   renderClaudeDesktopManifest,
   writeExtensionSources,
 } from './mcpb.js'
-import { CLAUDE_DESKTOP_INSTRUCTION, COOPERATIVE_REPORTING_NOTICE } from './events.js'
+import {
+  CLAUDE_DESKTOP_INSTRUCTION,
+  COOPERATIVE_REPORTING_NOTICE,
+} from './events.js'
 
 export const CLAUDE_DESKTOP_BUNDLE_SEGMENTS = [
   'observer',
@@ -133,12 +136,15 @@ export function applyClaudeDesktopPackageMutation(
   mkdirSync(bundleDir, { recursive: true, mode: 0o700 })
   try {
     writeExtensionSources(bundleDir)
-    const packed = packageClaudeDesktopMcpb(claudeDesktopMcpbPath(dataDirectory))
+    const packed = packageClaudeDesktopMcpb(
+      claudeDesktopMcpbPath(dataDirectory),
+    )
     if (!packed.ok) {
       return {
         ...applied,
         ok: false,
-        message: 'MCPB の pack に失敗しました。Claude の設定は変更していません。',
+        message:
+          'MCPB の pack に失敗しました。Claude の設定は変更していません。',
       }
     }
     return {

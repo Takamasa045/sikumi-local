@@ -22,12 +22,10 @@ describe('ArtifactShelf', () => {
       sample('link', 'link', null),
     ]
     render(<ArtifactShelf artifacts={artifacts} />)
-    expect(screen.getByText('調査レポート')).toBeVisible()
-    expect(screen.getByText(/保存済み/)).toBeVisible()
-    expect(screen.getAllByText(/本文はまだありません/).length).toBeGreaterThan(
-      0,
-    )
-    expect(screen.getByText('Markdown')).toBeVisible()
+    expect(
+      screen.getByText('調査レポート', { selector: 'strong' }),
+    ).toBeVisible()
+    expect(screen.getByText('Markdown', { selector: 'strong' })).toBeVisible()
     expect(screen.getByText(/コード差分/)).toBeVisible()
     expect(screen.getByText(/Patch/)).toBeVisible()
     expect(screen.getByText(/テスト結果/)).toBeVisible()

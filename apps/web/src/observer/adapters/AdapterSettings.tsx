@@ -43,7 +43,9 @@ export function AdapterSettings() {
       })
       .catch((cause: unknown) => {
         if (!cancelled) {
-          setError(cause instanceof Error ? cause.message : '観測口を読めませんでした')
+          setError(
+            cause instanceof Error ? cause.message : '観測口を読めませんでした',
+          )
         }
       })
     return () => {
@@ -66,7 +68,9 @@ export function AdapterSettings() {
     if (selected.scope === 'repo') {
       return {
         scope: 'repo',
-        ...(selected.repositoryId ? { repositoryId: selected.repositoryId } : {}),
+        ...(selected.repositoryId
+          ? { repositoryId: selected.repositoryId }
+          : {}),
       }
     }
     return { scope: 'user' }
@@ -85,10 +89,19 @@ export function AdapterSettings() {
     }
   }
 
-  async function handlePreview(source: string, action: 'install' | 'uninstall') {
+  async function handlePreview(
+    source: string,
+    action: 'install' | 'uninstall',
+  ) {
     const target = targetFor(source)
-    if (supportsRepoScope(source) && target.scope === 'repo' && !target.repositoryId) {
-      setError('Repository 限定の導入には、登録済み Repository を選んでください')
+    if (
+      supportsRepoScope(source) &&
+      target.scope === 'repo' &&
+      !target.repositoryId
+    ) {
+      setError(
+        'Repository 限定の導入には、登録済み Repository を選んでください',
+      )
       return
     }
     setBusySource(source)
@@ -107,7 +120,9 @@ export function AdapterSettings() {
         },
       }))
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '差分を作れませんでした')
+      setError(
+        cause instanceof Error ? cause.message : '差分を作れませんでした',
+      )
     } finally {
       setBusySource(null)
     }
@@ -124,7 +139,9 @@ export function AdapterSettings() {
     try {
       const result = await applyObserverAdapterAction(source, plan.action, {
         scope: plan.scope,
-        ...(plan.repositoryId === undefined ? {} : { repositoryId: plan.repositoryId }),
+        ...(plan.repositoryId === undefined
+          ? {}
+          : { repositoryId: plan.repositoryId }),
         ...(plan.confirmationToken
           ? { confirmationToken: plan.confirmationToken }
           : {}),
@@ -153,9 +170,13 @@ export function AdapterSettings() {
     <section className="observer-adapters" data-testid="observer-adapters">
       <h3>観測するAIアプリ</h3>
       <p>
-        Codex、Cursor、Grok Build、Claude Code は公式 Hooks / Plugin で様子を受け取ります。「導入差分」「解除差分」はまだ書き込みません。対象と差分だけを表示します。「表示した対象へこの差分を適用する」を押すと、表示中の対象へ書き込みます。認可はログインと
-        CSRF です。plan digest は確認後に設定が変わっていないかを見るためのもので、認可トークンではありません。Claudeアプリの通常チャットは制限付きの協調報告です。自動の全観測ではありません。生成した
-        .mcpb は Claude Desktop の Settings &gt; Extensions からユーザー自身が入れてください。Sikumi は Claude の設定を書き換えません。
+        Codex、Cursor、Grok Build、Claude Code は公式 Hooks / Plugin
+        で様子を受け取ります。「導入差分」「解除差分」はまだ書き込みません。対象と差分だけを表示します。「表示した対象へこの差分を適用する」を押すと、表示中の対象へ書き込みます。認可はログインと
+        CSRF です。plan digest
+        は確認後に設定が変わっていないかを見るためのもので、認可トークンではありません。Claudeアプリの通常チャットは制限付きの協調報告です。自動の全観測ではありません。生成した
+        .mcpb は Claude Desktop の Settings &gt; Extensions
+        からユーザー自身が入れてください。Sikumi は Claude
+        の設定を書き換えません。
       </p>
       {error ? (
         <p className="repository-panel__error" role="alert">
@@ -166,7 +187,10 @@ export function AdapterSettings() {
         {adapters.map((adapter) => {
           const plan = plans[adapter.source]
           return (
-            <li key={adapter.id} data-testid={`observer-adapter-${adapter.source}`}>
+            <li
+              key={adapter.id}
+              data-testid={`observer-adapter-${adapter.source}`}
+            >
               <header>
                 <strong>{adapter.displayName}</strong>
                 <span>{statusLabel(adapter.installationStatus)}</span>
@@ -181,7 +205,9 @@ export function AdapterSettings() {
                     <span>導入範囲</span>
                     <select
                       aria-label={`${adapter.displayName} の導入範囲`}
-                      value={(scopes[adapter.source] ?? { scope: 'user' }).scope}
+                      value={
+                        (scopes[adapter.source] ?? { scope: 'user' }).scope
+                      }
                       onChange={(event) => {
                         const scope =
                           event.target.value === 'repo' ? 'repo' : 'user'
@@ -233,8 +259,9 @@ export function AdapterSettings() {
                 <p>Codex はユーザー全体へ導入します。</p>
               ) : adapter.source === 'claude-desktop' ? (
                 <p>
-                  制限付き / 協調報告。通常チャットを自動で全部見ることはできません。報告がない Git
-                  変更は変更元不明のままです。
+                  制限付き /
+                  協調報告。通常チャットを自動で全部見ることはできません。報告がない
+                  Git 変更は変更元不明のままです。
                 </p>
               ) : null}
               <div className="observer-card__actions">
@@ -319,7 +346,9 @@ export function AdapterSettings() {
 }
 
 function supportsRepoScope(source: string): boolean {
-  return source === 'claude-code' || source === 'cursor' || source === 'grok-build'
+  return (
+    source === 'claude-code' || source === 'cursor' || source === 'grok-build'
+  )
 }
 
 function canInstall(source: string): boolean {

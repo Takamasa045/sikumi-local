@@ -1,8 +1,5 @@
 import { rmSync } from 'node:fs'
-import {
-  isSafeOwnedTempDirectory,
-  readOwnedDirectories,
-} from './owned-temp'
+import { isSafeOwnedTempDirectory, readOwnedDirectories } from './owned-temp'
 
 export default async function globalTeardown(): Promise<void> {
   for (const directory of readOwnedDirectories()) {

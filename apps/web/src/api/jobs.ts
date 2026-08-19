@@ -2,7 +2,6 @@ import {
   artifactSchema,
   jobSchema,
   persistedEventSchema,
-  type Artifact,
   type Job,
   type PersistedEvent,
 } from '@sikumi-local/core'
@@ -12,8 +11,13 @@ import { authorizedHeaders, toApiError, writeWithCsrfRetry } from './session.js'
 const jobResponseSchema = z.object({ job: jobSchema })
 const jobListSchema = z.object({ jobs: z.array(jobSchema) })
 const eventListSchema = z.object({ events: z.array(persistedEventSchema) })
-const artifactListSchema = z.object({ artifacts: z.array(artifactSchema) })
-const artifactResponseSchema = z.object({ artifact: artifactSchema })
+const publicArtifactSchema = artifactSchema.omit({ storagePath: true })
+const artifactListSchema = z.object({
+  artifacts: z.array(publicArtifactSchema),
+})
+const artifactResponseSchema = z.object({ artifact: publicArtifactSchema })
+
+export type PublicArtifact = z.infer<typeof publicArtifactSchema>
 
 export async function createJob(input: {
   workspaceId: string
@@ -88,7 +92,7 @@ export async function cancelJob(id: string): Promise<Job> {
   return jobResponseSchema.parse(body).job
 }
 
-export async function listArtifacts(jobId?: string): Promise<Artifact[]> {
+export async function listArtifacts(jobId?: string): Promise<PublicArtifact[]> {
   const suffix = jobId ? `?jobId=${encodeURIComponent(jobId)}` : ''
   const response = await fetch(`/api/artifacts${suffix}`, {
     credentials: 'include',
@@ -100,7 +104,7 @@ export async function listArtifacts(jobId?: string): Promise<Artifact[]> {
   return artifactListSchema.parse(body).artifacts
 }
 
-export async function getArtifact(id: string): Promise<Artifact> {
+export async function getArtifact(id: string): Promise<PublicArtifact> {
   const response = await fetch(`/api/artifacts/${id}`, {
     credentials: 'include',
   })

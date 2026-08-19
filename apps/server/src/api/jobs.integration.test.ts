@@ -107,7 +107,6 @@ describe('job execution API', () => {
       (body) => {
         const artifacts = body.artifacts as Array<{
           title: string
-          storagePath: string | null
         }>
         return artifacts[0]
       },
@@ -129,7 +128,7 @@ describe('job execution API', () => {
 
     expect(artifact.title).toBe('調査メモ')
     expect(artifact).not.toHaveProperty('content')
-    expect(typeof artifact.storagePath === 'string').toBe(true)
+    expect(artifact).not.toHaveProperty('storagePath')
     expect(completed.status).toBe('completed')
     expect(eventTypes).toContain('repository.read')
     expect(eventTypes).toContain('web.search')

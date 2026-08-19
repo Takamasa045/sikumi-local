@@ -123,17 +123,20 @@ describe('phase 8 limits', () => {
 })
 
 describe('phase 8 redaction table', () => {
-  it.each(SECRET_SHAPES)('allowlists $name and drops secrets in keys and values', ({ raw }) => {
-    const picked = pickAllowlistedPayload(raw)
-    const serialized = JSON.stringify(picked)
-    for (const secret of SECRET_VALUES) {
-      expect(serialized).not.toContain(secret)
-    }
-    expect(picked.prompt).toBeUndefined()
-    expect(picked.response).toBeUndefined()
-    expect(picked.env).toBeUndefined()
-    expect(sanitizeObserverSummary('TOKEN=sk-live-secret-value')).toBeNull()
-  })
+  it.each(SECRET_SHAPES)(
+    'allowlists $name and drops secrets in keys and values',
+    ({ raw }) => {
+      const picked = pickAllowlistedPayload(raw)
+      const serialized = JSON.stringify(picked)
+      for (const secret of SECRET_VALUES) {
+        expect(serialized).not.toContain(secret)
+      }
+      expect(picked.prompt).toBeUndefined()
+      expect(picked.response).toBeUndefined()
+      expect(picked.env).toBeUndefined()
+      expect(sanitizeObserverSummary('TOKEN=sk-live-secret-value')).toBeNull()
+    },
+  )
 
   it('denies secret-like key names including nested aliases', () => {
     expect(isDeniedObserverKey('oauthToken')).toBe(true)
@@ -163,23 +166,33 @@ describe('phase 8 redaction table', () => {
 
 describe('phase 8 cross-platform paths', () => {
   it('does not treat repo-other as inside repo on POSIX or Windows forms', () => {
-    expect(isContainedPath('/Users/me/repo-other/src', '/Users/me/repo')).toBe(false)
+    expect(isContainedPath('/Users/me/repo-other/src', '/Users/me/repo')).toBe(
+      false,
+    )
     expect(isContainedPath('/Users/me/repo/src', '/Users/me/repo')).toBe(true)
     expect(isContainedPath('C:\\repo-other\\src', 'C:\\repo')).toBe(false)
     expect(isContainedPath('C:\\repo\\src\\a.ts', 'C:\\repo')).toBe(true)
-    expect(isContainedPath('\\\\server\\share\\repo-other', '\\\\server\\share\\repo')).toBe(
-      false,
-    )
-    expect(isContainedPath('\\\\server\\share\\repo\\src', '\\\\server\\share\\repo')).toBe(
-      true,
-    )
+    expect(
+      isContainedPath(
+        '\\\\server\\share\\repo-other',
+        '\\\\server\\share\\repo',
+      ),
+    ).toBe(false)
+    expect(
+      isContainedPath(
+        '\\\\server\\share\\repo\\src',
+        '\\\\server\\share\\repo',
+      ),
+    ).toBe(true)
   })
 
   it('compares Windows drive and UNC forms without resolving under the current cwd', () => {
     expect(looksWindowsAbsolutePath('C:\\Users\\me\\repo')).toBe(true)
     expect(looksWindowsAbsolutePath('\\\\server\\share\\repo')).toBe(true)
     expect(normalizeComparablePath('C:\\Repo\\Src')).toBe('c:/repo/src')
-    expect(toRepoRelativePath('C:\\repo\\src\\a.ts', 'C:\\repo')).toBe('src/a.ts')
+    expect(toRepoRelativePath('C:\\repo\\src\\a.ts', 'C:\\repo')).toBe(
+      'src/a.ts',
+    )
     expect(toRepoRelativePath('C:\\repo-other\\src\\a.ts', 'C:\\repo')).toBe(
       '/repo-other/src/a.ts',
     )
@@ -188,8 +201,11 @@ describe('phase 8 cross-platform paths', () => {
   it('quotes JSON/TOML hook commands that contain spaces and rejects shell metacharacters', () => {
     const spaced = '/tmp/My Project/sikumi-observer-codex.mjs'
     expect(toSafeHookCommand(spaced)).toBe(spaced)
-    expect(quoteTomlString(spaced)).toBe('"/tmp/My Project/sikumi-observer-codex.mjs"')
+    expect(quoteTomlString(spaced)).toBe(
+      '"/tmp/My Project/sikumi-observer-codex.mjs"',
+    )
     expect(hookCommandMatches(`"${spaced}"`, spaced)).toBe(true)
     expect(toSafeHookCommand('/tmp/hook$(reboot)')).toBeNull()
+    expect(toSafeHookCommand('/tmp/missing-star*/hook.mjs')).toBeNull()
   })
 })

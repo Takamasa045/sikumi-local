@@ -10,16 +10,36 @@ const AREA_RULES: ReadonlyArray<{
   readonly category: string
   readonly label: string
 }> = [
-  { pattern: /(^|\/)(auth|login|session|oauth)/i, category: 'auth', label: 'ログイン状態' },
-  { pattern: /(^|\/)(user|users|profile|account)/i, category: 'users', label: 'ユーザー情報' },
-  { pattern: /(^|\/)(api|route|routes|endpoint)/i, category: 'api', label: 'API' },
+  {
+    pattern: /(^|\/)(auth|login|session|oauth)/i,
+    category: 'auth',
+    label: 'ログイン状態',
+  },
+  {
+    pattern: /(^|\/)(user|users|profile|account)/i,
+    category: 'users',
+    label: 'ユーザー情報',
+  },
+  {
+    pattern: /(^|\/)(api|route|routes|endpoint)/i,
+    category: 'api',
+    label: 'API',
+  },
   {
     pattern: /(schema|migration|prisma|drizzle|sql)/i,
     category: 'schema',
     label: 'データの形',
   },
-  { pattern: /(config|\.env|settings|yaml|toml)/i, category: 'config', label: '設定' },
-  { pattern: /(package\.json|pnpm-lock|yarn\.lock|package-lock)/i, category: 'package', label: '道具の一覧' },
+  {
+    pattern: /(config|\.env|settings|yaml|toml)/i,
+    category: 'config',
+    label: '設定',
+  },
+  {
+    pattern: /(package\.json|pnpm-lock|yarn\.lock|package-lock)/i,
+    category: 'package',
+    label: '道具の一覧',
+  },
   { pattern: /(test|spec|e2e)/i, category: 'test', label: '確認用の仕組み' },
   {
     pattern: /(dashboard|ui|component|page|view|css)/i,
@@ -65,7 +85,10 @@ export function changeTypeLabel(type: ObserverChangeType): string {
   }
 }
 
-export function relativeTimeLabel(iso: string | null, now = Date.now()): string | null {
+export function relativeTimeLabel(
+  iso: string | null,
+  now = Date.now(),
+): string | null {
   if (!iso) {
     return null
   }

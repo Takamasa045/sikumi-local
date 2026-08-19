@@ -86,3 +86,15 @@ reset は対象データディレクトリを検証し、symlink と repository 
 - export/import の path に `..` や symlink を使う — 拒否されます。絶対 path の通常ファイル/ディレクトリを使います。
 - confirm を `reset` や `import` と書く — 大文字の `RESET` / `IMPORT` だけが通ります。
 - Fake Provider を本番の道具として使おうとする — `SIKUMI_LOCAL_ENABLE_FAKE_PROVIDER=1` のときだけ開発用ハーネスです。
+
+## 実 Provider の仕事が始まらない / 途中で止まる
+
+- 工房は Shikumi Local 自身ではなく、別の Git Repository を登録します。
+- Grok Build / Codex の JSON-RPC は、返事のない request を放置しません。仕事の制限時間は既定 15 分です。
+- Grok の ACP は `session/new` に `mcpServers` を渡し、最終 JSON は Schema に合う最後のオブジェクトだけを成果にします。
+- いま動いている Grok プロセスの中から、同じ Grok を入れ子で起動すると失敗することがあります。そのときは別ターミナルから compiled server（`pnpm --filter @sikumi-local/server start`）で確認します。
+- 通常の `pnpm test` は fixture だけです。Codex / Claude Code の実 Job は資格情報を使うため、この案内では成功とは書きません。
+
+## Observer の導入 preview が出ない
+
+Hook コマンドの絶対 path に `;` や `$()` があると拒否します。ディレクトリ名に `*` がある場合は、そのファイルが実在するときだけ preview できます。存在しない glob は拒否します。

@@ -40,19 +40,22 @@ export function reconcileConflictFindings(input: {
     }
     if (previous.status === 'resolved') {
       next.push(
-        analyzedToFinding(analyzed, sameEvidence
-          ? {
-              status: 'resolved',
-              detectedAt: previous.detectedAt,
-              updatedAt: input.now,
-              resolvedAt: previous.resolvedAt ?? input.now,
-            }
-          : {
-              status: 'open',
-              detectedAt: previous.detectedAt,
-              updatedAt: input.now,
-              resolvedAt: null,
-            }),
+        analyzedToFinding(
+          analyzed,
+          sameEvidence
+            ? {
+                status: 'resolved',
+                detectedAt: previous.detectedAt,
+                updatedAt: input.now,
+                resolvedAt: previous.resolvedAt ?? input.now,
+              }
+            : {
+                status: 'open',
+                detectedAt: previous.detectedAt,
+                updatedAt: input.now,
+                resolvedAt: null,
+              },
+        ),
       )
       continue
     }

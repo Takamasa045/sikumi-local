@@ -53,8 +53,16 @@ describe('mechanical scoring rules', () => {
   it.each([
     {
       name: 'delete vs edit same file is critical',
-      left: claim({ resourceKey: 'src/users.ts', action: 'delete', changeType: 'deleted' }),
-      right: claim({ resourceKey: 'src/users.ts', action: 'write', changeType: 'modified' }),
+      left: claim({
+        resourceKey: 'src/users.ts',
+        action: 'delete',
+        changeType: 'deleted',
+      }),
+      right: claim({
+        resourceKey: 'src/users.ts',
+        action: 'write',
+        changeType: 'modified',
+      }),
       score: 92,
       kind: 'delete-edit',
     },
@@ -110,7 +118,9 @@ describe('mechanical scoring rules', () => {
     {
       name: 'same migration number is high',
       left: claim({ resourceKey: 'db/migrations/20240818120000_users.sql' }),
-      right: claim({ resourceKey: 'db/migrations/20240818120000_profiles.sql' }),
+      right: claim({
+        resourceKey: 'db/migrations/20240818120000_profiles.sql',
+      }),
       score: 80,
       kind: 'migration-number',
     },
@@ -153,7 +163,11 @@ describe('mechanical scoring rules', () => {
 
   it('treats a rename previous path as the same file', () => {
     const hits = scoreClaimPair(
-      claim({ resourceKey: 'src/users.ts', changeType: 'deleted', action: 'delete' }),
+      claim({
+        resourceKey: 'src/users.ts',
+        changeType: 'deleted',
+        action: 'delete',
+      }),
       claim({
         resourceKey: 'src/accounts.ts',
         previousPath: 'src/users.ts',
@@ -208,10 +222,9 @@ describe('observed vs planned precedence', () => {
       claim({ resourceKey: 'src/users.ts', claimKind: 'planned' }),
       claim({ resourceKey: 'src/config.ts', claimKind: 'planned' }),
     ])
-    expect(effective.map((item) => `${item.claimKind}:${item.resourceKey}`)).toEqual([
-      'observed:src/users.ts',
-      'planned:src/config.ts',
-    ])
+    expect(
+      effective.map((item) => `${item.claimKind}:${item.resourceKey}`),
+    ).toEqual(['observed:src/users.ts', 'planned:src/config.ts'])
   })
 
   it('still compares observed write against the other side planned write', () => {
@@ -248,7 +261,11 @@ describe('scan-order invariance and stable identity', () => {
       claims: [claim({ resourceKey: 'src/users.ts' })],
     })
     const forward = analyzeConflictPair({ repositoryId: 'repo', left, right })
-    const reverse = analyzeConflictPair({ repositoryId: 'repo', left: right, right: left })
+    const reverse = analyzeConflictPair({
+      repositoryId: 'repo',
+      left: right,
+      right: left,
+    })
     expect(forward?.id).toBe(reverse?.id)
     expect(forward?.identityKey).toBe(reverse?.identityKey)
     expect(forward?.score).toBe(reverse?.score)
@@ -256,7 +273,10 @@ describe('scan-order invariance and stable identity', () => {
   })
 
   it('does not compare a session with itself', () => {
-    const same = side({ sessionId: 'sess-1', claims: [claim({ resourceKey: 'src/users.ts' })] })
+    const same = side({
+      sessionId: 'sess-1',
+      claims: [claim({ resourceKey: 'src/users.ts' })],
+    })
     expect(
       analyzeConflictPair({ repositoryId: 'repo', left: same, right: same }),
     ).toBeNull()
@@ -296,9 +316,9 @@ describe('scan-order invariance and stable identity', () => {
 
 describe('path classification helpers', () => {
   it('extracts a migration number and ignores generic user tokens', () => {
-    expect(extractMigrationNumber('db/migrations/20240818120000_users.sql')).toBe(
-      '20240818120000',
-    )
+    expect(
+      extractMigrationNumber('db/migrations/20240818120000_users.sql'),
+    ).toBe('20240818120000')
     expect(classifyConflictPath('src/index.ts').tokens).not.toContain('src')
     expect(classifyConflictPath('src/index.ts').tokens).not.toContain('index')
     expect(classifyConflictPath('lib/user.ts').tokens).not.toContain('user')
@@ -328,11 +348,15 @@ describe('lifecycle reconcile', () => {
       analyzed: [first!],
       now: '2026-08-18T00:00:00.000Z',
     })
-    const acknowledged = applyConflictTransition(inserted[0]!, 'acknowledge', now)
-    expect(acknowledged.status).toBe('acknowledged')
-    expect(applyConflictTransition(acknowledged, 'acknowledge', now).status).toBe(
-      'acknowledged',
+    const acknowledged = applyConflictTransition(
+      inserted[0]!,
+      'acknowledge',
+      now,
     )
+    expect(acknowledged.status).toBe('acknowledged')
+    expect(
+      applyConflictTransition(acknowledged, 'acknowledge', now).status,
+    ).toBe('acknowledged')
 
     const unchanged = reconcileConflictFindings({
       existing: [acknowledged],
@@ -387,7 +411,9 @@ describe('lifecycle reconcile', () => {
 
     const resolved = applyConflictTransition(acknowledged, 'resolve', now)
     expect(resolved.status).toBe('resolved')
-    expect(applyConflictTransition(resolved, 'resolve', now).status).toBe('resolved')
+    expect(applyConflictTransition(resolved, 'resolve', now).status).toBe(
+      'resolved',
+    )
   })
 })
 
@@ -416,7 +442,9 @@ describe('acceptance scenarios A and C', () => {
       ],
       worktrees: [
         worktree('/repo', [{ path: 'src/users.ts', changeType: 'modified' }]),
-        worktree('/repo-wt', [{ path: 'src/users.ts', changeType: 'modified' }]),
+        worktree('/repo-wt', [
+          { path: 'src/users.ts', changeType: 'modified' },
+        ]),
       ],
     })
     expect(analyzed).toHaveLength(1)
@@ -453,8 +481,12 @@ describe('acceptance scenarios A and C', () => {
         resourceClaim('claude-1', 'src/api/users.ts'),
       ],
       worktrees: [
-        worktree('/repo', [{ path: 'src/db/schema/users.ts', changeType: 'modified' }]),
-        worktree('/repo-wt', [{ path: 'src/api/users.ts', changeType: 'modified' }]),
+        worktree('/repo', [
+          { path: 'src/db/schema/users.ts', changeType: 'modified' },
+        ]),
+        worktree('/repo-wt', [
+          { path: 'src/api/users.ts', changeType: 'modified' },
+        ]),
       ],
     })
     expect(analyzed).toHaveLength(1)
@@ -502,7 +534,9 @@ describe('per-side attribution and Scenario E', () => {
       ],
       worktrees: [
         worktree('/repo', [{ path: 'src/users.ts', changeType: 'modified' }]),
-        worktree('/repo-wt', [{ path: 'src/users.ts', changeType: 'modified' }]),
+        worktree('/repo-wt', [
+          { path: 'src/users.ts', changeType: 'modified' },
+        ]),
       ],
     })
     expect(analyzed).toHaveLength(1)
@@ -542,7 +576,9 @@ describe('per-side attribution and Scenario E', () => {
       claims: [],
       worktrees: [
         worktree('/repo', [{ path: 'src/users.ts', changeType: 'modified' }]),
-        worktree('/repo-wt', [{ path: 'src/users.ts', changeType: 'modified' }]),
+        worktree('/repo-wt', [
+          { path: 'src/users.ts', changeType: 'modified' },
+        ]),
       ],
     })
     expect(analyzed).toHaveLength(1)
@@ -564,7 +600,9 @@ describe('per-side attribution and Scenario E', () => {
   })
 })
 
-function claim(input: Partial<ConflictClaimInput> & { resourceKey: string }): ConflictClaimInput {
+function claim(
+  input: Partial<ConflictClaimInput> & { resourceKey: string },
+): ConflictClaimInput {
   return {
     resourceType: 'file',
     action: 'write',

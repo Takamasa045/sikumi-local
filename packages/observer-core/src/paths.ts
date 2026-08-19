@@ -67,9 +67,14 @@ export function toRepoRelativePath(
   if (!repositoryRoot) {
     return stripLeadingSlash(normalized)
   }
-  if (looksWindowsAbsolutePath(input) || looksWindowsAbsolutePath(repositoryRoot)) {
+  if (
+    looksWindowsAbsolutePath(input) ||
+    looksWindowsAbsolutePath(repositoryRoot)
+  ) {
     if (!isContainedPath(input, repositoryRoot)) {
-      return isAbsoluteLike(normalized) ? normalized : stripLeadingSlash(normalized)
+      return isAbsoluteLike(normalized)
+        ? normalized
+        : stripLeadingSlash(normalized)
     }
     const relative = relativeComparablePath(input, repositoryRoot)
     return relative.length === 0 ? '.' : relative

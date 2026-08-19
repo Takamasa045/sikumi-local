@@ -50,6 +50,20 @@ describe('employee API client', () => {
       updateEmployeeDefaultProvider('saguru', 'codex'),
     ).resolves.toMatchObject({ defaultProviderId: 'codex' })
   })
+
+  it('maps failed employee responses', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({ error: { code: 'NOT_FOUND', message: 'missing' } }, 404),
+      ),
+    )
+    await expect(listEmployees()).rejects.toBeInstanceOf(Error)
+    await expect(getEmployee('x')).rejects.toBeInstanceOf(Error)
+    await expect(
+      updateEmployeeDefaultProvider('x', null),
+    ).rejects.toBeInstanceOf(Error)
+  })
 })
 
 function sampleEmployee() {

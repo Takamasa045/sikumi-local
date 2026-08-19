@@ -13,10 +13,7 @@ import {
   type ObserverInstallOptions,
   type ObserverInstallResult,
 } from '@sikumi-local/observer-core'
-import {
-  CURSOR_HOOKS_VERSION,
-  CURSOR_REQUIRED_HOOK_EVENTS,
-} from './events.js'
+import { CURSOR_HOOKS_VERSION, CURSOR_REQUIRED_HOOK_EVENTS } from './events.js'
 
 const HOOK_SEGMENTS = ['.cursor', 'hooks.json'] as const
 
@@ -88,11 +85,7 @@ export function planCursorHookMutation(
       previous === preview || (!existsSync(target) && action === 'uninstall')
     const file: ObserverInstallFilePlan = {
       path: target,
-      action: unchanged
-        ? 'keep'
-        : existsSync(target)
-          ? 'update'
-          : 'create',
+      action: unchanged ? 'keep' : existsSync(target) ? 'update' : 'create',
       preview,
       ...(previous === undefined ? {} : { previous }),
     }

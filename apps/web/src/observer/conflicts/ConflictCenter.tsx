@@ -3,8 +3,15 @@ import type { ConflictView } from '../../api/observer'
 
 export interface ConflictCenterProps {
   readonly conflicts: readonly ConflictView[]
-  readonly counts: { readonly red: number; readonly orange: number; readonly yellow: number }
-  readonly repositories: ReadonlyArray<{ readonly id: string; readonly name: string }>
+  readonly counts: {
+    readonly red: number
+    readonly orange: number
+    readonly yellow: number
+  }
+  readonly repositories: ReadonlyArray<{
+    readonly id: string
+    readonly name: string
+  }>
   readonly selectedId: string | null
   readonly detail: ConflictView | null
   readonly showTechnical: boolean
@@ -61,11 +68,15 @@ export function ConflictCenter({
   onRecheck,
   onBack,
 }: ConflictCenterProps) {
-  const selected = detail ?? conflicts.find((item) => item.id === selectedId) ?? null
+  const selected =
+    detail ?? conflicts.find((item) => item.id === selectedId) ?? null
   const actors = useMemo(() => actorLabels(selected), [selected])
 
   return (
-    <section className="observer-detail conflict-center" aria-label="衝突・関連の可能性">
+    <section
+      className="observer-detail conflict-center"
+      aria-label="衝突・関連の可能性"
+    >
       <p className="section-kicker">衝突・関連の可能性</p>
       <h2>何がぶつかりそうか</h2>
       <p>
@@ -165,7 +176,9 @@ export function ConflictCenter({
                   }
                 >
                   <header>
-                    <strong>{conflict.headline ?? toneFor(conflict.level)}</strong>
+                    <strong>
+                      {conflict.headline ?? toneFor(conflict.level)}
+                    </strong>
                     <span>{statusLabel(conflict.status)}</span>
                   </header>
                   <p>{conflict.summary}</p>
@@ -198,7 +211,9 @@ export function ConflictCenter({
             <p>おすすめ: {selected.recommendation}</p>
             <p>状態: {statusLabel(selected.status)}</p>
             <p>
-              <small>参考の強さ {selected.score}。ことばの色を優先してください。</small>
+              <small>
+                参考の強さ {selected.score}。ことばの色を優先してください。
+              </small>
             </p>
             <button
               type="button"
@@ -237,7 +252,10 @@ export function ConflictCenter({
                 </div>
                 <div>
                   <dt>変更された場所</dt>
-                  <dd>{(selected.technical.changedPaths ?? []).join('、') || 'なし'}</dd>
+                  <dd>
+                    {(selected.technical.changedPaths ?? []).join('、') ||
+                      'なし'}
+                  </dd>
                 </div>
               </dl>
             ) : null}
@@ -296,7 +314,12 @@ function safeActorLabel(
   source: string | null | undefined,
   confidence: string | null | undefined,
 ): string {
-  if (!source || source === 'git' || !confidence || !NAMED_CONFIDENCE.has(confidence)) {
+  if (
+    !source ||
+    source === 'git' ||
+    !confidence ||
+    !NAMED_CONFIDENCE.has(confidence)
+  ) {
     return '変更元不明'
   }
   return labelForNamedSource(source)

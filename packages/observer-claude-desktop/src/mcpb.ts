@@ -220,13 +220,19 @@ export function validateClaudeDesktopManifest(
   if (typeof manifest.description !== 'string') {
     errors.push('description がありません')
   }
-  if (!isPlainObject(manifest.author) || typeof manifest.author.name !== 'string') {
+  if (
+    !isPlainObject(manifest.author) ||
+    typeof manifest.author.name !== 'string'
+  ) {
     errors.push('author.name がありません')
   }
   if (!isPlainObject(manifest.server) || manifest.server.type !== 'node') {
     errors.push('server.type は node である必要があります')
   }
-  if (!isPlainObject(manifest.server) || manifest.server.entry_point !== 'server/index.js') {
+  if (
+    !isPlainObject(manifest.server) ||
+    manifest.server.entry_point !== 'server/index.js'
+  ) {
     errors.push('server.entry_point が server/index.js ではありません')
   }
   const config =
@@ -253,7 +259,9 @@ export function validateClaudeDesktopManifest(
     }
   }
   const longDescription =
-    typeof manifest.long_description === 'string' ? manifest.long_description : ''
+    typeof manifest.long_description === 'string'
+      ? manifest.long_description
+      : ''
   if (!longDescription.includes('sikumi.begin_work')) {
     errors.push('long_description に協調報告の指示がありません')
   }
@@ -262,7 +270,9 @@ export function validateClaudeDesktopManifest(
       ? manifest.compatibility.platforms
       : []
     if (platforms.includes('linux')) {
-      errors.push('Linux Claude Desktop 対応は未検証のため platforms に linux を入れません')
+      errors.push(
+        'Linux Claude Desktop 対応は未検証のため platforms に linux を入れません',
+      )
     }
     if ('claude_desktop' in manifest.compatibility) {
       errors.push('未検証の claude_desktop バージョン条件は書けません')
@@ -282,7 +292,9 @@ export function packageClaudeDesktopMcpb(outputPath: string): {
   try {
     writeExtensionSources(staging)
     const files = listRelativeFiles(staging)
-    const stagedValidation = runOfficialMcpbValidate(join(staging, 'manifest.json'))
+    const stagedValidation = runOfficialMcpbValidate(
+      join(staging, 'manifest.json'),
+    )
     if (!stagedValidation.ok) {
       throw new Error(
         `official mcpb validate failed on staged manifest:\n${stagedValidation.output}`,
@@ -320,7 +332,9 @@ export function officialMcpbCliPath(): string | null {
   return existsSync(workspace) ? workspace : null
 }
 
-export function runOfficialMcpbValidate(manifestPath = claudeDesktopManifestPath()): {
+export function runOfficialMcpbValidate(
+  manifestPath = claudeDesktopManifestPath(),
+): {
   readonly ok: boolean
   readonly output: string
 } {
@@ -377,7 +391,11 @@ export function assertArchiveRuntimeComplete(root: string): readonly string[] {
       missing.push(relative(root, current).replaceAll('\\', '/'))
       continue
     }
-    if (!current.endsWith('.js') && !current.endsWith('.mjs') && !current.endsWith('.cjs')) {
+    if (
+      !current.endsWith('.js') &&
+      !current.endsWith('.mjs') &&
+      !current.endsWith('.cjs')
+    ) {
       continue
     }
     let source: string
@@ -396,7 +414,9 @@ export function assertArchiveRuntimeComplete(root: string): readonly string[] {
         continue
       }
       if (!resolved) {
-        missing.push(`${relative(root, current).replaceAll('\\', '/') } -> ${specifier}`)
+        missing.push(
+          `${relative(root, current).replaceAll('\\', '/')} -> ${specifier}`,
+        )
         continue
       }
       queue.push(resolved)
@@ -420,7 +440,9 @@ function packWithOfficialCli(staging: string, outputPath: string): void {
     { encoding: 'utf8' },
   )
   if (spawned.status !== 0 || !existsSync(outputPath)) {
-    throw new Error(spawned.stderr || spawned.stdout || 'official mcpb pack failed')
+    throw new Error(
+      spawned.stderr || spawned.stdout || 'official mcpb pack failed',
+    )
   }
 }
 
@@ -429,7 +451,9 @@ function verifyPackedArchive(outputPath: string): void {
   try {
     unpackClaudeDesktopMcpb(outputPath, extracted)
     const unpackedRoot = resolveUnpackedRoot(extracted)
-    const validated = runOfficialMcpbValidate(join(unpackedRoot, 'manifest.json'))
+    const validated = runOfficialMcpbValidate(
+      join(unpackedRoot, 'manifest.json'),
+    )
     if (!validated.ok) {
       throw new Error(
         `official mcpb validate failed on packed archive:\n${validated.output}`,
@@ -453,7 +477,10 @@ function resolveUnpackedRoot(extracted: string): string {
   const children = readdirSync(extracted)
   for (const child of children) {
     const candidate = join(extracted, child)
-    if (statSync(candidate).isDirectory() && existsSync(join(candidate, 'manifest.json'))) {
+    if (
+      statSync(candidate).isDirectory() &&
+      existsSync(join(candidate, 'manifest.json'))
+    ) {
       return candidate
     }
   }
@@ -482,7 +509,10 @@ function copyWorkspaceRuntime(targetRoot: string): void {
       name,
     )
     mkdirSync(destination, { recursive: true, mode: 0o700 })
-    copyFileSync(join(source, 'package.json'), join(destination, 'package.json'))
+    copyFileSync(
+      join(source, 'package.json'),
+      join(destination, 'package.json'),
+    )
     const dist = join(source, 'dist')
     if (!existsSync(dist)) {
       throw new Error(`workspace package ${name} has no dist/. Build first.`)
@@ -645,7 +675,9 @@ function splitPackageName(specifier: string): readonly [string, string] {
 
 function resolvePackageEntry(packageDir: string): string | null {
   try {
-    const pkg = JSON.parse(readFileSync(join(packageDir, 'package.json'), 'utf8')) as {
+    const pkg = JSON.parse(
+      readFileSync(join(packageDir, 'package.json'), 'utf8'),
+    ) as {
       readonly exports?: unknown
       readonly module?: string
       readonly main?: string
@@ -679,7 +711,8 @@ function resolveExportTarget(exportsField: unknown): string | null {
   if (!isPlainObject(exportsField)) {
     return null
   }
-  const direct = exportsField['.'] ?? exportsField.import ?? exportsField.default
+  const direct =
+    exportsField['.'] ?? exportsField.import ?? exportsField.default
   if (typeof direct === 'string') {
     return direct
   }

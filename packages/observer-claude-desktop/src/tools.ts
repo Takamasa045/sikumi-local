@@ -73,8 +73,7 @@ export interface CooperativeToolFailure {
 }
 
 export type CooperativeToolResult =
-  | CooperativeToolSuccess
-  | CooperativeToolFailure
+  CooperativeToolSuccess | CooperativeToolFailure
 
 const UNSAFE_INPUT_KEYS = [
   'prompt',
@@ -246,7 +245,11 @@ export function callSikumiTool(
     }
     const args = asObject(rawArgs)
     if (!args) {
-      return failure(name, 'invalid_input', '引数は object である必要があります')
+      return failure(
+        name,
+        'invalid_input',
+        '引数は object である必要があります',
+      )
     }
     if (hasUnsafeInput(args)) {
       return failure(
@@ -284,7 +287,9 @@ export function callSikumiTool(
   }
 }
 
-function listRepositories(context: CooperativeToolContext): CooperativeToolResult {
+function listRepositories(
+  context: CooperativeToolContext,
+): CooperativeToolResult {
   const catalog = readRegisteredRepositoryCatalog(context.dataDirectory)
   return {
     ok: true,
@@ -309,7 +314,11 @@ function beginWork(
 ): CooperativeToolResult {
   const repositoryPath = readBoundedString(args.repositoryPath, MAX_PATH_LENGTH)
   if (repositoryPath === 'oversized') {
-    return failure('sikumi.begin_work', 'oversized', 'repositoryPath が長すぎます')
+    return failure(
+      'sikumi.begin_work',
+      'oversized',
+      'repositoryPath が長すぎます',
+    )
   }
   if (!repositoryPath) {
     return failure(
@@ -431,7 +440,11 @@ function noteResource(
   const resourceKey = readBoundedString(args.resourceKey, MAX_PATH_LENGTH)
   const action = readOptionalString(args.action)
   if (resourceKey === 'oversized') {
-    return failure('sikumi.note_resource', 'oversized', 'resourceKey が長すぎます')
+    return failure(
+      'sikumi.note_resource',
+      'oversized',
+      'resourceKey が長すぎます',
+    )
   }
   if (!resourceType || !isResourceType(resourceType)) {
     return failure(
@@ -485,7 +498,11 @@ function waitingForUser(
   }
   const summary = readSummary(args.summary)
   if (summary === 'oversized') {
-    return failure('sikumi.waiting_for_user', 'oversized', 'summary が長すぎます')
+    return failure(
+      'sikumi.waiting_for_user',
+      'oversized',
+      'summary が長すぎます',
+    )
   }
   if (summary === 'invalid') {
     return failure(
@@ -766,9 +783,7 @@ function isUnsafeKey(key: string): boolean {
   )
 }
 
-function inspectToolPayload(
-  value: unknown,
-):
+function inspectToolPayload(value: unknown):
   | { readonly ok: true }
   | {
       readonly ok: false
@@ -912,16 +927,19 @@ function checkSchemaProperty(
         `${key} は文字列である必要があります`,
       )
     }
-    if (typeof schema.minLength === 'number' && value.length < schema.minLength) {
+    if (
+      typeof schema.minLength === 'number' &&
+      value.length < schema.minLength
+    ) {
       return failure(tool, 'invalid_input', `${key} が短すぎます`)
     }
-    if (typeof schema.maxLength === 'number' && value.length > schema.maxLength) {
+    if (
+      typeof schema.maxLength === 'number' &&
+      value.length > schema.maxLength
+    ) {
       return failure(tool, 'oversized', `${key} が長すぎます`)
     }
-    if (
-      Array.isArray(schema.enum) &&
-      !schema.enum.includes(value)
-    ) {
+    if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
       return failure(tool, 'invalid_input', `${key} が不正です`)
     }
     return null

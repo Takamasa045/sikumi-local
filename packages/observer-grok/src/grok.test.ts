@@ -25,6 +25,10 @@ import {
   GROK_PLUGIN_ID,
   GROK_REQUIRED_HOOK_EVENTS,
   GROK_SUPPORTED_VERSION_RANGE,
+  canonicalizeGrokEventName,
+  isGrokHookEvent,
+  mapGrokEvent,
+  matcherForGrokEvent,
 } from './events.js'
 import { applyGrokHookMutation, resolveGrokHookCommandPath } from './install.js'
 import { normalizeGrokEvent } from './normalize.js'
@@ -49,6 +53,43 @@ afterEach(() => {
   }
 })
 
+describe('grok event mapping', () => {
+  it('canonicalizes aliases and classifies unknown future names', () => {
+    expect(isGrokHookEvent('SessionStart')).toBe(true)
+    expect(isGrokHookEvent('Nope')).toBe(false)
+    expect(canonicalizeGrokEventName('')).toBe('unknown')
+    expect(canonicalizeGrokEventName('session_start')).toBe('SessionStart')
+    expect(matcherForGrokEvent('PreToolUse')).toBe('*')
+    expect(matcherForGrokEvent('SessionStart')).toBeUndefined()
+    expect(mapGrokEvent('user_prompt_submit').normalizedType).toBe(
+      'prompt.submitted',
+    )
+    expect(mapGrokEvent('something-failed').activity).toBe('failed')
+    expect(mapGrokEvent('task-complete').normalizedType).toBe('task.completed')
+    expect(mapGrokEvent('ask-user').normalizedType).toBe('permission.requested')
+    expect(mapGrokEvent('subagent-start-extra').normalizedType).toBe(
+      'subagent.started',
+    )
+    expect(mapGrokEvent('subagent').normalizedType).toBe('subagent.stopped')
+    expect(mapGrokEvent('worktree-remove').normalizedType).toBe(
+      'worktree.removed',
+    )
+    expect(mapGrokEvent('worktree').normalizedType).toBe('worktree.created')
+    expect(mapGrokEvent('session-end').normalizedType).toBe('session.ended')
+    expect(mapGrokEvent('session').normalizedType).toBe('session.started')
+    expect(mapGrokEvent('post', 'bash').normalizedType).toBe(
+      'command.completed',
+    )
+    expect(mapGrokEvent('pre', 'ReadFile').normalizedType).toBe('file.read')
+    expect(mapGrokEvent('pre', 'ApplyPatch').normalizedType).toBe(
+      'file.changed',
+    )
+    expect(mapGrokEvent('pre', 'Unknown').normalizedType).toBe(
+      'activity.changed',
+    )
+  })
+})
+
 describe('normalizeGrokEvent', () => {
   it('maps hook events and never keeps prompt, thought, or tool bodies', () => {
     const start = normalizeGrokEvent(readFixture('session-start.json'))
@@ -63,26 +104,30 @@ describe('normalizeGrokEvent', () => {
     expect(edit?.payload.filePath).toBe('src/schema/users.ts')
     expect(JSON.stringify(edit)).not.toContain('secret body')
 
-    expect(normalizeGrokEvent({ hook_event_name: 'SessionEnd' })?.normalizedType).toBe(
-      'session.ended',
+    expect(
+      normalizeGrokEvent({ hook_event_name: 'SessionEnd' })?.normalizedType,
+    ).toBe('session.ended')
+    expect(
+      normalizeGrokEvent({ hook_event_name: 'SubagentStart' })?.normalizedType,
+    ).toBe('subagent.started')
+    expect(
+      normalizeGrokEvent({ hook_event_name: 'WorktreeCreate' })?.normalizedType,
+    ).toBe('worktree.created')
+    expect(
+      normalizeGrokEvent({ hook_event_name: 'PermissionRequest' })?.activity,
+    ).toBe('waiting-for-user')
+    expect(
+      normalizeGrokEvent({ hook_event_name: 'PostToolUseFailure' })?.activity,
+    ).toBe('failed')
+    expect(normalizeGrokEvent({ hook_event_name: 'Stop' })?.activity).toBe(
+      'completed',
     )
-    expect(normalizeGrokEvent({ hook_event_name: 'SubagentStart' })?.normalizedType).toBe(
-      'subagent.started',
-    )
-    expect(normalizeGrokEvent({ hook_event_name: 'WorktreeCreate' })?.normalizedType).toBe(
-      'worktree.created',
-    )
-    expect(normalizeGrokEvent({ hook_event_name: 'PermissionRequest' })?.activity).toBe(
-      'waiting-for-user',
-    )
-    expect(normalizeGrokEvent({ hook_event_name: 'PostToolUseFailure' })?.activity).toBe(
-      'failed',
-    )
-    expect(normalizeGrokEvent({ hook_event_name: 'Stop' })?.activity).toBe('completed')
   })
 
   it('parses streaming-json metadata and drops text/thought/full response', () => {
-    expect(isDroppedGrokStreamEvent(readFixture('stream-thought.json'))).toBe(true)
+    expect(isDroppedGrokStreamEvent(readFixture('stream-thought.json'))).toBe(
+      true,
+    )
     expect(normalizeGrokEvent(readFixture('stream-thought.json'))).toBeNull()
     expect(
       normalizeGrokEvent({
@@ -133,7 +178,9 @@ describe('normalizeGrokEvent', () => {
       }),
     ).toBe(true)
     expect(
-      kept.filter((event) => event !== null).map((event) => event.nativeEventType),
+      kept
+        .filter((event) => event !== null)
+        .map((event) => event.nativeEventType),
     ).toEqual(['session_info_update', 'tool_call', 'result'])
   })
 
@@ -195,9 +242,15 @@ describe('official grok hook schema', () => {
     expect(rendered).not.toContain('event = "')
     expect(rendered).not.toContain('trustRequired')
     const parsed = parseGrokHooksToml(rendered)
-    expect(parsed.map((hook) => hook.eventName)).toEqual([...GROK_REQUIRED_HOOK_EVENTS])
-    expect(parsed.find((hook) => hook.eventName === 'PreToolUse')?.matcher).toBe('*')
-    expect(parsed.find((hook) => hook.eventName === 'SessionStart')?.matcher).toBeNull()
+    expect(parsed.map((hook) => hook.eventName)).toEqual([
+      ...GROK_REQUIRED_HOOK_EVENTS,
+    ])
+    expect(
+      parsed.find((hook) => hook.eventName === 'PreToolUse')?.matcher,
+    ).toBe('*')
+    expect(
+      parsed.find((hook) => hook.eventName === 'SessionStart')?.matcher,
+    ).toBeNull()
     expect(parsed.every((hook) => hook.type === 'command')).toBe(true)
   })
 
@@ -209,9 +262,9 @@ describe('official grok hook schema', () => {
     expect(manifest.trustRequired).toBeUndefined()
     expect(manifest.trusted).toBeUndefined()
     expect(existsSync(join(pluginDir, 'hooks.toml'))).toBe(false)
-    expect(JSON.parse(readFileSync(join(pluginDir, 'hooks', 'hooks.json'), 'utf8'))).toEqual(
-      JSON.parse(renderGrokHooksJson(GROK_COMMAND_PLACEHOLDER)),
-    )
+    expect(
+      JSON.parse(readFileSync(join(pluginDir, 'hooks', 'hooks.json'), 'utf8')),
+    ).toEqual(JSON.parse(renderGrokHooksJson(GROK_COMMAND_PLACEHOLDER)))
     expect(JSON.parse(renderGrokPluginManifest()).trustRequired).toBeUndefined()
   })
 })
@@ -240,7 +293,9 @@ describe('grok install and health', () => {
     expect(preview.preview).toContain('[[hooks.PreToolUse.hooks]]')
     expect(preview.preview).toContain(GROK_PLUGIN_ID)
     expect(preview.preview).toContain('hooks/hooks.json')
-    expect(readFileSync(join(home, '.grok', 'config.toml'), 'utf8')).toBe(existing)
+    expect(readFileSync(join(home, '.grok', 'config.toml'), 'utf8')).toBe(
+      existing,
+    )
 
     const rejected = await adapter.install({
       homeDir: home,
@@ -267,7 +322,9 @@ describe('grok install and health', () => {
       existsSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'plugin.json')),
     ).toBe(true)
     expect(
-      existsSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'hooks', 'hooks.json')),
+      existsSync(
+        join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'hooks', 'hooks.json'),
+      ),
     ).toBe(true)
     expect(
       existsSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'hooks.toml')),
@@ -278,16 +335,23 @@ describe('grok install and health', () => {
         'utf8',
       ),
     ) as { hooks: Record<string, unknown> }
-    expect(Object.keys(pluginHooks.hooks)).toEqual([...GROK_REQUIRED_HOOK_EVENTS])
+    expect(Object.keys(pluginHooks.hooks)).toEqual([
+      ...GROK_REQUIRED_HOOK_EVENTS,
+    ])
 
     const discovered = discoverGrokHooks({
       homeDir: home,
       hookCommandPath: resolveGrokHookCommandPath(),
     })
     expect(missingGrokEvents(discovered)).toEqual([])
-    expect(discovered.evidence.join(' ')).not.toMatch(/hooks-trust|plugins-trust/)
+    expect(discovered.evidence.join(' ')).not.toMatch(
+      /hooks-trust|plugins-trust/,
+    )
 
-    const health = await adapter.healthCheck({ homeDir: home, env: { PATH: home } })
+    const health = await adapter.healthCheck({
+      homeDir: home,
+      env: { PATH: home },
+    })
     expect(health.status).toBe('needs_review')
     expect(health.warnings.join(' ')).toMatch(/ready|実event/)
     expect(health.warnings.join(' ')).not.toMatch(/hooks-trust|plugins-trust/)
@@ -316,13 +380,17 @@ describe('grok install and health', () => {
       existsSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'plugin.json')),
     ).toBe(false)
     expect(
-      existsSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'hooks', 'hooks.json')),
+      existsSync(
+        join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'hooks', 'hooks.json'),
+      ),
     ).toBe(false)
   })
 
   it('migrates leftover unofficial Sikumi tables and plugin hooks.toml without rewriting user nested hooks', () => {
     const home = createTemp()
-    mkdirSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID), { recursive: true })
+    mkdirSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID), {
+      recursive: true,
+    })
     const command = resolveGrokHookCommandPath()
     const existing = [
       '# keep this comment',
@@ -367,7 +435,9 @@ describe('grok install and health', () => {
       existsSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'hooks.toml')),
     ).toBe(false)
     expect(
-      existsSync(join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'hooks', 'hooks.json')),
+      existsSync(
+        join(home, '.grok', 'plugins', GROK_PLUGIN_ID, 'hooks', 'hooks.json'),
+      ),
     ).toBe(true)
   })
 
@@ -394,7 +464,10 @@ describe('grok install and health', () => {
     expect(supported.supportedRange).toBe('1.0.5')
 
     const otherBin = createTemp()
-    writeFileSync(join(otherBin, 'grok'), '#!/usr/bin/env node\nconsole.log("1.0.0")\n')
+    writeFileSync(
+      join(otherBin, 'grok'),
+      '#!/usr/bin/env node\nconsole.log("1.0.0")\n',
+    )
     chmodSync(join(otherBin, 'grok'), 0o755)
     const other = await inspectGrokVersion({ PATH: otherBin, HOME: home })
     expect(other.classification).toBe('needs_update')
@@ -403,7 +476,10 @@ describe('grok install and health', () => {
   it('marks unverified versions as needs_update and keeps git fallback messaging', async () => {
     const home = createTemp()
     const bin = createTemp()
-    writeFileSync(join(bin, 'grok'), '#!/usr/bin/env node\nconsole.log("2.4.0")\n')
+    writeFileSync(
+      join(bin, 'grok'),
+      '#!/usr/bin/env node\nconsole.log("2.4.0")\n',
+    )
     chmodSync(join(bin, 'grok'), 0o755)
     const adapter = createGrokObserverAdapter()
     const preview = await adapter.install({ homeDir: home })
@@ -457,8 +533,14 @@ describe('grok install and health', () => {
   it('installs repo-scoped JSON hooks and keeps unknown files while removing only Sikumi leftovers', async () => {
     const repo = createTemp()
     mkdirSync(join(repo, '.grok', 'hooks'), { recursive: true })
-    writeFileSync(join(repo, '.grok', 'hooks', 'version.json'), '{"version":"keep"}\n')
-    writeFileSync(join(repo, '.grok', 'hooks', 'unknown-custom.json'), '{"keep":true}\n')
+    writeFileSync(
+      join(repo, '.grok', 'hooks', 'version.json'),
+      '{"version":"keep"}\n',
+    )
+    writeFileSync(
+      join(repo, '.grok', 'hooks', 'unknown-custom.json'),
+      '{"keep":true}\n',
+    )
     writeFileSync(
       join(repo, '.grok', 'hooks', 'sikumi-observer.toml'),
       '[[hooks.Event]]\nevent = "Stop"\n',
@@ -473,15 +555,19 @@ describe('grok install and health', () => {
       planDigest: preview.planDigest!,
     })
     expect(applied.applied).toBe(true)
-    expect(existsSync(join(repo, '.grok', 'hooks', 'sikumi-observer.json'))).toBe(true)
-    expect(existsSync(join(repo, '.grok', 'hooks', 'sikumi-observer.toml'))).toBe(false)
+    expect(
+      existsSync(join(repo, '.grok', 'hooks', 'sikumi-observer.json')),
+    ).toBe(true)
+    expect(
+      existsSync(join(repo, '.grok', 'hooks', 'sikumi-observer.toml')),
+    ).toBe(false)
     expect(existsSync(join(repo, '.grok', 'managed_config.toml'))).toBe(false)
-    expect(readFileSync(join(repo, '.grok', 'hooks', 'version.json'), 'utf8')).toBe(
-      '{"version":"keep"}\n',
-    )
-    expect(readFileSync(join(repo, '.grok', 'hooks', 'unknown-custom.json'), 'utf8')).toBe(
-      '{"keep":true}\n',
-    )
+    expect(
+      readFileSync(join(repo, '.grok', 'hooks', 'version.json'), 'utf8'),
+    ).toBe('{"version":"keep"}\n')
+    expect(
+      readFileSync(join(repo, '.grok', 'hooks', 'unknown-custom.json'), 'utf8'),
+    ).toBe('{"keep":true}\n')
     const discovered = discoverGrokHooks({
       homeDir: createTemp(),
       repoDir: repo,
@@ -511,7 +597,9 @@ describe('grok hook CLI', () => {
     const stream = await runGrokObserverHook(
       ['--root', root, '--output-format', 'streaming-json'],
       {
-        stdin: Readable.from([`${realShape.map((event) => JSON.stringify(event)).join('\n')}\n`]),
+        stdin: Readable.from([
+          `${realShape.map((event) => JSON.stringify(event)).join('\n')}\n`,
+        ]),
         stdout: sink(),
         stderr: sink(),
         env: {},
@@ -602,7 +690,8 @@ describe('grok plugin discovery', () => {
     }
     expect(
       payload.plugins.some(
-        (plugin) => plugin.name === GROK_PLUGIN_ID && plugin.provides?.hooks === true,
+        (plugin) =>
+          plugin.name === GROK_PLUGIN_ID && plugin.provides?.hooks === true,
       ),
     ).toBe(true)
     expect(

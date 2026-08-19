@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { Artifact, ArtifactContent } from '@sikumi-local/core'
+import type { ArtifactContent } from '@sikumi-local/core'
 import { getArtifactContent } from '../api/artifacts'
+import type { PublicArtifact } from '../api/jobs'
 
 interface ArtifactViewerProps {
-  readonly artifact: Artifact
+  readonly artifact: PublicArtifact
   readonly onClose: () => void
 }
 

@@ -31,14 +31,38 @@ export interface JsonRpcFailure {
   }
 }
 
+export interface JsonRpcRequestOptions {
+  readonly timeoutMs?: number
+}
+
 export interface JsonRpcClient {
-  request<T>(method: string, params?: unknown): Promise<T>
+  request<T>(
+    method: string,
+    params?: unknown,
+    options?: JsonRpcRequestOptions,
+  ): Promise<T>
   notify(method: string, params?: unknown): void
   respond(id: JsonRpcId, result: unknown): void
   respondError(id: JsonRpcId, message: string, code?: number): void
   onRequest(handler: (message: JsonRpcRequest) => void): void
   onNotification(handler: (message: JsonRpcNotification) => void): void
   cancelPending(reason?: string): void
+}
+
+export const JSON_RPC_DEFAULT_REQUEST_TIMEOUT_MS = 30_000
+
+export function resolveJsonRpcRequestTimeoutMs(
+  requested?: number,
+  fallback = JSON_RPC_DEFAULT_REQUEST_TIMEOUT_MS,
+): number {
+  if (
+    typeof requested === 'number' &&
+    Number.isFinite(requested) &&
+    requested > 0
+  ) {
+    return requested
+  }
+  return fallback
 }
 
 export function createJsonRpcClient(
@@ -56,14 +80,24 @@ export function createJsonRpcClient(
   let nextId = 1
   let requestHandler: ((message: JsonRpcRequest) => void) | undefined
   let notificationHandler: ((message: JsonRpcNotification) => void) | undefined
-  const requestTimeoutMs = options.requestTimeoutMs ?? 30_000
+  const requestTimeoutMs = resolveJsonRpcRequestTimeoutMs(
+    options.requestTimeoutMs,
+  )
 
   void consume()
 
   return {
-    request<T>(method: string, params?: unknown): Promise<T> {
+    request<T>(
+      method: string,
+      params?: unknown,
+      requestOptions?: JsonRpcRequestOptions,
+    ): Promise<T> {
       const id = nextId
       nextId += 1
+      const timeoutMs = resolveJsonRpcRequestTimeoutMs(
+        requestOptions?.timeoutMs,
+        requestTimeoutMs,
+      )
       return new Promise<T>((resolve, reject) => {
         const timer = setTimeout(() => {
           pending.delete(String(id))
@@ -74,7 +108,7 @@ export function createJsonRpcClient(
               504,
             ),
           )
-        }, requestTimeoutMs)
+        }, timeoutMs)
         timer.unref()
         pending.set(String(id), {
           resolve: (value) => resolve(value as T),

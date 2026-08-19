@@ -151,7 +151,9 @@ export type ObserverAdapterView = z.infer<typeof adapterSchema>
 export type ObserverInstallView = z.infer<typeof installResultSchema>
 
 export async function getTodayOverview(): Promise<TodayOverview> {
-  const response = await fetch('/api/observer/today', { credentials: 'include' })
+  const response = await fetch('/api/observer/today', {
+    credentials: 'include',
+  })
   const body: unknown = await response.json()
   if (!response.ok) {
     throw toApiError(body, response.status)
@@ -172,7 +174,9 @@ export async function getRepositoryActivity(
   return z.object({ activity: repositoryActivitySchema }).parse(body).activity
 }
 
-export async function rescanRepository(id: string): Promise<RepositoryActivity> {
+export async function rescanRepository(
+  id: string,
+): Promise<RepositoryActivity> {
   const response = await writeWithCsrfRetry((token) =>
     fetch(`/api/repositories/${id}/rescan`, {
       method: 'POST',
@@ -288,7 +292,10 @@ export async function listConflicts(filters: ConflictListFilters = {}) {
     .parse(body)
 }
 
-export async function getConflict(id: string, mode: 'simple' | 'detail' = 'simple') {
+export async function getConflict(
+  id: string,
+  mode: 'simple' | 'detail' = 'simple',
+) {
   const response = await fetch(`/api/conflicts/${id}?mode=${mode}`, {
     credentials: 'include',
   })

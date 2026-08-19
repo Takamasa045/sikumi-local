@@ -6,13 +6,11 @@ import { createTemporaryGitRepository } from './owned-temp'
 test('the garden is the default home screen', async ({ page }) => {
   await page.goto('/')
 
-  await expect(
-    page.getByRole('heading', { name: '観測の庭' }),
-  ).toBeVisible()
-  await expect(
-    page.getByRole('region', { name: '観測の庭' }),
-  ).toBeVisible()
-  await expect(page.getByTestId('connection-badge')).toContainText('ローカル観測')
+  await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '観測の庭' })).toBeVisible()
+  await expect(page.getByTestId('connection-badge')).toContainText(
+    'ローカル観測',
+  )
 
   const nav = page.getByRole('navigation', { name: '主要画面' })
   await expect(nav.getByRole('link', { name: '庭' })).toHaveAttribute(
@@ -21,12 +19,8 @@ test('the garden is the default home screen', async ({ page }) => {
   )
   await expect(nav.getByRole('link', { name: '今日の作業場' })).toBeVisible()
   await expect(nav.getByRole('link', { name: '設定' })).toBeVisible()
-  await expect(
-    page.getByRole('form', { name: '仕事を頼む' }),
-  ).toHaveCount(0)
-  await expect(
-    page.getByRole('button', { name: '仕事を頼む' }),
-  ).toHaveCount(0)
+  await expect(page.getByRole('form', { name: '仕事を頼む' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '仕事を頼む' })).toHaveCount(0)
   await expect(page.getByTestId('world-stage')).toHaveCount(0)
 })
 
@@ -51,13 +45,15 @@ test('the garden shows real current Git-only data', async ({ page }) => {
   })
   await expect(unattributed).toBeVisible()
   await expect(unattributed).toContainText(basename(repositoryPath))
-  const observedAgents = page.getByRole('list', { name: '観測中のエージェント' })
+  const observedAgents = page.getByRole('list', {
+    name: '観測中のエージェント',
+  })
   if ((await observedAgents.count()) > 0) {
     await expect(observedAgents).not.toContainText(basename(repositoryPath))
   }
 })
 
-test('a user can move between garden, today\'s workshop, and settings', async ({
+test("a user can move between garden, today's workshop, and settings", async ({
   page,
 }) => {
   await page.goto('/#garden')
@@ -73,9 +69,7 @@ test('a user can move between garden, today\'s workshop, and settings', async ({
   ).toBeVisible()
 
   await page.getByRole('link', { name: '庭' }).click()
-  await expect(
-    page.getByRole('heading', { name: '観測の庭' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
 })
 
 test('the garden remains usable on a phone viewport', async ({ page }) => {
@@ -83,9 +77,7 @@ test('the garden remains usable on a phone viewport', async ({ page }) => {
 
   await expect(page.getByRole('region', { name: '観測の庭' })).toBeInViewport()
   await expect(page.getByRole('navigation', { name: '主要画面' })).toBeVisible()
-  await expect(
-    page.getByRole('button', { name: '仕事を頼む' }),
-  ).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '仕事を頼む' })).toHaveCount(0)
 
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,

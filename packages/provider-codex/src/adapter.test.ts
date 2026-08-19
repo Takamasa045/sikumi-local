@@ -14,7 +14,12 @@ import {
   spawnManagedProcess,
   type ManagedProcess,
 } from '@sikumi-local/process-runtime'
-import { createCodexProvider, resolveFakeCodexPath } from './adapter.js'
+import {
+  createCodexProvider,
+  DEFAULT_CODEX_RUN_TIMEOUT_MS,
+  resolveCodexRunTimeoutMs,
+  resolveFakeCodexPath,
+} from './adapter.js'
 import {
   assertSupportedCodexProtocol,
   loadCodexProtocolFixture,
@@ -179,6 +184,41 @@ describe('Codex adapter', () => {
     await adapter.cancelRun(hanging.runId)
     const cancelled = await collect(hanging)
     expect(cancelled.at(-1)?.type).toBe('run.cancelled')
+  })
+
+  it('resolves the app-server turn/start timeout from the run maxDuration', () => {
+    expect(resolveCodexRunTimeoutMs(120_000)).toBe(120_000)
+    expect(resolveCodexRunTimeoutMs(undefined)).toBe(
+      DEFAULT_CODEX_RUN_TIMEOUT_MS,
+    )
+    expect(resolveCodexRunTimeoutMs(0)).toBe(DEFAULT_CODEX_RUN_TIMEOUT_MS)
+    expect(resolveCodexRunTimeoutMs(-5)).toBe(DEFAULT_CODEX_RUN_TIMEOUT_MS)
+    expect(DEFAULT_CODEX_RUN_TIMEOUT_MS).toBeGreaterThan(30_000)
+    expect(Number.isFinite(DEFAULT_CODEX_RUN_TIMEOUT_MS)).toBe(true)
+  })
+
+  it('lets a slow turn/start finish inside the run maxDuration', async () => {
+    const adapter = track(createFixtureAdapter())
+    await adapter.probe()
+    const events = await collect(
+      await adapter.startRun({
+        ...specification(trackDir(), '[slow-turn]調べて'),
+        maxDurationMs: 1_000,
+      }),
+    )
+    expect(events.some((event) => event.type === 'run.completed')).toBe(true)
+    expect(events.some((event) => event.type === 'run.failed')).toBe(false)
+  })
+
+  it('fails a turn/start that outlives the run maxDuration before the run starts', async () => {
+    const adapter = track(createFixtureAdapter())
+    await adapter.probe()
+    await expect(
+      adapter.startRun({
+        ...specification(trackDir(), '[slow-turn]調べて'),
+        maxDurationMs: 80,
+      }),
+    ).rejects.toBeInstanceOf(AppError)
   })
 
   it('rejects unrestricted profiles and marks invalid structured output', async () => {

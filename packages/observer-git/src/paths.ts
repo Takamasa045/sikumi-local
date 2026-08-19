@@ -25,7 +25,10 @@ export function sanitizeRepoPath(
     return isSafeRelativePath(trimmed) ? toRepoRelativePath(trimmed) : null
   }
 
-  if (looksWindowsAbsolutePath(trimmed) || looksWindowsAbsolutePath(repositoryRoot)) {
+  if (
+    looksWindowsAbsolutePath(trimmed) ||
+    looksWindowsAbsolutePath(repositoryRoot)
+  ) {
     if (!isContainedPath(trimmed, repositoryRoot)) {
       return null
     }
@@ -109,7 +112,10 @@ function resolvePathForMatch(input: string): string | null {
     return realpathSync(resolve(trimmed))
   } catch {
     const resolved = resolve(trimmed)
-    if (looksWindowsAbsolutePath(input) && !looksWindowsAbsolutePath(resolved)) {
+    if (
+      looksWindowsAbsolutePath(input) &&
+      !looksWindowsAbsolutePath(resolved)
+    ) {
       return trimmed
     }
     return resolved

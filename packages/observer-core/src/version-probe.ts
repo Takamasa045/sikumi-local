@@ -93,7 +93,8 @@ export async function probeCommandVersion(input: {
   const env = input.env ?? process.env
   const args = input.args ?? ['--version']
   const timeoutMs = input.timeoutMs ?? OBSERVER_VERSION_PROBE_TIMEOUT_MS
-  const maxOutputBytes = input.maxOutputBytes ?? OBSERVER_VERSION_PROBE_MAX_BYTES
+  const maxOutputBytes =
+    input.maxOutputBytes ?? OBSERVER_VERSION_PROBE_MAX_BYTES
   for (const name of input.names) {
     const commandPath = resolveCommandOnPath(name, env)
     if (!commandPath || !isAbsolute(commandPath)) {
@@ -187,7 +188,9 @@ async function readVersionFromCommand(input: {
 function sanitizedProbeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const next: NodeJS.ProcessEnv = {}
   const pathValue = [env.PATH ?? env.Path, process.env.PATH ?? process.env.Path]
-    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .filter(
+      (value): value is string => typeof value === 'string' && value.length > 0,
+    )
     .join(delimiter)
   if (pathValue.length > 0) {
     next.PATH = pathValue
@@ -202,7 +205,10 @@ function sanitizedProbeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 function parseSafeVersion(raw: string): string | null {
-  const redacted = redactSensitiveText(raw).slice(0, OBSERVER_VERSION_PROBE_MAX_BYTES)
+  const redacted = redactSensitiveText(raw).slice(
+    0,
+    OBSERVER_VERSION_PROBE_MAX_BYTES,
+  )
   if (textContainsSecrets(redacted)) {
     return null
   }
@@ -211,5 +217,10 @@ function parseSafeVersion(raw: string): string | null {
 
 function semverParts(value: string): readonly number[] {
   const parsed = parseSemver(value) ?? value
-  return parsed.split('-')[0]?.split('.').map((part) => Number.parseInt(part, 10) || 0) ?? [0, 0, 0]
+  return (
+    parsed
+      .split('-')[0]
+      ?.split('.')
+      .map((part) => Number.parseInt(part, 10) || 0) ?? [0, 0, 0]
+  )
 }

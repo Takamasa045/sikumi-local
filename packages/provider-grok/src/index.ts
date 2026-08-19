@@ -1,6 +1,8 @@
 export {
   createGrokProvider,
+  DEFAULT_GROK_RUN_TIMEOUT_MS,
   resolveFakeGrokPath,
+  resolveGrokRunTimeoutMs,
   type GrokProviderOptions,
 } from './adapter.js'
 export {

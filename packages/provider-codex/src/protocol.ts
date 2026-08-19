@@ -47,6 +47,9 @@ export function assertSupportedCodexProtocol(
   ) {
     return CODEX_SUPPORTED_PROTOCOL_VERSION
   }
+  if (isCurrentVersionlessInitializeResult(value)) {
+    return CODEX_SUPPORTED_PROTOCOL_VERSION
+  }
   throw new AppError(
     'PROVIDER_CAPABILITY_MISMATCH',
     'Codex protocol version is not supported',
@@ -86,4 +89,37 @@ function extractProtocolVersion(value: unknown): unknown {
     return (value as { protocol_version: unknown }).protocol_version
   }
   return value
+}
+
+function isCurrentVersionlessInitializeResult(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) {
+    return false
+  }
+  if ('protocolVersion' in value || 'protocol_version' in value) {
+    return false
+  }
+  const result = value as Record<string, unknown>
+  return (
+    isCurrentCodexAppServerUserAgent(result.userAgent) &&
+    typeof result.codexHome === 'string' &&
+    result.codexHome.length > 0 &&
+    typeof result.platformFamily === 'string' &&
+    result.platformFamily.length > 0 &&
+    typeof result.platformOs === 'string' &&
+    result.platformOs.length > 0
+  )
+}
+
+function isCurrentCodexAppServerUserAgent(value: unknown): boolean {
+  if (typeof value !== 'string' || value.length === 0) {
+    return false
+  }
+  if (
+    /^shikumi-local\/\d+\.\d+\.\d+ .+ unknown \(shikumi-local; \d+\.\d+\.\d+\)$/.test(
+      value,
+    )
+  ) {
+    return true
+  }
+  return value.startsWith('Codex Desktop/')
 }

@@ -18,11 +18,7 @@ import {
 } from '@sikumi-local/observer-core'
 
 export type RejectedSpoolCategory =
-  | 'json-parse'
-  | 'validation'
-  | 'read-error'
-  | 'oversized'
-  | 'unknown'
+  'json-parse' | 'validation' | 'read-error' | 'oversized' | 'unknown'
 
 export interface RejectedSpoolRecord {
   readonly source: string
@@ -102,7 +98,10 @@ export function writeSpoolEvent(
   }
 
   const line = `${JSON.stringify(event)}\n`
-  const tempPath = join(directory, `.tmp-${safeSpoolFileId(`${event.id}:${fileId}`)}`)
+  const tempPath = join(
+    directory,
+    `.tmp-${safeSpoolFileId(`${event.id}:${fileId}`)}`,
+  )
   if (!isInsideDirectory(tempPath, directory)) {
     return { written: false, path: '' }
   }

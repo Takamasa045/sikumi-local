@@ -66,6 +66,43 @@ describe('garden presence', () => {
         events: [],
       }).summary,
     ).toBe('結果の形式が正しくありません')
+    expect(
+      resolveGardenPresence({
+        job: { ...sampleJob('running'), status: 'queued' },
+        events: [],
+      }).summary,
+    ).toBe('仕事の準備をしています')
+    expect(
+      resolveGardenPresence({
+        job: sampleJob('running'),
+        events: [undefined as never, event('web.search', '')],
+      }),
+    ).toMatchObject({
+      station: 'observatory',
+      summary: '外の世界を調べています',
+    })
+    expect(
+      resolveGardenPresence({
+        job: sampleJob('running'),
+        events: [
+          {
+            id: 'other',
+            jobId: 'job_1',
+            runId: 'run_1',
+            type: 'run.state_changed',
+            payload: {},
+            occurredAt: 't',
+          },
+        ],
+      }).summary,
+    ).toBe('仕事を進めています')
+    expect(
+      resolveGardenPresence({
+        job: sampleJob('running'),
+        events: [],
+        stateMap: { states: {}, eventBindings: {} },
+      }),
+    ).toMatchObject({ station: 'rest', pose: 'idle', stateName: 'idle' })
   })
 })
 

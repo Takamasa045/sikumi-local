@@ -28,10 +28,13 @@ export {
 export { sliceUtf8Bytes, toUtf8Buffer, utf8SafeEnd } from './utf8.js'
 export {
   createJsonRpcClient,
+  JSON_RPC_DEFAULT_REQUEST_TIMEOUT_MS,
+  resolveJsonRpcRequestTimeoutMs,
   type JsonRpcClient,
   type JsonRpcId,
   type JsonRpcNotification,
   type JsonRpcRequest,
+  type JsonRpcRequestOptions,
 } from './jsonrpc.js'
 export { AsyncQueue } from './queue.js'
 export {

@@ -11,10 +11,7 @@ import {
 } from '@sikumi-local/observer-core'
 import { discoverGrokHooks, missingGrokEvents } from './discovery.js'
 import { GROK_SUPPORTED_VERSION_RANGE } from './events.js'
-import {
-  applyGrokHookMutation,
-  resolveGrokHookCommandPath,
-} from './install.js'
+import { applyGrokHookMutation, resolveGrokHookCommandPath } from './install.js'
 import { normalizeGrokEvent } from './normalize.js'
 import { inspectGrokVersion } from './version.js'
 

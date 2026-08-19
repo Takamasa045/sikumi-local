@@ -19,8 +19,9 @@ try {
   process.exit(code ?? 0)
 } catch (error) {
   process.stderr.write(
-    String(error instanceof Error ? error.message : error ?? 'mcp server failed') +
-      '\n',
+    String(
+      error instanceof Error ? error.message : (error ?? 'mcp server failed'),
+    ) + '\n',
   )
   process.exit(0)
 }

@@ -17,7 +17,13 @@ import { observerInboxDir } from '@sikumi-local/observer-bridge'
 import { createClaudeCodeObserverAdapter } from './adapter.js'
 import { runClaudeCodeObserverHook } from './cli.js'
 import { missingClaudeCodeEvents } from './discovery.js'
-import { CLAUDE_CODE_REQUIRED_HOOK_EVENTS, matcherAllows } from './events.js'
+import {
+  CLAUDE_CODE_REQUIRED_HOOK_EVENTS,
+  isClaudeCodeHookEvent,
+  mapClaudeCodeEvent,
+  matcherAllows,
+  matcherForEvent,
+} from './events.js'
 import { applyClaudeCodeHookMutation } from './install.js'
 import { normalizeClaudeCodeHook } from './normalize.js'
 
@@ -28,6 +34,75 @@ afterEach(() => {
   for (const directory of tempDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+describe('claude-code event mapping', () => {
+  it('covers required events, matchers, and tool classification', () => {
+    expect(isClaudeCodeHookEvent('SessionStart')).toBe(true)
+    expect(isClaudeCodeHookEvent('Nope')).toBe(false)
+    expect(matcherForEvent('PreToolUse')).toBe('*')
+    expect(matcherForEvent('SessionStart')).toBeUndefined()
+    expect(matcherAllows(undefined, 'Edit')).toBe(true)
+    expect(matcherAllows('*', 'Edit')).toBe(true)
+    expect(matcherAllows('Edit|Write', null)).toBe(false)
+    expect(matcherAllows('Edit|Write', 'edit')).toBe(true)
+    expect(mapClaudeCodeEvent('SessionEnd').normalizedType).toBe(
+      'session.ended',
+    )
+    expect(mapClaudeCodeEvent('UserPromptSubmit').normalizedType).toBe(
+      'prompt.submitted',
+    )
+    expect(mapClaudeCodeEvent('PreToolUse', 'Bash').normalizedType).toBe(
+      'command.started',
+    )
+    expect(mapClaudeCodeEvent('PostToolUse', 'Shell').normalizedType).toBe(
+      'command.completed',
+    )
+    expect(mapClaudeCodeEvent('PreToolUse', 'Read').normalizedType).toBe(
+      'file.read',
+    )
+    expect(mapClaudeCodeEvent('PreToolUse', 'Write').normalizedType).toBe(
+      'file.changed',
+    )
+    expect(mapClaudeCodeEvent('PreToolUse', 'Other').normalizedType).toBe(
+      'activity.changed',
+    )
+    expect(mapClaudeCodeEvent('PostToolUseFailure').activity).toBe('failed')
+    expect(mapClaudeCodeEvent('PermissionDenied').normalizedType).toBe(
+      'permission.resolved',
+    )
+    expect(mapClaudeCodeEvent('Notification').activity).toBe('waiting-for-user')
+    expect(mapClaudeCodeEvent('SubagentStart').normalizedType).toBe(
+      'subagent.started',
+    )
+    expect(mapClaudeCodeEvent('SubagentStop').normalizedType).toBe(
+      'subagent.stopped',
+    )
+    expect(mapClaudeCodeEvent('TaskCreated').normalizedType).toBe(
+      'task.created',
+    )
+    expect(mapClaudeCodeEvent('TaskCompleted').normalizedType).toBe(
+      'task.completed',
+    )
+    expect(mapClaudeCodeEvent('Stop').activity).toBe('completed')
+    expect(mapClaudeCodeEvent('StopFailure').activity).toBe('failed')
+    expect(mapClaudeCodeEvent('TeammateIdle').activity).toBe('idle')
+    expect(mapClaudeCodeEvent('CwdChanged').activity).toBe('unknown')
+    expect(mapClaudeCodeEvent('DirectoryAdded').normalizedType).toBe(
+      'file.changed',
+    )
+    expect(mapClaudeCodeEvent('FileChanged').normalizedType).toBe(
+      'file.changed',
+    )
+    expect(mapClaudeCodeEvent('WorktreeCreate').normalizedType).toBe(
+      'worktree.created',
+    )
+    expect(mapClaudeCodeEvent('WorktreeRemove').normalizedType).toBe(
+      'worktree.removed',
+    )
+    expect(mapClaudeCodeEvent('PreCompact').activity).toBe('reviewing')
+    expect(mapClaudeCodeEvent('FutureUnknown').activity).toBe('unknown')
+  })
 })
 
 describe('normalizeClaudeCodeHook', () => {
@@ -52,33 +127,42 @@ describe('normalizeClaudeCodeHook', () => {
     const desktop = normalizeClaudeCodeHook(readFixture('desktop-surface.json'))
     expect(desktop?.surface).toBe('desktop-app')
 
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'TaskCreated' })?.normalizedType).toBe(
-      'task.created',
-    )
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'WorktreeCreate' })?.normalizedType).toBe(
-      'worktree.created',
-    )
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'FileChanged', file_path: 'a.ts' })?.normalizedType).toBe(
-      'file.changed',
-    )
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'CwdChanged' })?.normalizedType).toBe(
-      'activity.changed',
-    )
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'TeammateIdle' })?.normalizedType).toBe(
-      'heartbeat',
-    )
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'StopFailure' })?.normalizedType).toBe(
-      'session.failed',
-    )
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'PostToolUseFailure' })?.activity).toBe(
-      'failed',
-    )
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'Setup' })?.nativeEventType).toBe(
-      'Setup',
-    )
-    expect(normalizeClaudeCodeHook({ hook_event_name: 'Setup' })?.normalizedType).toBe(
-      'activity.changed',
-    )
+    expect(
+      normalizeClaudeCodeHook({ hook_event_name: 'TaskCreated' })
+        ?.normalizedType,
+    ).toBe('task.created')
+    expect(
+      normalizeClaudeCodeHook({ hook_event_name: 'WorktreeCreate' })
+        ?.normalizedType,
+    ).toBe('worktree.created')
+    expect(
+      normalizeClaudeCodeHook({
+        hook_event_name: 'FileChanged',
+        file_path: 'a.ts',
+      })?.normalizedType,
+    ).toBe('file.changed')
+    expect(
+      normalizeClaudeCodeHook({ hook_event_name: 'CwdChanged' })
+        ?.normalizedType,
+    ).toBe('activity.changed')
+    expect(
+      normalizeClaudeCodeHook({ hook_event_name: 'TeammateIdle' })
+        ?.normalizedType,
+    ).toBe('heartbeat')
+    expect(
+      normalizeClaudeCodeHook({ hook_event_name: 'StopFailure' })
+        ?.normalizedType,
+    ).toBe('session.failed')
+    expect(
+      normalizeClaudeCodeHook({ hook_event_name: 'PostToolUseFailure' })
+        ?.activity,
+    ).toBe('failed')
+    expect(
+      normalizeClaudeCodeHook({ hook_event_name: 'Setup' })?.nativeEventType,
+    ).toBe('Setup')
+    expect(
+      normalizeClaudeCodeHook({ hook_event_name: 'Setup' })?.normalizedType,
+    ).toBe('activity.changed')
   })
 
   it('requires every design 15.2 event and treats Setup as unknown future', () => {
@@ -126,7 +210,11 @@ describe('normalizeClaudeCodeHook', () => {
         ],
         evidence: [],
       }),
-    ).toEqual(CLAUDE_CODE_REQUIRED_HOOK_EVENTS.filter((event) => event !== 'SessionStart'))
+    ).toEqual(
+      CLAUDE_CODE_REQUIRED_HOOK_EVENTS.filter(
+        (event) => event !== 'SessionStart',
+      ),
+    )
   })
 
   it('does not guess desktop surface without evidence', () => {
@@ -180,7 +268,10 @@ describe('claude code install', () => {
           unknownFuture: { keep: true },
           hooks: {
             PreToolUse: [
-              { matcher: 'Bash', hooks: [{ type: 'command', command: '/tmp/user-hook' }] },
+              {
+                matcher: 'Bash',
+                hooks: [{ type: 'command', command: '/tmp/user-hook' }],
+              },
             ],
           },
         },

@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import type { Artifact } from '@sikumi-local/core'
+import type { PublicArtifact } from '../api/jobs'
 import { ArtifactViewer } from './ArtifactViewer'
 
 interface ArtifactShelfProps {
-  readonly artifacts: readonly Artifact[]
+  readonly artifacts: readonly PublicArtifact[]
   readonly worktree?: {
     readonly branchName: string
     readonly baseCommit: string
@@ -58,12 +59,7 @@ export function ArtifactShelf({
           {artifacts.map((artifact) => (
             <li key={artifact.id}>
               <strong>{artifact.title}</strong>
-              <small>
-                {artifactTypeLabel(artifact.type)}
-                {artifact.storagePath
-                  ? ' · 保存済み'
-                  : ' · 本文はまだありません'}
-              </small>
+              <small>{artifactTypeLabel(artifact.type)}</small>
               <div className="artifact-shelf__actions">
                 <button
                   type="button"

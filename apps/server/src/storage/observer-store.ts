@@ -161,11 +161,7 @@ export function createObserverStore(db: AppDatabase): ObserverStore {
     },
 
     listAdapters() {
-      return db
-        .select()
-        .from(observerAdapters)
-        .all()
-        .map(mapAdapter)
+      return db.select().from(observerAdapters).all().map(mapAdapter)
     },
 
     getAdapter(source) {
@@ -179,7 +175,9 @@ export function createObserverStore(db: AppDatabase): ObserverStore {
 
     insertObserverEvent(event, bound) {
       const parsed = normalizedObserverEventSchema.parse(event)
-      const existing = this.findObserverEventByIdempotency(parsed.idempotencyKey)
+      const existing = this.findObserverEventByIdempotency(
+        parsed.idempotencyKey,
+      )
       if (existing) {
         return { inserted: false, event: existing }
       }
@@ -218,7 +216,9 @@ export function createObserverStore(db: AppDatabase): ObserverStore {
         return { inserted: true, event: parsed }
       } catch (error) {
         if (isUniqueConflict(error, 'idempotency_key')) {
-          const again = this.findObserverEventByIdempotency(parsed.idempotencyKey)
+          const again = this.findObserverEventByIdempotency(
+            parsed.idempotencyKey,
+          )
           if (again) {
             return { inserted: false, event: again }
           }
@@ -254,7 +254,10 @@ export function createObserverStore(db: AppDatabase): ObserverStore {
           if (filter?.sessionId && row.externalSessionId !== filter.sessionId) {
             return false
           }
-          if (filter?.repositoryId && row.repositoryId !== filter.repositoryId) {
+          if (
+            filter?.repositoryId &&
+            row.repositoryId !== filter.repositoryId
+          ) {
             return false
           }
           return true
@@ -351,7 +354,10 @@ export function createObserverStore(db: AppDatabase): ObserverStore {
         .all()
         .map(mapSession)
         .filter((session) => {
-          if (filter?.repositoryId && session.repositoryId !== filter.repositoryId) {
+          if (
+            filter?.repositoryId &&
+            session.repositoryId !== filter.repositoryId
+          ) {
             return false
           }
           return true
@@ -409,10 +415,16 @@ export function createObserverStore(db: AppDatabase): ObserverStore {
         .all()
         .map(mapClaim)
         .filter((claim) => {
-          if (filter?.repositoryId && claim.repositoryId !== filter.repositoryId) {
+          if (
+            filter?.repositoryId &&
+            claim.repositoryId !== filter.repositoryId
+          ) {
             return false
           }
-          if (filter?.sessionId && claim.externalSessionId !== filter.sessionId) {
+          if (
+            filter?.sessionId &&
+            claim.externalSessionId !== filter.sessionId
+          ) {
             return false
           }
           return true
@@ -420,9 +432,9 @@ export function createObserverStore(db: AppDatabase): ObserverStore {
     },
 
     insertRepositorySnapshot(snapshot) {
-      const latest = this.latestSnapshotsByRepository(snapshot.repositoryId).find(
-        (item) => item.worktreePath === snapshot.worktreePath,
-      )
+      const latest = this.latestSnapshotsByRepository(
+        snapshot.repositoryId,
+      ).find((item) => item.worktreePath === snapshot.worktreePath)
       if (latest && sameSnapshotContent(latest, snapshot)) {
         return latest
       }
@@ -544,7 +556,10 @@ export function createObserverStore(db: AppDatabase): ObserverStore {
         .all()
         .map(mapConflict)
         .filter((item) => {
-          if (filter?.repositoryId && item.repositoryId !== filter.repositoryId) {
+          if (
+            filter?.repositoryId &&
+            item.repositoryId !== filter.repositoryId
+          ) {
             return false
           }
           if (filter?.level && item.level !== filter.level) {
@@ -678,7 +693,9 @@ function mapEvent(
   })
 }
 
-function mapSession(row: typeof externalSessions.$inferSelect): ExternalSession {
+function mapSession(
+  row: typeof externalSessions.$inferSelect,
+): ExternalSession {
   return externalSessionSchema.parse({
     id: row.id,
     source: row.source,
@@ -732,7 +749,9 @@ function mapSnapshot(
   }
 }
 
-function mapConflict(row: typeof conflictFindings.$inferSelect): ConflictFinding {
+function mapConflict(
+  row: typeof conflictFindings.$inferSelect,
+): ConflictFinding {
   return conflictFindingSchema.parse({
     id: row.id,
     identityKey: row.identityKey ?? row.id,
@@ -791,8 +810,12 @@ function readEvidence(raw: string | null): ConflictFinding['evidence'] {
       {
         kind: item.kind,
         label: item.label,
-        ...(typeof item.leftPath === 'string' ? { leftPath: item.leftPath } : {}),
-        ...(typeof item.rightPath === 'string' ? { rightPath: item.rightPath } : {}),
+        ...(typeof item.leftPath === 'string'
+          ? { leftPath: item.leftPath }
+          : {}),
+        ...(typeof item.rightPath === 'string'
+          ? { rightPath: item.rightPath }
+          : {}),
       },
     ]
   })

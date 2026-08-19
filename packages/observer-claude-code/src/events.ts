@@ -52,7 +52,10 @@ export function matcherForEvent(eventName: string): string | undefined {
   return undefined
 }
 
-export function matcherAllows(matcher: string | null | undefined, toolName: string | null): boolean {
+export function matcherAllows(
+  matcher: string | null | undefined,
+  toolName: string | null,
+): boolean {
   if (!matcher || matcher === '*') {
     return true
   }

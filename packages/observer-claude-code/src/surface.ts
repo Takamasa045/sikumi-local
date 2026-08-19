@@ -1,6 +1,8 @@
 import type { ObserverSurface } from '@sikumi-local/observer-core'
 
-export function inferClaudeCodeSurface(input: Record<string, unknown>): ObserverSurface {
+export function inferClaudeCodeSurface(
+  input: Record<string, unknown>,
+): ObserverSurface {
   const hint = [
     readString(input.surface),
     readString(input.client),
@@ -20,10 +22,18 @@ export function inferClaudeCodeSurface(input: Record<string, unknown>): Observer
   ) {
     return 'desktop-app'
   }
-  if (hint.includes('vscode') || hint.includes('ide') || hint.includes('cursor')) {
+  if (
+    hint.includes('vscode') ||
+    hint.includes('ide') ||
+    hint.includes('cursor')
+  ) {
     return 'ide'
   }
-  if (hint.includes('cli') || hint.includes('terminal') || hint.includes('headless')) {
+  if (
+    hint.includes('cli') ||
+    hint.includes('terminal') ||
+    hint.includes('headless')
+  ) {
     return 'cli'
   }
   return 'unknown'

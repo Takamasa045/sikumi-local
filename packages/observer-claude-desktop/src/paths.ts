@@ -125,7 +125,10 @@ export function resolveResourceInsideRepository(
     // missing path is still acceptable if it would stay inside
   }
   const realFile = realpathIfExists(absolute)
-  if (!isInsideResolvedRoot(realFile, rootReal) && !isCanonicalChildPath(realFile, rootReal)) {
+  if (
+    !isInsideResolvedRoot(realFile, rootReal) &&
+    !isCanonicalChildPath(realFile, rootReal)
+  ) {
     return null
   }
   const relative = toRelativeInside(realFile, rootReal)
@@ -162,7 +165,11 @@ function toRelativeInside(absolute: string, root: string): string | null {
   if (!left.startsWith(`${right}/`)) {
     return null
   }
-  return posix.normalize(normalizePathSeparators(absolute).slice(root.replaceAll('\\', '/').length + 1))
+  return posix.normalize(
+    normalizePathSeparators(absolute).slice(
+      root.replaceAll('\\', '/').length + 1,
+    ),
+  )
 }
 
 function foldPathForCompare(value: string): string {

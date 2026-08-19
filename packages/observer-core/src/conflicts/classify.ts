@@ -124,7 +124,12 @@ export function classifyConflictPath(input: string): ClassifiedConflictPath {
   const isGenerated = isGeneratedPath(path)
   const migrationNumber = extractMigrationNumber(path)
   const stem = stemOf(fileName)
-  const className = classifyResourceClass(path, lowerName, isGenerated, migrationNumber)
+  const className = classifyResourceClass(
+    path,
+    lowerName,
+    isGenerated,
+    migrationNumber,
+  )
   const tokens = significantTokens(path, stem)
   return {
     path,
@@ -206,7 +211,11 @@ export function significantTokens(path: string, stem: string): string[] {
   const tokens = new Set<string>()
   for (const part of parts) {
     for (const piece of splitToken(part)) {
-      if (piece.length < 3 || TOKEN_STOPWORDS.has(piece) || /^\d+$/.test(piece)) {
+      if (
+        piece.length < 3 ||
+        TOKEN_STOPWORDS.has(piece) ||
+        /^\d+$/.test(piece)
+      ) {
         continue
       }
       tokens.add(piece)
@@ -238,7 +247,11 @@ function classifyResourceClass(
   if (generated) {
     return 'generated'
   }
-  if (migrationNumber || /(^|\/)migrations?\//i.test(path) || /migration/i.test(lowerName)) {
+  if (
+    migrationNumber ||
+    /(^|\/)migrations?\//i.test(path) ||
+    /migration/i.test(lowerName)
+  ) {
     return 'migration'
   }
   if (/(schema|prisma|drizzle|\.sql$)/i.test(path)) {

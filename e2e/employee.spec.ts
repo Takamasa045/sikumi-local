@@ -41,15 +41,13 @@ test('employee packs remain available through the legacy API but are not garden 
   await expect(page.getByRole('combobox', { name: '担当' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'AI社員' })).toHaveCount(0)
 
-  const observingAgents = page.getByRole('list', { name: '観測中のエージェント' })
+  const observingAgents = page.getByRole('list', {
+    name: '観測中のエージェント',
+  })
   const agentCount = await observingAgents.count()
   if (agentCount === 0) {
-    await expect(
-      page.getByRole('heading', { name: 'ミル' }),
-    ).toHaveCount(0)
-    await expect(
-      page.getByRole('heading', { name: 'サグル' }),
-    ).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'ミル' })).toHaveCount(0)
+    await expect(page.getByRole('heading', { name: 'サグル' })).toHaveCount(0)
     await expect(
       page.getByRole('listitem').filter({ hasText: /^ミル$/ }),
     ).toHaveCount(0)

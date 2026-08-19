@@ -100,9 +100,7 @@ function buildStreamEvent(
   const receivedAt = nowIso()
   const occurredAt =
     normalizeObserverDateTime(
-      readString(input.occurredAt) ??
-        readString(input.timestamp) ??
-        receivedAt,
+      readString(input.occurredAt) ?? readString(input.timestamp) ?? receivedAt,
     ) ?? receivedAt
   const subtype = readString(input.subtype)
   const nativeEventType = canonicalizeGrokEventName(
@@ -168,9 +166,7 @@ function buildStreamEvent(
     cwd,
     repositoryId: null,
     worktreePath:
-      readString(input.worktree_path) ??
-      readString(input.worktreePath) ??
-      cwd,
+      readString(input.worktree_path) ?? readString(input.worktreePath) ?? cwd,
     branch: readString(input.branch),
     baseCommit: null,
     headCommit: null,

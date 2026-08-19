@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto'
 import type { ConflictSide } from './types.js'
 
-export function actorKey(side: Pick<ConflictSide, 'sessionId' | 'worktreePath'>): string {
+export function actorKey(
+  side: Pick<ConflictSide, 'sessionId' | 'worktreePath'>,
+): string {
   if (side.sessionId) {
     return `s:${side.sessionId}`
   }
@@ -11,10 +13,9 @@ export function actorKey(side: Pick<ConflictSide, 'sessionId' | 'worktreePath'>)
   return 'unknown'
 }
 
-export function orderedSides<T extends Pick<ConflictSide, 'sessionId' | 'worktreePath'>>(
-  left: T,
-  right: T,
-): readonly [T, T] {
+export function orderedSides<
+  T extends Pick<ConflictSide, 'sessionId' | 'worktreePath'>,
+>(left: T, right: T): readonly [T, T] {
   return actorKey(left) <= actorKey(right) ? [left, right] : [right, left]
 }
 

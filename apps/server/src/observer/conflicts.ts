@@ -39,7 +39,8 @@ export function refreshConflicts(
     claims: store.listResourceClaims({ repositoryId }),
     now,
     commonBaseForPair: (left, right) => {
-      const cwd = repository?.absolutePath ?? left.worktreePath ?? right.worktreePath
+      const cwd =
+        repository?.absolutePath ?? left.worktreePath ?? right.worktreePath
       if (!cwd) {
         return null
       }

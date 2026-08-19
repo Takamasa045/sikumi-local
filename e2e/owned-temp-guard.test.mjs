@@ -26,7 +26,10 @@ describe('owned e2e temp teardown guard', () => {
     const foreign = mkdtempSync(join(tmpdir(), 'not-sikumi-'))
     try {
       assert.equal(isSafeOwnedTempDirectory('/etc/passwd'), false)
-      assert.equal(isSafeOwnedTempDirectory(resolve(tmpdir(), '..', 'etc')), false)
+      assert.equal(
+        isSafeOwnedTempDirectory(resolve(tmpdir(), '..', 'etc')),
+        false,
+      )
       assert.equal(isSafeOwnedTempDirectory(tmpdir()), false)
       assert.equal(isSafeOwnedTempDirectory('sikumi-e2e-relative'), false)
       assert.equal(isSafeOwnedTempDirectory(''), false)

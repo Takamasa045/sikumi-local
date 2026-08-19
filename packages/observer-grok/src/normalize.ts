@@ -19,10 +19,7 @@ import {
   isGrokHookEvent,
   mapGrokEvent,
 } from './events.js'
-import {
-  isDroppedGrokStreamEvent,
-  normalizeGrokStreamEvent,
-} from './stream.js'
+import { isDroppedGrokStreamEvent, normalizeGrokStreamEvent } from './stream.js'
 
 export function normalizeGrokEvent(
   input: unknown,
@@ -69,9 +66,7 @@ function normalizeGrokHookOrNull(
   const receivedAt = nowIso()
   const occurredAt =
     normalizeObserverDateTime(
-      readString(input.occurredAt) ??
-        readString(input.timestamp) ??
-        receivedAt,
+      readString(input.occurredAt) ?? readString(input.timestamp) ?? receivedAt,
     ) ?? receivedAt
   const sessionId =
     readString(input.session_id) ?? readString(input.sessionId) ?? null
@@ -132,9 +127,7 @@ function normalizeGrokHookOrNull(
     cwd,
     repositoryId: null,
     worktreePath:
-      readString(input.worktree_path) ??
-      readString(input.worktreePath) ??
-      cwd,
+      readString(input.worktree_path) ?? readString(input.worktreePath) ?? cwd,
     branch: readString(input.branch),
     baseCommit: null,
     headCommit: null,
@@ -176,7 +169,11 @@ function inferSurface(input: Record<string, unknown>): ObserverSurface {
   if (hint.includes('desktop') || hint.includes('app')) {
     return 'desktop-app'
   }
-  if (hint.includes('cli') || hint.includes('headless') || hint.includes('terminal')) {
+  if (
+    hint.includes('cli') ||
+    hint.includes('headless') ||
+    hint.includes('terminal')
+  ) {
     return 'cli'
   }
   if (hint.includes('ide')) {

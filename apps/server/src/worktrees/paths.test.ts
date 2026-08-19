@@ -8,6 +8,7 @@ import {
   assertSafeBranchName,
   exportsRoot,
   jobShortId,
+  resolveContainedDirectory,
   sanitizeIdSegment,
   worktreeBranchName,
   worktreeRelPath,
@@ -56,6 +57,17 @@ describe('worktree path guards', () => {
     const escape = join(data, 'worktrees', 'escape')
     symlinkSync(outside, escape)
     expect(() => assertInsideWorktreesRoot(escape, data)).toThrow()
+    expect(resolveContainedDirectory(data, 'worktrees/repo/job')).toContain(
+      'worktrees',
+    )
+    expect(() => resolveContainedDirectory(data, '../secret')).toThrow(
+      /escapes/,
+    )
+    expect(() =>
+      assertInsideDataDirectory(join(data, 'missing-leaf'), data),
+    ).toThrow(/resolved/)
+    const pending = join(data, 'worktrees', 'repo', 'pending-leaf')
+    expect(assertInsideWorktreesRoot(pending, data)).toBe(pending)
   })
 })
 

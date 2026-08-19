@@ -158,6 +158,46 @@ describe('JobComposer', () => {
       }),
     ).toBe('使用できます')
   })
+
+  it('submits a request and maps remaining composer branches', async () => {
+    const onSubmit = vi.fn()
+    const onProvider = vi.fn()
+    const onEmployee = vi.fn()
+    const onCancel = vi.fn()
+    render(
+      <JobComposer
+        enabled
+        busy={false}
+        request="調べて"
+        notice="notice"
+        employees={[]}
+        selectedEmployeeId=""
+        providers={[provider('claude-code', 'ready')]}
+        selectedProvider="auto"
+        confirmation={{
+          message: '別の道具で始めますか？',
+          alternatives: ['claude-code'],
+        }}
+        onRequestChange={vi.fn()}
+        onEmployeeChange={onEmployee}
+        onProviderChange={onProvider}
+        onSubmit={onSubmit}
+        onConfirmFallback={vi.fn()}
+        onCancelConfirmation={onCancel}
+      />,
+    )
+    expect(
+      screen.getByRole('heading', { name: '誰に頼みますか' }),
+    ).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: '中止' }))
+    expect(onCancel).toHaveBeenCalled()
+    await userEvent.selectOptions(screen.getByLabelText('道具'), 'claude-code')
+    expect(onProvider).toHaveBeenCalledWith('claude-code')
+    await userEvent.selectOptions(screen.getByLabelText('道具'), 'auto')
+    expect(onProvider).toHaveBeenCalledWith('auto')
+    await userEvent.click(screen.getByRole('button', { name: '仕事を頼む' }))
+    expect(onSubmit).toHaveBeenCalledWith('調べて')
+  })
 })
 
 function provider(

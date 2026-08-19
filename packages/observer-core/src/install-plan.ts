@@ -137,8 +137,7 @@ export function applyConfirmedInstallPlan(
       ok: false,
       changed: false,
       applied: false,
-      message:
-        '設定pathが安全ではないため、導入差分を適用できませんでした',
+      message: '設定pathが安全ではないため、導入差分を適用できませんでした',
     }
   }
   const applied = applyFilePlans(identified.files ?? [])

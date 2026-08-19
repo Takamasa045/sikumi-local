@@ -60,7 +60,9 @@ export function ObserverDashboard({
       />
 
       {overview && overview.repositories.length === 0 ? (
-        <p>登録した場所がまだありません。上の欄からフォルダを追加してください。</p>
+        <p>
+          登録した場所がまだありません。上の欄からフォルダを追加してください。
+        </p>
       ) : null}
 
       <ul className="observer-repo-list">
@@ -217,7 +219,9 @@ function toneFor(activity: RepositoryActivity): string {
         ? '🟠 注意'
         : '🟡 注意'
   }
-  if (activity.sessions.some((session) => session.status === 'waiting-for-user')) {
+  if (
+    activity.sessions.some((session) => session.status === 'waiting-for-user')
+  ) {
     return '確認待ち'
   }
   if (activity.changedFileCount > 0) {

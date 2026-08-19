@@ -2,10 +2,7 @@ import { existsSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path'
 
-export const OWNED_E2E_TEMP_PREFIXES = [
-  'sikumi-e2e-',
-  'sikumi-local-e2e-',
-]
+export const OWNED_E2E_TEMP_PREFIXES = ['sikumi-e2e-', 'sikumi-local-e2e-']
 
 export function isSafeOwnedTempDirectory(directory) {
   if (typeof directory !== 'string' || directory.length === 0) {
@@ -25,16 +22,24 @@ export function isSafeOwnedTempDirectory(directory) {
 
   let candidate
   try {
-    candidate = existsSync(directory) ? realpathSync(directory) : resolve(directory)
+    candidate = existsSync(directory)
+      ? realpathSync(directory)
+      : resolve(directory)
   } catch {
     return false
   }
   const lexical = resolve(directory)
 
-  if (!isInsideDirectory(lexical, lexicalTmp) && !isInsideDirectory(lexical, tmpRoot)) {
+  if (
+    !isInsideDirectory(lexical, lexicalTmp) &&
+    !isInsideDirectory(lexical, tmpRoot)
+  ) {
     return false
   }
-  if (!isInsideDirectory(candidate, tmpRoot) && !isInsideDirectory(candidate, lexicalTmp)) {
+  if (
+    !isInsideDirectory(candidate, tmpRoot) &&
+    !isInsideDirectory(candidate, lexicalTmp)
+  ) {
     return false
   }
 

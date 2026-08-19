@@ -1,5 +1,11 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs'
 import { dirname, join } from 'node:path'
 import {
   MAX_SESSION_ID_LENGTH,
@@ -51,11 +57,19 @@ export function readCooperativeSessions(
   }
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
       return {}
     }
     const sessions = (parsed as { sessions?: unknown }).sessions
-    if (typeof sessions !== 'object' || sessions === null || Array.isArray(sessions)) {
+    if (
+      typeof sessions !== 'object' ||
+      sessions === null ||
+      Array.isArray(sessions)
+    ) {
       return {}
     }
     const result: Record<string, CooperativeSession> = {}

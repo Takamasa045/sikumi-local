@@ -11,7 +11,10 @@ import {
 } from '../types.js'
 import type { ConflictSide, ScoreHit } from './types.js'
 
-const NAMED_CONFIDENCE = new Set<AttributionConfidence>(['verified', 'reported'])
+const NAMED_CONFIDENCE = new Set<AttributionConfidence>([
+  'verified',
+  'reported',
+])
 const UNKNOWN_ACTOR_LABEL = '変更元不明'
 
 export function canNameConflictActor(
@@ -20,9 +23,9 @@ export function canNameConflictActor(
 ): boolean {
   return Boolean(
     source &&
-      source !== 'git' &&
-      confidence &&
-      NAMED_CONFIDENCE.has(confidence),
+    source !== 'git' &&
+    confidence &&
+    NAMED_CONFIDENCE.has(confidence),
   )
 }
 
@@ -40,7 +43,10 @@ export function actorDisplayName(side: ConflictSide): string {
   return safeActorLabel(side.source, side.attributionConfidence)
 }
 
-export function pairActorPhrase(left: ConflictSide, right: ConflictSide): string {
+export function pairActorPhrase(
+  left: ConflictSide,
+  right: ConflictSide,
+): string {
   const leftName = actorDisplayName(left)
   const rightName = actorDisplayName(right)
   if (leftName === '変更元不明' && rightName === '変更元不明') {
@@ -99,7 +105,9 @@ export function explainHits(
     headline,
     summary: clip(summary, 280),
     recommendation: recommendationFor(level),
-    reasons: hits.slice(0, OBSERVER_MAX_CONFLICT_REASONS).map((item) => item.label),
+    reasons: hits
+      .slice(0, OBSERVER_MAX_CONFLICT_REASONS)
+      .map((item) => item.label),
     evidence: hits.slice(0, OBSERVER_MAX_CONFLICT_EVIDENCE).map((item) => ({
       kind: item.kind,
       label: item.label,
@@ -114,7 +122,9 @@ export function explainHits(
   }
 }
 
-export function recommendationFor(level: ReturnType<typeof scoreToConflictLevel>): string {
+export function recommendationFor(
+  level: ReturnType<typeof scoreToConflictLevel>,
+): string {
   switch (level) {
     case 'critical':
     case 'high':

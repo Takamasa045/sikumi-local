@@ -146,7 +146,10 @@ function drainMcpBuffer(
     if (newline < 0) {
       return remaining
     }
-    const line = remaining.subarray(0, newline).toString('utf8').replace(/\r$/, '')
+    const line = remaining
+      .subarray(0, newline)
+      .toString('utf8')
+      .replace(/\r$/, '')
     remaining = remaining.subarray(newline + 1)
     if (line.length === 0) {
       continue
@@ -213,7 +216,10 @@ function callToolResult(
   context: CooperativeToolContext,
   stderr?: Writable,
 ): {
-  readonly content: ReadonlyArray<{ readonly type: 'text'; readonly text: string }>
+  readonly content: ReadonlyArray<{
+    readonly type: 'text'
+    readonly text: string
+  }>
   readonly isError: boolean
   readonly structuredContent: CooperativeToolResult
 } {
@@ -222,7 +228,10 @@ function callToolResult(
     const name = typeof record.name === 'string' ? record.name : ''
     const result = callSikumiTool(name, record.arguments, context)
     if (result.ok === false) {
-      writeProtocolNotice(stderr, `${result.tool}: ${result.code}: ${result.message}`)
+      writeProtocolNotice(
+        stderr,
+        `${result.tool}: ${result.code}: ${result.message}`,
+      )
     }
     return {
       content: [{ type: 'text', text: JSON.stringify(result) }],
@@ -264,7 +273,10 @@ function readMessageId(message: unknown): string | number | null {
     : null
 }
 
-function writeProtocolNotice(stderr: Writable | undefined, message: string): void {
+function writeProtocolNotice(
+  stderr: Writable | undefined,
+  message: string,
+): void {
   stderr?.write(`sikumi-observer-claude-desktop: ${message}\n`)
 }
 

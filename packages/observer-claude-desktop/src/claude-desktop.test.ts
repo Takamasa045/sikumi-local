@@ -17,12 +17,12 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { observerInboxDir } from '@sikumi-local/observer-bridge'
 import { createClaudeDesktopObserverAdapter } from './adapter.js'
-import { writeRegisteredRepositoryCatalog } from './catalog.js'
-import { runClaudeDesktopMcpServer } from './cli.js'
 import {
-  CLAUDE_DESKTOP_SOURCE,
-  SIKUMI_MCP_TOOLS,
-} from './events.js'
+  readRegisteredRepositoryCatalog,
+  writeRegisteredRepositoryCatalog,
+} from './catalog.js'
+import { runClaudeDesktopMcpServer } from './cli.js'
+import { CLAUDE_DESKTOP_SOURCE, SIKUMI_MCP_TOOLS } from './events.js'
 import {
   applyClaudeDesktopPackageMutation,
   claudeDesktopMcpbPath,
@@ -39,6 +39,37 @@ import {
 } from './mcpb.js'
 import { normalizeClaudeDesktopReport } from './normalize.js'
 import { callSikumiTool, listSikumiTools } from './tools.js'
+
+describe('registered repository catalog', () => {
+  it('returns empty catalogs for missing or invalid files', () => {
+    const dataDirectory = mkdtempSync(join(tmpdir(), 'sikumi-catalog-'))
+    tempDirectories.push(dataDirectory)
+    expect(readRegisteredRepositoryCatalog(dataDirectory).repositories).toEqual(
+      [],
+    )
+    const path = join(dataDirectory, 'observer', 'registered-repositories.json')
+    mkdirSync(join(dataDirectory, 'observer'), { recursive: true })
+    writeFileSync(path, '{not-json')
+    expect(readRegisteredRepositoryCatalog(dataDirectory).repositories).toEqual(
+      [],
+    )
+    writeFileSync(path, '[]\n')
+    expect(readRegisteredRepositoryCatalog(dataDirectory).repositories).toEqual(
+      [],
+    )
+    writeFileSync(path, JSON.stringify({ schemaVersion: 2, repositories: [] }))
+    expect(readRegisteredRepositoryCatalog(dataDirectory).repositories).toEqual(
+      [],
+    )
+    writeFileSync(
+      path,
+      JSON.stringify({ schemaVersion: 1, repositories: [null, { id: 1 }] }),
+    )
+    expect(readRegisteredRepositoryCatalog(dataDirectory).repositories).toEqual(
+      [],
+    )
+  })
+})
 
 const tempDirectories: string[] = []
 const packageRoot = fileURLToPath(new URL('..', import.meta.url))
@@ -114,7 +145,10 @@ describe('sikumi MCP tools', () => {
         env.context,
       ).ok,
     ).toBe(true)
-    writeFileSync(join(env.repo, 'src/profile/avatar.tsx'), 'export const x = 1\n')
+    writeFileSync(
+      join(env.repo, 'src/profile/avatar.tsx'),
+      'export const x = 1\n',
+    )
     const noted = callSikumiTool(
       'sikumi.note_resource',
       {
@@ -265,7 +299,10 @@ describe('sikumi MCP tools', () => {
     expect(
       callSikumiTool(
         'sikumi.begin_work',
-        { repositoryPath: 'C:\\Users\\example\\Projects\\other', summary: 'no' },
+        {
+          repositoryPath: 'C:\\Users\\example\\Projects\\other',
+          summary: 'no',
+        },
         env.context,
       ).ok,
     ).toBe(false)
@@ -570,9 +607,9 @@ describe('MCP protocol', () => {
       ).content[0]?.text ?? '{}',
     ) as { ok: boolean; sessionId?: string }
     expect(called && 'result' in called && called.result).toBeTruthy()
-    expect(
-      (called?.result as { isError?: boolean } | undefined)?.isError,
-    ).toBe(false)
+    expect((called?.result as { isError?: boolean } | undefined)?.isError).toBe(
+      false,
+    )
     expect(payload.ok).toBe(true)
     expect(payload.sessionId).toBeTruthy()
   })
@@ -591,17 +628,22 @@ describe('MCP protocol', () => {
     ].join('')
     const stderrChunks: Buffer[] = []
     const { stdin, stdout, output } = memoryStdio(input)
-    const code = await runClaudeDesktopMcpServer(['--data-dir', env.dataDirectory], {
-      stdin,
-      stdout,
-      stderr: new Writable({
-        write(chunk, _encoding, callback) {
-          stderrChunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)))
-          callback()
-        },
-      }),
-      env: { ...process.env, SIKUMI_LOCAL_DATA_DIR: env.dataDirectory },
-    })
+    const code = await runClaudeDesktopMcpServer(
+      ['--data-dir', env.dataDirectory],
+      {
+        stdin,
+        stdout,
+        stderr: new Writable({
+          write(chunk, _encoding, callback) {
+            stderrChunks.push(
+              Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)),
+            )
+            callback()
+          },
+        }),
+        env: { ...process.env, SIKUMI_LOCAL_DATA_DIR: env.dataDirectory },
+      },
+    )
     expect(code).toBe(0)
     const body = output().toString('utf8')
     expect(body).not.toContain('Content-Length:')
@@ -649,12 +691,53 @@ describe('MCP protocol', () => {
     )
     expect(unknown?.error?.code).toBe(-32601)
   })
+
+  it('rejects invalid JSON-RPC and ignores notifications', () => {
+    const env = setupRepo()
+    expect(handleMcpMessage('nope', env.context)?.error?.code).toBe(-32600)
+    expect(handleMcpMessage({ jsonrpc: '1.0' }, env.context)?.error?.code).toBe(
+      -32600,
+    )
+    expect(
+      handleMcpMessage(
+        { jsonrpc: '2.0', method: 'notifications/initialized' },
+        env.context,
+      ),
+    ).toBeNull()
+    expect(
+      handleMcpMessage(
+        { jsonrpc: '2.0', method: 'notifications/cancelled' },
+        env.context,
+      ),
+    ).toBeNull()
+    expect(
+      handleMcpMessage({ jsonrpc: '2.0', method: 'something' }, env.context),
+    ).toBeNull()
+    const initialized = handleMcpMessage(
+      { jsonrpc: '2.0', id: 11, method: 'initialize', params: {} },
+      env.context,
+    )
+    expect(initialized?.result).toBeTruthy()
+    expect(
+      handleMcpMessage({ jsonrpc: '2.0', id: 12, method: 'ping' }, env.context)
+        ?.result,
+    ).toEqual({})
+    const emptyCall = handleMcpMessage(
+      { jsonrpc: '2.0', id: 13, method: 'tools/call', params: {} },
+      env.context,
+    )
+    expect(
+      (emptyCall?.result as { isError?: boolean } | undefined)?.isError,
+    ).toBe(true)
+  })
 })
 
 describe('adapter install and health', () => {
   it('previews a package, writes only into the data directory, and stays cooperative', () => {
     const dataDirectory = track(mkdtempSync(join(tmpdir(), 'claude-install-')))
-    const preview = planClaudeDesktopPackageMutation('install', { dataDirectory })
+    const preview = planClaudeDesktopPackageMutation('install', {
+      dataDirectory,
+    })
     expect(preview.requiresConfirm).toBe(true)
     expect(preview.changed).toBe(false)
     expect(preview.message).toContain('協調報告')
@@ -675,9 +758,12 @@ describe('adapter install and health', () => {
     expect(confirmed.applied).toBe(true)
     expect(existsSync(claudeDesktopMcpbPath(dataDirectory))).toBe(true)
     expect(existsSync(join(dataDirectory, 'Library'))).toBe(false)
-    expect(readFileSync(join(dataDirectory, 'observer/claude-desktop/bundle/manifest.json'), 'utf8')).toContain(
-      'sikumi.begin_work',
-    )
+    expect(
+      readFileSync(
+        join(dataDirectory, 'observer/claude-desktop/bundle/manifest.json'),
+        'utf8',
+      ),
+    ).toContain('sikumi.begin_work')
 
     const adapter = createClaudeDesktopObserverAdapter()
     const event = adapter.normalize({
@@ -718,6 +804,44 @@ describe('adapter install and health', () => {
     expect(ready.status).toBe('ready')
     expect(ready.warnings.join('\n')).toContain('協調報告を受信済み')
   })
+
+  it('previews without a data directory and uninstalls a generated package', () => {
+    const preview = planClaudeDesktopPackageMutation('install')
+    expect(preview.requiresConfirm).toBe(true)
+    expect(preview.files).toEqual([])
+    expect(applyClaudeDesktopPackageMutation('uninstall').applied).not.toBe(
+      true,
+    )
+    const dataDirectory = track(
+      mkdtempSync(join(tmpdir(), 'claude-uninstall-')),
+    )
+    const digest = digestFor(dataDirectory)
+    const installed = applyClaudeDesktopPackageMutation('install', {
+      dataDirectory,
+      confirm: true,
+      ...(digest.confirmationToken
+        ? { confirmationToken: digest.confirmationToken }
+        : {}),
+      ...(digest.planDigest ? { planDigest: digest.planDigest } : {}),
+    })
+    expect(installed.ok).toBe(true)
+    const uninstallPreview = applyClaudeDesktopPackageMutation('uninstall', {
+      dataDirectory,
+      confirm: false,
+    })
+    expect(uninstallPreview.requiresConfirm).toBe(true)
+    const uninstallDigest =
+      uninstallPreview.planDigest ?? uninstallPreview.confirmationToken
+    const removed = applyClaudeDesktopPackageMutation('uninstall', {
+      dataDirectory,
+      confirm: true,
+      ...(uninstallDigest
+        ? { confirmationToken: uninstallDigest, planDigest: uninstallDigest }
+        : {}),
+    })
+    expect(removed.ok).toBe(true)
+    expect(existsSync(claudeDesktopMcpbPath(dataDirectory))).toBe(false)
+  })
 })
 
 describe('MCPB manifest and package', () => {
@@ -726,16 +850,22 @@ describe('MCPB manifest and package', () => {
       readFileSync(join(packageRoot, 'extension/manifest.json'), 'utf8'),
     ) as unknown
     expect(validateClaudeDesktopManifest(source).ok).toBe(true)
-    expect(validateClaudeDesktopManifest(renderClaudeDesktopManifest()).ok).toBe(
-      true,
-    )
+    expect(
+      validateClaudeDesktopManifest(renderClaudeDesktopManifest()).ok,
+    ).toBe(true)
     const official = runOfficialMcpbValidate(
       join(packageRoot, 'extension/manifest.json'),
     )
     expect(official.ok).toBe(true)
 
-    const firstOut = join(track(mkdtempSync(join(tmpdir(), 'mcpb-a-'))), 'a.mcpb')
-    const secondOut = join(track(mkdtempSync(join(tmpdir(), 'mcpb-b-'))), 'b.mcpb')
+    const firstOut = join(
+      track(mkdtempSync(join(tmpdir(), 'mcpb-a-'))),
+      'a.mcpb',
+    )
+    const secondOut = join(
+      track(mkdtempSync(join(tmpdir(), 'mcpb-b-'))),
+      'b.mcpb',
+    )
     const first = packageClaudeDesktopMcpb(firstOut)
     const second = packageClaudeDesktopMcpb(secondOut)
     expect(first.ok).toBe(true)
@@ -749,11 +879,15 @@ describe('MCPB manifest and package', () => {
     expect(first.files).toContain('server/package.json')
     expect(
       first.files.some((name) =>
-        name.includes('server/node_modules/@sikumi-local/observer-core/package.json'),
+        name.includes(
+          'server/node_modules/@sikumi-local/observer-core/package.json',
+        ),
       ),
     ).toBe(true)
     expect(
-      first.files.some((name) => name.includes('server/node_modules/zod/package.json')),
+      first.files.some((name) =>
+        name.includes('server/node_modules/zod/package.json'),
+      ),
     ).toBe(true)
     const extracted = track(mkdtempSync(join(tmpdir(), 'mcpb-extract-')))
     unpackClaudeDesktopMcpb(firstOut, extracted)
@@ -762,6 +896,141 @@ describe('MCPB manifest and package', () => {
       join(packageRoot, 'scripts/validate.mjs'),
     ])
     expect(script.status).toBe(0)
+  })
+
+  it('rejects invalid manifests and reports missing archive runtime files', () => {
+    expect(validateClaudeDesktopManifest(null).ok).toBe(false)
+    expect(validateClaudeDesktopManifest('x').ok).toBe(false)
+    const broken = {
+      manifest_version: 1,
+      name: 'wrong',
+      compatibility: {
+        platforms: ['darwin', 'linux'],
+        claude_desktop: '1.0.0',
+      },
+      tools: [],
+    }
+    const result = validateClaudeDesktopManifest(broken)
+    expect(result.ok).toBe(false)
+    expect(result.errors.some((item) => item.includes('linux'))).toBe(true)
+    expect(result.errors.some((item) => item.includes('claude_desktop'))).toBe(
+      true,
+    )
+    expect(
+      result.errors.some((item) => item.includes('sikumi.begin_work')),
+    ).toBe(true)
+
+    const missingRoot = track(mkdtempSync(join(tmpdir(), 'mcpb-missing-')))
+    expect(assertArchiveRuntimeComplete(missingRoot)).toEqual([
+      'server/index.js',
+    ])
+    mkdirSync(join(missingRoot, 'server'), { recursive: true })
+    writeFileSync(
+      join(missingRoot, 'server/index.js'),
+      "import './gone.js'\nimport 'node:fs'\n",
+    )
+    expect(
+      assertArchiveRuntimeComplete(missingRoot).some((item) =>
+        item.includes('gone.js'),
+      ),
+    ).toBe(true)
+  })
+})
+
+describe('tool and normalize edge cases', () => {
+  it('rejects unknown tools, unsafe keys, and invalid argument shapes', () => {
+    const env = setupRepo()
+    expect(callSikumiTool('not-a-tool', {}, env.context)).toMatchObject({
+      ok: false,
+      code: 'invalid_input',
+    })
+    expect(
+      callSikumiTool('sikumi.begin_work', ['array'], env.context),
+    ).toMatchObject({
+      ok: false,
+      code: 'invalid_input',
+    })
+    expect(
+      callSikumiTool(
+        'sikumi.begin_work',
+        { repositoryPath: env.repo, summary: 'x', prompt: 'secret' },
+        env.context,
+      ),
+    ).toMatchObject({ ok: false, code: 'invalid_input' })
+    expect(
+      callSikumiTool(
+        'sikumi.begin_work',
+        { repositoryPath: env.repo, summary: 'x', extra: true },
+        env.context,
+      ),
+    ).toMatchObject({ ok: false, code: 'invalid_input' })
+    expect(
+      callSikumiTool(
+        'sikumi.note_resource',
+        { sessionId: 'cd_' + 'a'.repeat(32), resourceType: 'mystery' },
+        env.context,
+      ),
+    ).toMatchObject({ ok: false })
+    expect(
+      callSikumiTool(
+        'sikumi.list_registered_repositories',
+        { nested: [{ __proto__: {} }] },
+        env.context,
+      ).ok,
+    ).toBe(false)
+    const emptyDir = track(mkdtempSync(join(tmpdir(), 'claude-empty-')))
+    const listed = callSikumiTool(
+      'sikumi.list_registered_repositories',
+      {},
+      { dataDirectory: emptyDir },
+    )
+    expect(listed.ok).toBe(true)
+    if (listed.ok) {
+      expect(listed.message).toContain('ありません')
+    }
+  })
+
+  it('normalizes every cooperative tool event and ignores unknown payloads', () => {
+    expect(normalizeClaudeDesktopReport(null)).toBeNull()
+    expect(normalizeClaudeDesktopReport({ type: 'unknown' })).toBeNull()
+    expect(
+      normalizeClaudeDesktopReport({ type: 'sikumi.begin_work' })
+        ?.normalizedType,
+    ).toBe('session.started')
+    expect(
+      normalizeClaudeDesktopReport({
+        tool: 'sikumi.update_work',
+        activity: 'testing',
+      })?.activity,
+    ).toBe('testing')
+    expect(
+      normalizeClaudeDesktopReport({
+        type: 'sikumi.note_resource',
+        resourceType: 'file',
+        resourceKey: 'src/a.ts',
+        action: 'read',
+      })?.normalizedType,
+    ).toBe('file.read')
+    expect(
+      normalizeClaudeDesktopReport({
+        type: 'sikumi.note_resource',
+        resourceType: 'file',
+        resourceKey: 'src/a.ts',
+        action: 'write',
+      })?.normalizedType,
+    ).toBe('file.changed')
+    expect(
+      normalizeClaudeDesktopReport({ type: 'sikumi.waiting_for_user' })
+        ?.activity,
+    ).toBe('waiting-for-user')
+    expect(
+      normalizeClaudeDesktopReport({ type: 'sikumi.complete_work' })
+        ?.normalizedType,
+    ).toBe('session.ended')
+    expect(
+      normalizeClaudeDesktopReport({ type: 'sikumi.fail_work' })
+        ?.normalizedType,
+    ).toBe('session.failed')
   })
 })
 

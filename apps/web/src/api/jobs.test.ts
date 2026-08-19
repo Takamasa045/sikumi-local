@@ -60,7 +60,6 @@ describe('job API clients', () => {
               jobId: 'job_1',
               type: 'report',
               title: '調査メモ',
-              storagePath: null,
               createdAt: 't',
             },
           })
@@ -118,7 +117,6 @@ describe('job API clients', () => {
               jobId: 'job_1',
               type: 'patch',
               title: '変更パッチ',
-              storagePath: null,
               createdAt: 't',
             },
           })
@@ -263,7 +261,6 @@ describe('job API clients', () => {
                 jobId: 'job_1',
                 type: 'report',
                 title: '調査メモ',
-                storagePath: null,
                 createdAt: 't',
               },
             ],

@@ -50,31 +50,30 @@ describe('Shikumi Local garden', () => {
   it('opens the garden as the home screen', async () => {
     render(<App />)
 
+    expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: '観測の庭' }),
-    ).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Shikumi Local ホーム' })).toHaveAttribute(
-      'href',
-      '#garden',
-    )
+      screen.getByRole('link', { name: 'Shikumi Local ホーム' }),
+    ).toHaveAttribute('href', '#garden')
     const nav = screen.getByRole('navigation', { name: '主要画面' })
     expect(within(nav).getByRole('link', { name: '庭' })).toHaveAttribute(
       'aria-current',
       'page',
     )
-    expect(within(nav).getByRole('link', { name: '今日の作業場' })).toBeVisible()
+    expect(
+      within(nav).getByRole('link', { name: '今日の作業場' }),
+    ).toBeVisible()
     expect(within(nav).getByRole('link', { name: '設定' })).toBeVisible()
     expect(screen.queryByText('以前の実行画面')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: 'Legacy Executionを開く' }),
     ).not.toBeInTheDocument()
     expect(await screen.findByText('Repository未登録')).toBeVisible()
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
     expect(screen.queryByTestId('world-stage')).not.toBeInTheDocument()
     expect(screen.queryByTestId('first-run-guide')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('form', { name: /仕事/ }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /仕事/ })).not.toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByTestId('connection-badge')).toHaveTextContent(
         'ローカル観測',
@@ -110,7 +109,7 @@ describe('Shikumi Local garden', () => {
     ).toHaveAttribute('aria-current', 'page')
   })
 
-  it('shows today\'s workshop without pretending work is running', async () => {
+  it("shows today's workshop without pretending work is running", async () => {
     render(<App />)
     await openTodayWorkshop()
 
@@ -136,7 +135,7 @@ describe('Shikumi Local garden', () => {
     expect(await screen.findByTestId('observer-stats')).toBeVisible()
   })
 
-  it('navigates garden, today\'s workshop, and settings as first-class destinations', async () => {
+  it("navigates garden, today's workshop, and settings as first-class destinations", async () => {
     render(<App />)
 
     expect(
@@ -144,7 +143,9 @@ describe('Shikumi Local garden', () => {
     ).toBeVisible()
     await userEvent.click(screen.getByRole('link', { name: '今日の作業場' }))
     expect(
-      await screen.findByRole('heading', { name: 'いま何が、どこで起きているか' }),
+      await screen.findByRole('heading', {
+        name: 'いま何が、どこで起きているか',
+      }),
     ).toBeVisible()
     expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
       'ローカル観測',
@@ -177,7 +178,9 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
       '実行エンジン未接続',
     )
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
   })
 
   it('renders the mocked overview on the observation garden', async () => {
@@ -263,14 +266,22 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: '観測の庭' })).toBeVisible()
-    const agents = await screen.findByRole('list', { name: '観測中のエージェント' })
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
+    const agents = await screen.findByRole('list', {
+      name: '観測中のエージェント',
+    })
     expect(within(agents).getByText('APIを直している')).toBeVisible()
     expect(within(agents).getAllByText('Codex').length).toBeGreaterThan(0)
-    const unverified = screen.getByRole('list', { name: '出どころ未確認の変更' })
+    const unverified = screen.getByRole('list', {
+      name: '出どころ未確認の変更',
+    })
     expect(within(unverified).getByText('my-project')).toBeVisible()
     expect(within(unverified).getByText('2 件')).toBeVisible()
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
   })
 
   it('registers a repository through the local server without leaving the garden', async () => {
@@ -358,7 +369,9 @@ describe('Shikumi Local garden', () => {
     expect(
       await screen.findByRole('heading', { name: '観測の庭' }),
     ).toBeVisible()
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
     expect(screen.getByTestId('connection-badge')).toHaveTextContent(
       'ローカル観測',
     )
@@ -629,9 +642,7 @@ describe('Shikumi Local garden', () => {
     expect(await screen.findByTestId('workspace-line')).toHaveTextContent(
       'kept-project',
     )
-    expect(
-      screen.getByRole('heading', { name: '観測の庭' }),
-    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
     expect(
       await screen.findByRole('list', { name: '出どころ未確認の変更' }),
     ).toBeVisible()
@@ -825,7 +836,9 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: '観測の庭' })).toBeVisible()
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some((call) =>
@@ -833,7 +846,9 @@ describe('Shikumi Local garden', () => {
         ),
       ).toBe(true)
     })
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
   })
 
   it('keeps the current job employee and station when another employee is selected to ask next', async () => {
@@ -931,6 +946,125 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByTestId('approval-panel')).not.toHaveTextContent('ミル')
   })
 
+  it('opens repository detail and conflict center from hash routes', async () => {
+    window.location.hash = '#repository/repo_1'
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return jsonResponse({ token: 'test-session' })
+      }
+      if (url.endsWith('/api/health')) {
+        return jsonResponse(disconnectedHealth())
+      }
+      if (url.endsWith('/api/providers')) {
+        return jsonResponse({
+          providers: catalogProviders(),
+          executionConnected: false,
+          fakeHarness: false,
+        })
+      }
+      if (url.includes('/api/employees')) {
+        return employeePayload()
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return jsonResponse({ workspaces: [sampleWorkspace()] })
+      }
+      if (url.endsWith('/api/repositories/repo_1/activity')) {
+        return jsonResponse({
+          activity: {
+            repositoryId: 'repo_1',
+            workspaceId: 'ws_1',
+            displayName: 'my-project',
+            available: true,
+            gitAvailable: true,
+            summary: '衝突があります',
+            changedFileCount: 2,
+            lastChangedLabel: '1分前',
+            sessions: [],
+            worktrees: [
+              {
+                path: '/tmp/repo',
+                isPrimary: true,
+                branch: 'main',
+                changedFileCount: 2,
+                filesTruncated: false,
+                files: [
+                  {
+                    path: 'src/a.ts',
+                    changeLabel: '変更',
+                    areaLabel: '認証',
+                    addedLines: 1,
+                    deletedLines: 0,
+                  },
+                ],
+              },
+            ],
+            conflicts: [
+              {
+                id: 'cnf_1',
+                level: 'high',
+                score: 80,
+                summary: '同じファイルを変更しています',
+                headline: '同じ仕組みを変更しています',
+                status: 'open',
+              },
+            ],
+            areas: ['認証'],
+          },
+        })
+      }
+      if (url.includes('/api/conflicts')) {
+        return jsonResponse({
+          conflicts: [
+            {
+              id: 'cnf_1',
+              repositoryId: 'repo_1',
+              repositoryDisplayName: 'my-project',
+              leftSource: 'codex',
+              rightSource: 'cursor',
+              level: 'high',
+              score: 80,
+              headline: '同じ仕組みを変更しています',
+              summary: '同じファイルを変更しています',
+              status: 'open',
+            },
+          ],
+          counts: { red: 1, orange: 0, yellow: 0 },
+          conflict: {
+            id: 'cnf_1',
+            repositoryId: 'repo_1',
+            repositoryDisplayName: 'my-project',
+            leftSource: 'codex',
+            rightSource: 'cursor',
+            level: 'high',
+            score: 80,
+            headline: '同じ仕組みを変更しています',
+            summary: '同じファイルを変更しています',
+            status: 'open',
+          },
+        })
+      }
+      if (isObserverUrl(url)) {
+        return observerResponse(url, { displayName: 'my-project' })
+      }
+      return jsonResponse(
+        { error: { code: 'NOT_FOUND', message: 'not found' } },
+        404,
+      )
+    })
+
+    render(<App />)
+    expect(await screen.findByText('衝突があります')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'my-project' })).toBeVisible()
+    await userEvent.click(
+      screen.getByRole('button', { name: '衝突の詳細を見る' }),
+    )
+    expect(
+      await screen.findByRole('heading', { name: '何がぶつかりそうか' }),
+    ).toBeVisible()
+    expect(await screen.findByTestId('conflict-counts')).toBeVisible()
+  })
+
   it('keeps the garden usable when workspace listing fails', async () => {
     fetchMock.mockImplementation(async () => {
       throw new Error('offline')
@@ -939,9 +1073,7 @@ describe('Shikumi Local garden', () => {
     render(<App />)
 
     expect(await screen.findByText('Repository未登録')).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: '観測の庭' }),
-    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
   })
 
   it('shows a registration error from the local server', async () => {
@@ -996,15 +1128,6 @@ describe('Shikumi Local garden', () => {
     )
     expect(screen.getByText('Repository未登録')).toBeVisible()
   })
-
-
-
-
-
-
-
-
-
 
   it('rechecks a provider and refreshes the catalog', async () => {
     let listed = 0

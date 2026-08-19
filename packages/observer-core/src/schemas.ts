@@ -106,7 +106,12 @@ export const inboundObserverEventSchema = z
     actorKind: z.enum(observerActorKinds).optional(),
     activity: z.enum(observerActivities).optional(),
     resource: observerResourceSchema.nullable().optional(),
-    summary: z.string().min(1).max(OBSERVER_MAX_SUMMARY_CHARS).nullable().optional(),
+    summary: z
+      .string()
+      .min(1)
+      .max(OBSERVER_MAX_SUMMARY_CHARS)
+      .nullable()
+      .optional(),
     attributionConfidence: z.enum(attributionConfidences).optional(),
     ingestionMethod: z.enum(ingestionMethods).optional(),
     idempotencyKey: z.string().min(8).max(128).optional(),
@@ -115,7 +120,10 @@ export const inboundObserverEventSchema = z
   .passthrough()
 
 export const inboundObserverBatchSchema = z.object({
-  events: z.array(inboundObserverEventSchema).min(1).max(OBSERVER_MAX_BATCH_COUNT),
+  events: z
+    .array(inboundObserverEventSchema)
+    .min(1)
+    .max(OBSERVER_MAX_BATCH_COUNT),
 })
 
 export const observerHealthSchema = z.object({
@@ -217,8 +225,12 @@ export const conflictFindingSchema = z.object({
   headline: z.string().min(1).max(80),
   summary: z.string().min(1).max(280),
   recommendation: z.string().min(1).max(400),
-  reasons: z.array(z.string().min(1).max(280)).max(OBSERVER_MAX_CONFLICT_REASONS),
-  evidence: z.array(conflictEvidenceItemSchema).max(OBSERVER_MAX_CONFLICT_EVIDENCE),
+  reasons: z
+    .array(z.string().min(1).max(280))
+    .max(OBSERVER_MAX_CONFLICT_REASONS),
+  evidence: z
+    .array(conflictEvidenceItemSchema)
+    .max(OBSERVER_MAX_CONFLICT_EVIDENCE),
   fingerprint: z.string().min(1).max(128),
   status: z.enum(conflictFindingStatuses),
   detectedAt: isoDate,
@@ -232,9 +244,7 @@ export const listConflictsQuerySchema = z
     source: z.enum(observerSourceIds).optional(),
     level: z.enum(conflictLevels).optional(),
     status: z.enum(conflictFindingStatuses).optional(),
-    unconfirmed: z
-      .enum(['1', 'true', 'yes', 'open', 'unconfirmed'])
-      .optional(),
+    unconfirmed: z.enum(['1', 'true', 'yes', 'open', 'unconfirmed']).optional(),
     mode: z.enum(['simple', 'detail']).optional(),
   })
   .strict()
@@ -316,10 +326,9 @@ export const updateSessionLabelRequestSchema = z
     title: z.string().trim().min(1).max(160).nullable().optional(),
     summary: z.string().trim().min(1).max(400).nullable().optional(),
   })
-  .refine(
-    (value) => value.title !== undefined || value.summary !== undefined,
-    { message: 'label update requires title or summary' },
-  )
+  .refine((value) => value.title !== undefined || value.summary !== undefined, {
+    message: 'label update requires title or summary',
+  })
 
 export type InboundObserverEvent = z.infer<typeof inboundObserverEventSchema>
 export type InboundObserverBatch = z.infer<typeof inboundObserverBatchSchema>

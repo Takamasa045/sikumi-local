@@ -67,6 +67,19 @@ export function mapGrokSessionUpdate(
   return null
 }
 
+export function isDuplicateNonTerminalProgress(
+  previous: CanonicalEvent | undefined,
+  next: CanonicalEvent,
+): boolean {
+  if (!previous || previous.type !== 'run.state_changed') {
+    return false
+  }
+  if (next.type !== 'run.state_changed') {
+    return false
+  }
+  return previous.summary === next.summary && previous.state === next.state
+}
+
 export function permissionOptionId(
   options: unknown,
   decision: 'approved' | 'denied',

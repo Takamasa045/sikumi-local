@@ -60,7 +60,9 @@ try {
 
   const conflicts = await fetchJson(`${base}/api/conflicts`)
   if (!Array.isArray(conflicts.conflicts) || !conflicts.counts) {
-    throw new Error(`Unexpected conflicts contract: ${JSON.stringify(conflicts)}`)
+    throw new Error(
+      `Unexpected conflicts contract: ${JSON.stringify(conflicts)}`,
+    )
   }
 
   const sessionResponse = await fetch(`${base}/api/session`)

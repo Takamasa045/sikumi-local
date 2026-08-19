@@ -79,7 +79,10 @@ export function mapCursorEvent(
     case 'beforeShellExecution':
       return { normalizedType: 'command.started', activity: 'running-command' }
     case 'afterShellExecution':
-      return { normalizedType: 'command.completed', activity: 'running-command' }
+      return {
+        normalizedType: 'command.completed',
+        activity: 'running-command',
+      }
     case 'beforeReadFile':
     case 'beforeTabFileRead':
       return { normalizedType: 'file.read', activity: 'reading' }

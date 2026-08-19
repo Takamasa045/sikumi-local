@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ExternalSession, ResourceClaim } from '@sikumi-local/observer-core'
+import type {
+  ExternalSession,
+  ResourceClaim,
+} from '@sikumi-local/observer-core'
 import { buildRepositoryActivity } from './views.js'
 
 describe('observer views', () => {
@@ -86,11 +89,7 @@ function session(
   }
 }
 
-function claim(
-  sessionId: string,
-  path: string,
-  at: string,
-): ResourceClaim {
+function claim(sessionId: string, path: string, at: string): ResourceClaim {
   return {
     id: `${sessionId}-${path}`,
     externalSessionId: sessionId,

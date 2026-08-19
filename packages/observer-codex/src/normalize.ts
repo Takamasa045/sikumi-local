@@ -16,7 +16,9 @@ import {
 } from '@sikumi-local/observer-core'
 import { isCodexHookEvent, mapCodexEvent } from './events.js'
 
-export function normalizeCodexHook(input: unknown): NormalizedObserverEvent | null {
+export function normalizeCodexHook(
+  input: unknown,
+): NormalizedObserverEvent | null {
   try {
     return normalizeCodexHookOrNull(input)
   } catch {
@@ -39,9 +41,7 @@ function normalizeCodexHookOrNull(
   const receivedAt = nowIso()
   const occurredAt =
     normalizeObserverDateTime(
-      readString(input.occurredAt) ??
-        readString(input.timestamp) ??
-        receivedAt,
+      readString(input.occurredAt) ?? readString(input.timestamp) ?? receivedAt,
     ) ?? receivedAt
   const sessionId =
     readString(input.session_id) ?? readString(input.sessionId) ?? null
@@ -132,7 +132,11 @@ function inferCodexSurface(input: Record<string, unknown>): ObserverSurface {
     readString(input.app) ??
     ''
   ).toLowerCase()
-  if (hint.includes('desktop') || hint === 'app' || hint.includes('codex app')) {
+  if (
+    hint.includes('desktop') ||
+    hint === 'app' ||
+    hint.includes('codex app')
+  ) {
     return 'desktop-app'
   }
   if (hint.includes('cli') || hint.includes('terminal')) {
@@ -208,10 +212,7 @@ function readString(value: unknown): string | null {
     : null
 }
 
-function readNestedString(
-  value: unknown,
-  key: string,
-): string | null {
+function readNestedString(value: unknown, key: string): string | null {
   if (!isPlainObject(value)) {
     return null
   }

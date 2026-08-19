@@ -45,9 +45,7 @@ function normalizeCursorHookOrNull(
   const receivedAt = nowIso()
   const occurredAt =
     normalizeObserverDateTime(
-      readString(input.occurredAt) ??
-        readString(input.timestamp) ??
-        receivedAt,
+      readString(input.occurredAt) ?? readString(input.timestamp) ?? receivedAt,
     ) ?? receivedAt
   const conversationId =
     readString(input.conversation_id) ??

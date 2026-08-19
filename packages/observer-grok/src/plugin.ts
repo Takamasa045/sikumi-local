@@ -61,7 +61,10 @@ export function renderGrokHooksToml(command: string): string {
   return `${lines.join('\n')}\n`
 }
 
-export function mergeGrokToml(existing: string | null, command: string): string {
+export function mergeGrokToml(
+  existing: string | null,
+  command: string,
+): string {
   const block = renderGrokHooksToml(command).trimEnd()
   if (!existing || existing.trim().length === 0) {
     return `${block}\n`
@@ -83,7 +86,9 @@ export function stripSikumiToml(existing: string, command: string): string {
   return finalizeToml(stripLegacySikumiHookTables(withoutMarkers, command))
 }
 
-export function parseGrokHooksToml(text: string): readonly ParsedGrokTomlHook[] {
+export function parseGrokHooksToml(
+  text: string,
+): readonly ParsedGrokTomlHook[] {
   const found: ParsedGrokTomlHook[] = []
   for (const group of collectTomlHookGroups(text)) {
     if (group.kind !== 'hooks') {
@@ -120,7 +125,9 @@ function renderGrokHooksObject(command: string): Record<string, unknown> {
   return hooks
 }
 
-function stripUnverifiedManifestFields(value: unknown): Record<string, unknown> {
+function stripUnverifiedManifestFields(
+  value: unknown,
+): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return {
       name: GROK_PLUGIN_ID,
@@ -154,10 +161,7 @@ function sikumiBlockPattern(): RegExp {
 }
 
 function stripLegacySikumiHookTables(text: string, command: string): string {
-  if (
-    !text.includes(command) &&
-    !text.includes(GROK_COMMAND_PLACEHOLDER)
-  ) {
+  if (!text.includes(command) && !text.includes(GROK_COMMAND_PLACEHOLDER)) {
     return text
   }
   const firstTable = text.search(/^\[\[/m)
@@ -209,7 +213,8 @@ function collectTomlTableGroups(tableText: string): TomlTableGroup[] {
       const previous = groups[groups.length - 1]!
       if (
         previous.kind === 'hooks' &&
-        previous.eventName === canonicalizeTableEventName(inner[1] ?? 'unknown', null)
+        previous.eventName ===
+          canonicalizeTableEventName(inner[1] ?? 'unknown', null)
       ) {
         groups[groups.length - 1] = mergeTomlGroup(previous, table)
         continue
@@ -219,7 +224,10 @@ function collectTomlTableGroups(tableText: string): TomlTableGroup[] {
       const eventField = readTomlQuoted(table, 'event')
       groups.push({
         kind: 'hooks',
-        eventName: canonicalizeTableEventName(outer[1] ?? 'unknown', eventField),
+        eventName: canonicalizeTableEventName(
+          outer[1] ?? 'unknown',
+          eventField,
+        ),
         command: readTomlQuoted(table, 'command'),
         matcher: readTomlQuoted(table, 'matcher'),
         type: readTomlQuoted(table, 'type'),
@@ -239,7 +247,10 @@ function collectTomlTableGroups(tableText: string): TomlTableGroup[] {
   return groups
 }
 
-function mergeTomlGroup(previous: TomlTableGroup, table: string): TomlTableGroup {
+function mergeTomlGroup(
+  previous: TomlTableGroup,
+  table: string,
+): TomlTableGroup {
   return {
     ...previous,
     command: readTomlQuoted(table, 'command') ?? previous.command,

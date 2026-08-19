@@ -72,6 +72,61 @@ describe('createJsonRpcClient', () => {
     fake.close()
     await expect(pending).rejects.toBeInstanceOf(AppError)
   })
+
+  it('times out an unanswered request using the client default', async () => {
+    const fake = createFakeProcess()
+    const client = createJsonRpcClient(fake, { requestTimeoutMs: 40 })
+    const pending = client.request('session/prompt', { sessionId: 'sess-1' })
+    await expect(pending).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'PROCESS_TIMEOUT',
+      message: 'JSON-RPC request timed out: session/prompt',
+    })
+    fake.close()
+  })
+
+  it('uses a per-request timeout instead of the longer client default', async () => {
+    const fake = createFakeProcess()
+    const client = createJsonRpcClient(fake, { requestTimeoutMs: 5_000 })
+    const pending = client.request(
+      'session/prompt',
+      { sessionId: 'sess-1' },
+      { timeoutMs: 40 },
+    )
+    await expect(pending).rejects.toMatchObject({
+      name: 'AppError',
+      code: 'PROCESS_TIMEOUT',
+      message: 'JSON-RPC request timed out: session/prompt',
+    })
+    fake.close()
+  })
+
+  it('lets a long-running session/prompt finish when its timeout outlives the default', async () => {
+    const fake = createFakeProcess()
+    const client = createJsonRpcClient(fake, { requestTimeoutMs: 40 })
+    const pending = client.request(
+      'session/prompt',
+      { sessionId: 'sess-1' },
+      { timeoutMs: 500 },
+    )
+    await new Promise((resolve) => {
+      setTimeout(resolve, 80)
+    })
+    fake.push({ jsonrpc: '2.0', id: 1, result: { stopReason: 'end_turn' } })
+    await expect(pending).resolves.toEqual({ stopReason: 'end_turn' })
+    fake.close()
+  })
+
+  it('does not treat a non-positive per-request timeout as unlimited wait', async () => {
+    const fake = createFakeProcess()
+    const client = createJsonRpcClient(fake, { requestTimeoutMs: 40 })
+    const pending = client.request('session/prompt', {}, { timeoutMs: 0 })
+    await expect(pending).rejects.toMatchObject({
+      code: 'PROCESS_TIMEOUT',
+      message: 'JSON-RPC request timed out: session/prompt',
+    })
+    fake.close()
+  })
 })
 
 function createFakeProcess() {

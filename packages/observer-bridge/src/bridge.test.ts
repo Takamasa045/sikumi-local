@@ -92,7 +92,7 @@ describe('observer-bridge', () => {
     expect(readNdjson(observerInboxDir(root, 'cursor'))).toHaveLength(1)
   })
 
-  it('does not write when source is missing and parses --root', () => {
+  it('does not write when source is missing and parses --root', async () => {
     expect(parseBridgeArgs(['--root', '/tmp/data', 'codex'])).toEqual({
       source: 'codex',
       dataDirectory: '/tmp/data',
@@ -101,6 +101,28 @@ describe('observer-bridge', () => {
       source: null,
       dataDirectory: null,
     })
+    expect(parseBridgeArgs(['', 'codex'])).toEqual({
+      source: 'codex',
+      dataDirectory: null,
+    })
+    const root = createTemp()
+    expect(
+      await runObserverBridge(['unknown'], {
+        stdin: Readable.from(['{"hook_event_name":"SessionStart"}']),
+        stdout: sink(),
+        stderr: sink(),
+        env: {},
+      }),
+    ).toBe(0)
+    expect(
+      await runObserverBridge(['codex', '--root', root], {
+        stdin: Readable.from(['   ']),
+        stdout: sink(),
+        stderr: sink(),
+        env: {},
+      }),
+    ).toBe(0)
+    expect(existsSync(observerInboxDir(root, 'codex'))).toBe(false)
   })
 
   it('skips a second write of the same idempotency key', () => {
@@ -141,16 +163,18 @@ describe('observer-bridge', () => {
       expect(code).toBe(0)
     }
 
-    expect(existsSync(join(root, 'observer/processed/escaped-event.ndjson'))).toBe(
-      false,
-    )
+    expect(
+      existsSync(join(root, 'observer/processed/escaped-event.ndjson')),
+    ).toBe(false)
     expect(
       existsSync(join(root, 'observer/processed/unicode-escape.ndjson')),
     ).toBe(false)
     const inbox = observerInboxDir(root, 'codex')
     const names = readdirSync(inbox).filter((name) => name.endsWith('.ndjson'))
     expect(names.length).toBe(escapes.length)
-    expect(names.every((name) => /^[0-9a-f]{32}\.ndjson$/.test(name))).toBe(true)
+    expect(names.every((name) => /^[0-9a-f]{32}\.ndjson$/.test(name))).toBe(
+      true,
+    )
   })
 
   it('does not follow a symlink escape from the inbox', () => {

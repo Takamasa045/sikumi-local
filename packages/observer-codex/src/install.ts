@@ -18,7 +18,10 @@ import { CODEX_HOOK_EVENTS } from './events.js'
 const USER_HOOK_SEGMENTS = ['.codex', 'hooks.json'] as const
 
 export function resolveCodexHookCommandPath(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), '../bin/sikumi-observer-codex.mjs')
+  return join(
+    dirname(fileURLToPath(import.meta.url)),
+    '../bin/sikumi-observer-codex.mjs',
+  )
 }
 
 export function planCodexHookMutation(
@@ -56,7 +59,8 @@ export function planCodexHookMutation(
         ok: false,
         changed: false,
         applied: false,
-        message: '既存の hooks.json を安全に読めませんでした。壊れた設定は上書きしません。',
+        message:
+          '既存の hooks.json を安全に読めませんでした。壊れた設定は上書きしません。',
         evidence: [target],
       }
     }
@@ -66,14 +70,11 @@ export function planCodexHookMutation(
         : removeCodexHooks(parsed.value, command)
     const preview = formatJson(next)
     const previous = parsed.raw ?? undefined
-    const unchanged = previous === preview || (!existsSync(target) && action === 'uninstall')
+    const unchanged =
+      previous === preview || (!existsSync(target) && action === 'uninstall')
     const file: ObserverInstallFilePlan = {
       path: target,
-      action: unchanged
-        ? 'keep'
-        : existsSync(target)
-          ? 'update'
-          : 'create',
+      action: unchanged ? 'keep' : existsSync(target) ? 'update' : 'create',
       preview,
       ...(previous === undefined ? {} : { previous }),
     }
@@ -136,7 +137,9 @@ export function mergeCodexHooks(
   const hooks = isPlainObject(existing.hooks) ? { ...existing.hooks } : {}
   for (const eventName of CODEX_HOOK_EVENTS) {
     const current = Array.isArray(hooks[eventName]) ? [...hooks[eventName]] : []
-    const withoutOurs = current.filter((entry) => !isOurCodexEntry(entry, command))
+    const withoutOurs = current.filter(
+      (entry) => !isOurCodexEntry(entry, command),
+    )
     withoutOurs.push({
       hooks: [
         {

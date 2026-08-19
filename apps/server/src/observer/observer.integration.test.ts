@@ -90,7 +90,11 @@ describe('observer phase 1', () => {
     const huge = await injectAuthed(app, {
       method: 'POST',
       url: '/api/observer/events',
-      payload: { source: 'codex', nativeEventType: 'x', prompt: 'p'.repeat(40_000) },
+      payload: {
+        source: 'codex',
+        nativeEventType: 'x',
+        prompt: 'p'.repeat(40_000),
+      },
     })
     expect([400, 413]).toContain(huge.statusCode)
 
@@ -234,11 +238,17 @@ describe('observer phase 1', () => {
   it('does not destroy existing job tables when observer migration re-runs', async () => {
     const dataDirectory = track(createTemporaryDirectory())
     const first = createApp(dataDirectory)
-    const health = await injectPublic(first, { method: 'GET', url: '/api/health' })
+    const health = await injectPublic(first, {
+      method: 'GET',
+      url: '/api/health',
+    })
     expect(health.statusCode).toBe(200)
     await first.close()
     const second = createApp(dataDirectory)
-    const again = await injectPublic(second, { method: 'GET', url: '/api/health' })
+    const again = await injectPublic(second, {
+      method: 'GET',
+      url: '/api/health',
+    })
     expect(again.statusCode).toBe(200)
     const adapters = await injectPublic(second, {
       method: 'GET',
@@ -339,9 +349,9 @@ describe('observer worktree scan', () => {
       method: 'GET',
       url: '/api/observer/today',
     })
-    expect(second.json().overview.repositories[0]?.changedFileCount).toBeGreaterThan(
-      0,
-    )
+    expect(
+      second.json().overview.repositories[0]?.changedFileCount,
+    ).toBeGreaterThan(0)
 
     const flood = createApp(dataDirectory, {
       observerScanThrottleMs: 60_000,
@@ -465,7 +475,9 @@ describe('observer worktree scan', () => {
     })
     const todayBody = JSON.stringify(today.json())
     expect(todayBody).not.toContain(repo)
-    expect(today.json().overview.repositories[0]?.worktrees[0]?.branch).toBeNull()
+    expect(
+      today.json().overview.repositories[0]?.worktrees[0]?.branch,
+    ).toBeNull()
     expect(today.json().overview.repositories[0]?.worktrees[0]?.path).toBe(
       'primary',
     )
@@ -540,7 +552,8 @@ describe('observer phase 2 and 3 hooks', () => {
     expect(preview.json().result.applied).not.toBe(true)
     expect(preview.json().result.requiresConfirm).toBe(true)
     expect(
-      preview.json().result.confirmationToken ?? preview.json().result.planDigest,
+      preview.json().result.confirmationToken ??
+        preview.json().result.planDigest,
     ).toBeTruthy()
 
     const repo = track(createTemporaryGitRepository())
@@ -573,7 +586,9 @@ describe('observer phase 2 and 3 hooks', () => {
     expect(mismatch.statusCode).toBe(200)
     expect(mismatch.json().result.ok).toBe(false)
     expect(mismatch.json().result.applied).not.toBe(true)
-    expect(mismatch.json().result.message).toBe(INSTALL_PLAN_DIGEST_MISMATCH_MESSAGE)
+    expect(mismatch.json().result.message).toBe(
+      INSTALL_PLAN_DIGEST_MISMATCH_MESSAGE,
+    )
 
     const repoApply = await injectAuthed(app, {
       method: 'POST',
@@ -673,9 +688,9 @@ describe('observer phase 4 and 5 adapters', () => {
       method: 'GET',
       url: '/api/observer/adapters',
     })
-    const sources = (
-      listed.json().adapters as Array<{ source: string }>
-    ).map((item) => item.source)
+    const sources = (listed.json().adapters as Array<{ source: string }>).map(
+      (item) => item.source,
+    )
     expect(sources).toEqual(
       expect.arrayContaining([
         'cursor',
@@ -782,7 +797,9 @@ describe('observer phase 6 claude desktop', () => {
     expect(generated.statusCode).toBe(200)
     expect(generated.json().result.applied).toBe(true)
     expect(
-      existsSync(join(dataDirectory, 'observer/claude-desktop/sikumi-observer.mcpb')),
+      existsSync(
+        join(dataDirectory, 'observer/claude-desktop/sikumi-observer.mcpb'),
+      ),
     ).toBe(true)
 
     const downloaded = await injectAuthed(app, {
@@ -884,9 +901,9 @@ describe('observer phase 6 claude desktop', () => {
       source: string
       attributionConfidence: string
     }>
-    expect(sessions.every((session) => session.source !== 'claude-desktop')).toBe(
-      true,
-    )
+    expect(
+      sessions.every((session) => session.source !== 'claude-desktop'),
+    ).toBe(true)
     expect(
       sessions.some((session) => session.attributionConfidence === 'inferred'),
     ).toBe(true)
@@ -972,10 +989,9 @@ describe('observer phase 7 conflicts', () => {
     expect(conflicts[0]?.headline).toContain('🔴')
     expect(conflicts[0]?.summary).toContain('Codex')
     expect(conflicts[0]?.summary).toContain('Cursor')
-    expect([conflicts[0]?.leftSource, conflicts[0]?.rightSource].sort()).toEqual([
-      'codex',
-      'cursor',
-    ])
+    expect(
+      [conflicts[0]?.leftSource, conflicts[0]?.rightSource].sort(),
+    ).toEqual(['codex', 'cursor'])
     expect(listed.json().counts.red).toBe(1)
     expect(JSON.stringify(listed.json())).not.toContain(repo)
   })
@@ -1027,12 +1043,14 @@ describe('observer phase 7 conflicts', () => {
       method: 'GET',
       url: `/api/conflicts?repositoryId=${repositoryId}`,
     })
-    const simple = (listed.json().conflicts as Array<{
-      id: string
-      technical?: unknown
-      leftWorktreePath: string | null
-      evidence: Array<{ leftPath?: string }>
-    }>)[0]
+    const simple = (
+      listed.json().conflicts as Array<{
+        id: string
+        technical?: unknown
+        leftWorktreePath: string | null
+        evidence: Array<{ leftPath?: string }>
+      }>
+    )[0]
     expect(simple?.id).toBeTruthy()
     expect(simple?.technical).toBeUndefined()
     expect(simple?.leftWorktreePath).toBeNull()
@@ -1133,23 +1151,24 @@ describe('observer phase 7 conflicts', () => {
       method: 'GET',
       url: `/api/conflicts?repositoryId=${repositoryId}&source=cursor`,
     })
-    const conflict = (listed.json().conflicts as Array<{
-      id: string
-      summary: string
-      leftActorLabel: string
-      rightActorLabel: string
-      leftSource: string
-      rightSource: string
-    }>)[0]
+    const conflict = (
+      listed.json().conflicts as Array<{
+        id: string
+        summary: string
+        leftActorLabel: string
+        rightActorLabel: string
+        leftSource: string
+        rightSource: string
+      }>
+    )[0]
     expect(conflict).toBeTruthy()
     expect([conflict?.leftSource, conflict?.rightSource].sort()).toEqual([
       'codex',
       'cursor',
     ])
-    expect([conflict?.leftActorLabel, conflict?.rightActorLabel].sort()).toEqual([
-      'Codex',
-      '変更元不明',
-    ])
+    expect(
+      [conflict?.leftActorLabel, conflict?.rightActorLabel].sort(),
+    ).toEqual(['Codex', '変更元不明'])
     expect(conflict?.summary).toContain('Codex')
     expect(conflict?.summary).toContain('変更元不明')
     expect(conflict?.summary).not.toContain('Cursor')
@@ -1161,14 +1180,25 @@ describe('observer phase 7 conflicts', () => {
     const repo = track(createTemporaryGitRepository())
     mkdirSync(join(repo, 'src/db/schema'), { recursive: true })
     mkdirSync(join(repo, 'src/api'), { recursive: true })
-    writeFileSync(join(repo, 'src/db/schema/users.ts'), 'export const users = {}\n')
+    writeFileSync(
+      join(repo, 'src/db/schema/users.ts'),
+      'export const users = {}\n',
+    )
     writeFileSync(join(repo, 'src/api/users.ts'), 'export const route = {}\n')
     execFileSync('git', ['add', '.'], { cwd: repo })
     execFileSync('git', ['commit', '-m', 'structure'], { cwd: repo })
     const worktree = join(track(createTemporaryDirectory()), 'wt')
-    execFileSync('git', ['worktree', 'add', '-b', 'api', worktree], { cwd: repo })
-    writeFileSync(join(repo, 'src/db/schema/users.ts'), 'export const users = { id: 1 }\n')
-    writeFileSync(join(worktree, 'src/api/users.ts'), 'export const route = { id: 1 }\n')
+    execFileSync('git', ['worktree', 'add', '-b', 'api', worktree], {
+      cwd: repo,
+    })
+    writeFileSync(
+      join(repo, 'src/db/schema/users.ts'),
+      'export const users = { id: 1 }\n',
+    )
+    writeFileSync(
+      join(worktree, 'src/api/users.ts'),
+      'export const route = { id: 1 }\n',
+    )
 
     const app = createApp(dataDirectory)
     const created = await injectAuthed(app, {
@@ -1215,16 +1245,20 @@ describe('observer phase 7 conflicts', () => {
       method: 'GET',
       url: `/api/conflicts?repositoryId=${repositoryId}&unconfirmed=true`,
     })
-    const conflict = (listed.json().conflicts as Array<{
-      level: string
-      headline: string
-      summary: string
-      evidence: Array<{ kind: string }>
-    }>)[0]
+    const conflict = (
+      listed.json().conflicts as Array<{
+        level: string
+        headline: string
+        summary: string
+        evidence: Array<{ kind: string }>
+      }>
+    )[0]
     expect(conflict?.level).toBe('caution')
     expect(conflict?.headline).toContain('🟠')
     expect(conflict?.summary).toContain('同じデータ構造')
-    expect(conflict?.evidence.some((item) => item.kind === 'schema-api')).toBe(true)
+    expect(conflict?.evidence.some((item) => item.kind === 'schema-api')).toBe(
+      true,
+    )
   })
 
   it('validates filters, requires auth/CSRF for mutations, and is idempotent', async () => {
@@ -1251,7 +1285,10 @@ describe('observer phase 7 conflicts', () => {
       method: 'POST',
       url: `/api/repositories/${repositoryId}/rescan`,
     })
-    const listed = await injectPublic(app, { method: 'GET', url: '/api/conflicts' })
+    const listed = await injectPublic(app, {
+      method: 'GET',
+      url: '/api/conflicts',
+    })
     const id = (listed.json().conflicts as Array<{ id: string }>)[0]?.id
     expect(id).toBeTruthy()
 
@@ -1368,9 +1405,9 @@ describe('observer phase 7 conflicts', () => {
       method: 'GET',
       url: `/api/conflicts?repositoryId=${repositoryId}`,
     })
-    expect((after.json().conflicts as Array<{ id: string }>).map((item) => item.id)).toEqual([
-      conflictId,
-    ])
+    expect(
+      (after.json().conflicts as Array<{ id: string }>).map((item) => item.id),
+    ).toEqual([conflictId])
 
     writeFileSync(join(repo, 'notes.md'), 'unreported\n')
     const activity = await injectPublic(second, {
@@ -1421,7 +1458,13 @@ function snapshotRealUserHomes(): readonly {
     join(home, '.cursor', 'hooks.json'),
     join(home, '.grok', 'config.toml'),
     join(home, '.grok', 'plugins', 'sikumi-observer', 'plugin.json'),
-    join(home, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json'),
+    join(
+      home,
+      'Library',
+      'Application Support',
+      'Claude',
+      'claude_desktop_config.json',
+    ),
     join(home, 'Library', 'Application Support', 'Claude', 'extensions'),
   ].map((path) => ({
     path,

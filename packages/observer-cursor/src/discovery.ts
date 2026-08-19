@@ -5,10 +5,7 @@ import {
   readJsonObject,
   safeJoinUnderRoot,
 } from '@sikumi-local/observer-core'
-import {
-  CURSOR_HOOKS_VERSION,
-  CURSOR_REQUIRED_HOOK_EVENTS,
-} from './events.js'
+import { CURSOR_HOOKS_VERSION, CURSOR_REQUIRED_HOOK_EVENTS } from './events.js'
 
 export type CursorHookOrigin = 'user-hooks-json' | 'repo-hooks-json'
 
@@ -43,7 +40,11 @@ export function discoverCursorHooks(input: {
   let schemaVersion: number | null = null
 
   if (userHooks) {
-    const read = readHooksJson(userHooks, 'user-hooks-json', input.hookCommandPath)
+    const read = readHooksJson(
+      userHooks,
+      'user-hooks-json',
+      input.hookCommandPath,
+    )
     hooks.push(...read.hooks)
     if (read.schemaVersion !== null) {
       schemaVersion = read.schemaVersion
@@ -53,7 +54,11 @@ export function discoverCursorHooks(input: {
     }
   }
   if (repoHooks) {
-    const read = readHooksJson(repoHooks, 'repo-hooks-json', input.hookCommandPath)
+    const read = readHooksJson(
+      repoHooks,
+      'repo-hooks-json',
+      input.hookCommandPath,
+    )
     hooks.push(...read.hooks)
     if (schemaVersion === null && read.schemaVersion !== null) {
       schemaVersion = read.schemaVersion

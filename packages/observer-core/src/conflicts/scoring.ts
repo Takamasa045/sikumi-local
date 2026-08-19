@@ -33,7 +33,9 @@ export function effectiveClaims(
   claims: readonly ConflictClaimInput[],
 ): ConflictClaimInput[] {
   const observed = claims.filter((claim) => claim.claimKind === 'observed')
-  const observedKeys = new Set(observed.flatMap((claim) => claimPathKeys(claim)))
+  const observedKeys = new Set(
+    observed.flatMap((claim) => claimPathKeys(claim)),
+  )
   const planned = claims.filter((claim) => {
     if (claim.claimKind !== 'planned') {
       return false
@@ -267,7 +269,10 @@ export function maxScore(hits: readonly ScoreHit[]): number {
   return hits.reduce((score, hit) => Math.max(score, hit.score), 0)
 }
 
-function isSameFile(left: ConflictClaimInput, right: ConflictClaimInput): boolean {
+function isSameFile(
+  left: ConflictClaimInput,
+  right: ConflictClaimInput,
+): boolean {
   const leftKeys = claimPathKeys(left)
   const rightKeys = new Set(claimPathKeys(right))
   return leftKeys.some((key) => rightKeys.has(key))
@@ -398,6 +403,8 @@ function isString(value: string | null): value is string {
   return value !== null
 }
 
-export function directoriesOf(claims: readonly ConflictClaimInput[]): Set<string> {
+export function directoriesOf(
+  claims: readonly ConflictClaimInput[],
+): Set<string> {
   return new Set(claims.map((claim) => directoryOf(claim.resourceKey)))
 }

@@ -98,14 +98,14 @@ export function discoverGrokHooks(input: {
       continue
     }
     evidence.push(`${target.origin}: ${target.path}`)
-    hooks.push(...readHooksToml(target.path, target.origin, input.hookCommandPath))
+    hooks.push(
+      ...readHooksToml(target.path, target.origin, input.hookCommandPath),
+    )
   }
 
   for (const root of [
     safeJoinUnderRoot(input.homeDir, '.grok', 'plugins'),
-    input.repoDir
-      ? safeJoinUnderRoot(input.repoDir, '.grok', 'plugins')
-      : null,
+    input.repoDir ? safeJoinUnderRoot(input.repoDir, '.grok', 'plugins') : null,
   ]) {
     if (!root || !existsSync(root)) {
       continue
@@ -248,7 +248,9 @@ function safeReadDir(directory: string, root: string): string[] {
     }
     return readdirSync(directory).filter((name) => {
       try {
-        return statSync(join(directory, name)).isDirectory() || name.includes('.')
+        return (
+          statSync(join(directory, name)).isDirectory() || name.includes('.')
+        )
       } catch {
         return false
       }

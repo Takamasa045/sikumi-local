@@ -51,7 +51,9 @@ export default defineConfig({
       },
     },
     {
-      command: 'pnpm --filter @sikumi-local/web exec vite --host 127.0.0.1 --port ' + e2eWebPort,
+      command:
+        'pnpm --filter @sikumi-local/web exec vite --host 127.0.0.1 --port ' +
+        e2eWebPort,
       url: `http://127.0.0.1:${e2eWebPort}`,
       reuseExistingServer: false,
       timeout: 120_000,

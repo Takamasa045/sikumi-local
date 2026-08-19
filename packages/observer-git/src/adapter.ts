@@ -36,14 +36,16 @@ export function createGitObserverAdapter(): ObserverAdapter {
       return {
         ok: true,
         changed: false,
-        message: 'Git観測は登録済みの場所に対して自動で動きます。導入作業はありません。',
+        message:
+          'Git観測は登録済みの場所に対して自動で動きます。導入作業はありません。',
       }
     },
     async uninstall(): Promise<ObserverInstallResult> {
       return {
         ok: true,
         changed: false,
-        message: 'Git観測は登録を消すと止まります。設定ファイルは変更しません。',
+        message:
+          'Git観測は登録を消すと止まります。設定ファイルは変更しません。',
       }
     },
     normalize(input: unknown) {

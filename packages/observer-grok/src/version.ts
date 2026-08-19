@@ -22,7 +22,10 @@ export async function inspectGrokVersion(
   const version = probed.version
   return {
     version,
-    classification: classifyObservedVersion(version, GROK_SUPPORTED_VERSION_RANGE),
+    classification: classifyObservedVersion(
+      version,
+      GROK_SUPPORTED_VERSION_RANGE,
+    ),
     supportedRange: GROK_SUPPORTED_VERSION_RANGE.label,
   }
 }

@@ -72,6 +72,8 @@ process.exit(2)
 async function runAcp() {
   let sessionId = 'sess-1'
   let forceInvalid = false
+  let forceSchemaEcho = false
+  let forceRepeatProgress = false
   const pending = new Map()
   const lines = createInterface({ input: process.stdin })
   for await (const line of lines) {
@@ -133,6 +135,10 @@ async function runAcp() {
       continue
     }
     if (message.method === 'session/new' || message.method === 'session/load') {
+      if (!Array.isArray(message.params?.mcpServers)) {
+        replyError(message.id, 'Invalid params')
+        continue
+      }
       sessionId = message.params?.sessionId ?? 'sess-1'
       reply(message.id, { sessionId })
       continue
@@ -163,9 +169,17 @@ async function runAcp() {
       if (text.includes('[hang]')) {
         continue
       }
+      if (text.includes('[slow-prompt]')) {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 200)
+        })
+      }
       if (text.includes('[fail]')) {
         reply(message.id, { stopReason: 'refusal' })
         continue
+      }
+      if (text.includes('[exit-now]')) {
+        process.exit(1)
       }
       if (text.includes('[approval-allow-only]')) {
         pending.set('perm-1', true)
@@ -208,6 +222,27 @@ async function runAcp() {
       }
       if (text.includes('[invalid-schema]')) {
         forceInvalid = true
+      }
+      if (text.includes('[schema-echo]')) {
+        forceSchemaEcho = true
+      }
+      if (text.includes('[repeat-progress]')) {
+        forceRepeatProgress = true
+      }
+      if (forceRepeatProgress) {
+        emitRepeatProgress(sessionId)
+        const body = JSON.stringify({ title: '調査メモ', summary: '完了' })
+        emitMessageChunk(sessionId, body)
+        reply(message.id, { stopReason: 'end_turn', result: body })
+        continue
+      }
+      if (forceSchemaEcho) {
+        const body = schemaEchoBody()
+        for (const chunk of schemaEchoChunks(body)) {
+          emitMessageChunk(sessionId, chunk)
+        }
+        reply(message.id, { stopReason: 'end_turn', result: body })
+        continue
       }
       const body = forceInvalid
         ? 'not-json'
@@ -255,6 +290,18 @@ async function runStreaming(args) {
     await hang()
     return
   }
+  if (prompt.includes('[schema-echo]')) {
+    for (const chunk of schemaEchoChunks(schemaEchoBody())) {
+      write({
+        sessionId: 'sess-stream',
+        update: {
+          sessionUpdate: 'agent_message_chunk',
+          content: { type: 'text', text: chunk },
+        },
+      })
+    }
+    return
+  }
   write({
     sessionId: 'sess-stream',
     update: {
@@ -265,6 +312,75 @@ async function runStreaming(args) {
       },
     },
   })
+}
+
+function schemaEchoBody() {
+  const schema = {
+    type: 'object',
+    properties: {
+      title: { type: 'string' },
+      summary: { type: 'string' },
+    },
+    required: ['title', 'summary'],
+    additionalProperties: false,
+  }
+  const answer = { title: '調査メモ', summary: '完了 {ok}' }
+  return (
+    'これまでの結果を指定Schemaだけで出力してください。説明文は不要です。\n' +
+    `${JSON.stringify(schema)}\n` +
+    '説明文として } や { を含みます。\n' +
+    JSON.stringify(answer)
+  )
+}
+
+function schemaEchoChunks(body) {
+  return body.split('\n').map((line) => `${line}\n`)
+}
+
+function emitMessageChunk(sessionId, text) {
+  emit({
+    method: 'session/update',
+    params: {
+      sessionId,
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        content: { type: 'text', text },
+      },
+    },
+  })
+}
+
+function emitRepeatProgress(sessionId) {
+  for (let index = 0; index < 12; index += 1) {
+    emitMessageChunk(sessionId, `整理中 ${index}`)
+  }
+  emit({
+    method: 'session/update',
+    params: {
+      sessionId,
+      update: { sessionUpdate: 'tool_call', title: 'Bash' },
+    },
+  })
+  emit({
+    method: 'session/update',
+    params: {
+      sessionId,
+      update: { sessionUpdate: 'tool_call_update', title: 'Bash' },
+    },
+  })
+  for (let index = 0; index < 6; index += 1) {
+    emitMessageChunk(sessionId, `再整理 ${index}`)
+  }
+  emit({
+    method: 'session/update',
+    params: {
+      sessionId,
+      update: { sessionUpdate: 'plan' },
+    },
+  })
+  for (let index = 0; index < 6; index += 1) {
+    emitMessageChunk(sessionId, `最終整理 ${index}`)
+  }
 }
 
 function emit(message) {
@@ -279,6 +395,12 @@ function emitRequest(id, message) {
 
 function reply(id, result) {
   process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`)
+}
+
+function replyError(id, message) {
+  process.stdout.write(
+    `${JSON.stringify({ jsonrpc: '2.0', id, error: { code: -32602, message } })}\n`,
+  )
 }
 
 function write(value) {

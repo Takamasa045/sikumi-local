@@ -1,4 +1,8 @@
-import { AppError, redactSensitiveText, textContainsSecrets } from '@sikumi-local/core'
+import {
+  AppError,
+  redactSensitiveText,
+  textContainsSecrets,
+} from '@sikumi-local/core'
 import {
   OBSERVER_MAX_EVENT_BYTES,
   OBSERVER_MAX_PAYLOAD_KEYS,
@@ -117,7 +121,8 @@ const DENIED_KEYS = new Set([
 ])
 
 export function assertEventSizeLimit(raw: string | Buffer): void {
-  const bytes = typeof raw === 'string' ? Buffer.byteLength(raw, 'utf8') : raw.length
+  const bytes =
+    typeof raw === 'string' ? Buffer.byteLength(raw, 'utf8') : raw.length
   if (bytes > OBSERVER_MAX_EVENT_BYTES) {
     throw new AppError(
       'OBSERVER_EVENT_INVALID',
@@ -155,9 +160,7 @@ export function isDeniedObserverKey(key: string): boolean {
   )
 }
 
-export function pickAllowlistedPayload(
-  input: unknown,
-): Record<string, string> {
+export function pickAllowlistedPayload(input: unknown): Record<string, string> {
   if (!isPlainObject(input)) {
     return {}
   }

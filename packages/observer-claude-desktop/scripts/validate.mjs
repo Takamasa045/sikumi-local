@@ -23,7 +23,9 @@ const errors = []
 const sourceManifest = claudeDesktopManifestPath()
 const source = runOfficialMcpbValidate(sourceManifest)
 if (!source.ok) {
-  errors.push(`source manifest: ${source.output || 'official mcpb validate failed'}`)
+  errors.push(
+    `source manifest: ${source.output || 'official mcpb validate failed'}`,
+  )
 }
 
 const staging = mkdtempSync(join(tmpdir(), 'sikumi-mcpb-validate-'))

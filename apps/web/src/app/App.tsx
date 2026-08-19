@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type {
   ApprovalRequest,
-  Artifact,
   EmployeeSummary,
   InstalledPack,
   Job,
@@ -28,6 +27,7 @@ import {
   listArtifacts,
   listJobEvents,
   listJobs,
+  type PublicArtifact,
 } from '../api/jobs'
 import {
   installPack,
@@ -116,7 +116,7 @@ export function App() {
   const [job, setJob] = useState<Job | null>(null)
   const [, setEvents] = useState<PersistedEvent[]>([])
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
-  const [artifacts, setArtifacts] = useState<Artifact[]>([])
+  const [artifacts, setArtifacts] = useState<PublicArtifact[]>([])
   const [growth, setGrowth] = useState<{
     level: number
     permissionProfile: string
@@ -128,9 +128,9 @@ export function App() {
     ReturnType<typeof previewPack>
   > | null>(null)
   const [overview, setOverview] = useState<TodayOverview | null>(null)
-  const [selectedRepositoryId, setSelectedRepositoryId] = useState<string | null>(
-    null,
-  )
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState<
+    string | null
+  >(null)
   const [repositoryActivity, setRepositoryActivity] =
     useState<RepositoryActivity | null>(null)
   const [conflicts, setConflicts] = useState<ConflictView[]>([])
@@ -142,7 +142,9 @@ export function App() {
   const [selectedConflictId, setSelectedConflictId] = useState<string | null>(
     null,
   )
-  const [conflictDetail, setConflictDetail] = useState<ConflictView | null>(null)
+  const [conflictDetail, setConflictDetail] = useState<ConflictView | null>(
+    null,
+  )
   const [conflictFilters, setConflictFilters] = useState({
     repositoryId: '',
     source: '',
@@ -188,7 +190,8 @@ export function App() {
         fakeHarness,
         defaultProviderId: workspace?.defaultProviderId ?? null,
       })
-  const gardenEmployeeName = displayEmployee?.name ?? selectedEmployee?.name ?? '担当'
+  const gardenEmployeeName =
+    displayEmployee?.name ?? selectedEmployee?.name ?? '担当'
 
   useEffect(() => {
     const onHash = () => {
@@ -227,15 +230,16 @@ export function App() {
       })
       .catch(() => {
         if (!cancelled) {
-          setOverview((current) =>
-            current ?? {
-              generatedAt: new Date().toISOString(),
-              repositoryCount: 0,
-              activeRepositoryCount: 0,
-              waitingCount: 0,
-              conflictCount: 0,
-              repositories: [],
-            },
+          setOverview(
+            (current) =>
+              current ?? {
+                generatedAt: new Date().toISOString(),
+                repositoryCount: 0,
+                activeRepositoryCount: 0,
+                waitingCount: 0,
+                conflictCount: 0,
+                repositories: [],
+              },
           )
         }
       })
@@ -342,7 +346,11 @@ export function App() {
       })
       .catch((caught) => {
         if (!cancelled) {
-          setError(caught instanceof Error ? caught.message : '衝突の一覧を取得できませんでした')
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : '衝突の一覧を取得できませんでした',
+          )
         }
       })
     return () => {
@@ -355,7 +363,10 @@ export function App() {
       return
     }
     let cancelled = false
-    void getConflict(selectedConflictId, showConflictTechnical ? 'detail' : 'simple')
+    void getConflict(
+      selectedConflictId,
+      showConflictTechnical ? 'detail' : 'simple',
+    )
       .then((conflict) => {
         if (!cancelled) {
           setConflictDetail(conflict)
@@ -657,7 +668,9 @@ export function App() {
       setConflictCounts(listed.counts ?? { red: 0, orange: 0, yellow: 0 })
       setOverview(await getTodayOverview())
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '衝突の操作に失敗しました')
+      setError(
+        caught instanceof Error ? caught.message : '衝突の操作に失敗しました',
+      )
     } finally {
       setBusy(false)
     }

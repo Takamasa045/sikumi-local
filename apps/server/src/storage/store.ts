@@ -47,10 +47,7 @@ import {
 import { and, eq } from 'drizzle-orm'
 import type { GitInspection } from '../workspaces/git-repository.js'
 import type { AppDatabase } from './database.js'
-import {
-  createObserverStore,
-  type ObserverStore,
-} from './observer-store.js'
+import { createObserverStore, type ObserverStore } from './observer-store.js'
 import {
   approvalRequests,
   artifacts,

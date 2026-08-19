@@ -1,0 +1,11 @@
+{
+  "id": "codex-app-server-current-versionless",
+  "transport": "json-rpc-stdio",
+  "supported": true,
+  "initializeResult": {
+    "userAgent": "shikumi-local/0.144.6 (macOS; arm64) unknown (shikumi-local; 0.1.0)",
+    "codexHome": "/tmp/.codex",
+    "platformFamily": "unix",
+    "platformOs": "macos"
+  }
+}

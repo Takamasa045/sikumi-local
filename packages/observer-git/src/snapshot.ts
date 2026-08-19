@@ -99,7 +99,7 @@ export function snapshotGitRepository(
   }
 
   const toplevel = runGit(realRoot, ['rev-parse', '--show-toplevel'])
-  const root = toplevel ? resolveExistingRoot(toplevel) ?? realRoot : realRoot
+  const root = toplevel ? (resolveExistingRoot(toplevel) ?? realRoot) : realRoot
   const branch = emptyToNull(runGit(root, ['branch', '--show-current']))
   const headCommit = emptyToNull(runGit(root, ['rev-parse', 'HEAD']))
   const baseCommit = resolveRepositoryBaseCommit(root, headCommit)
@@ -143,14 +143,17 @@ function snapshotWorktree(
   const root = resolveExistingRoot(path) ?? path
   const status = runGit(root, ['status', '--porcelain=v2']) ?? ''
   const nameStatus =
-    runGit(root, ['diff', '--name-status', 'HEAD'], { allowedFailure: true }) ?? ''
-  const cachedNameStatus =
-    runGit(root, ['diff', '--cached', '--name-status'], { allowedFailure: true }) ??
+    runGit(root, ['diff', '--name-status', 'HEAD'], { allowedFailure: true }) ??
     ''
+  const cachedNameStatus =
+    runGit(root, ['diff', '--cached', '--name-status'], {
+      allowedFailure: true,
+    }) ?? ''
   const numstat =
     runGit(root, ['diff', '--numstat', 'HEAD'], { allowedFailure: true }) ?? ''
   const cachedNumstat =
-    runGit(root, ['diff', '--cached', '--numstat'], { allowedFailure: true }) ?? ''
+    runGit(root, ['diff', '--cached', '--numstat'], { allowedFailure: true }) ??
+    ''
 
   let files = parseStatusPorcelainV2(status, root)
   files = applyNameStatus(files, `${nameStatus}\n${cachedNameStatus}`, root)
@@ -163,7 +166,12 @@ function snapshotWorktree(
     isPrimary,
     branch: branch ?? emptyToNull(runGit(root, ['branch', '--show-current'])),
     headCommit,
-    baseCommit: resolveWorktreeBaseCommit(root, headCommit, primaryHead, isPrimary),
+    baseCommit: resolveWorktreeBaseCommit(
+      root,
+      headCommit,
+      primaryHead,
+      isPrimary,
+    ),
     changedFiles: bounded.items,
     changedFileCount: bounded.total,
     truncated: bounded.truncated,

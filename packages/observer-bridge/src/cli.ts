@@ -84,7 +84,11 @@ async function readStdinBounded(stdin: Readable): Promise<string> {
     const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))
     total += buffer.length
     if (total > OBSERVER_MAX_EVENT_BYTES) {
-      assertEventSizeLimit(buffer.length > OBSERVER_MAX_EVENT_BYTES ? buffer : Buffer.concat([...chunks, buffer]))
+      assertEventSizeLimit(
+        buffer.length > OBSERVER_MAX_EVENT_BYTES
+          ? buffer
+          : Buffer.concat([...chunks, buffer]),
+      )
     }
     chunks.push(buffer)
   }

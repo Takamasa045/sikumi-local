@@ -55,3 +55,23 @@ describe('createScanScheduler', () => {
     expect(scan).not.toHaveBeenCalled()
   })
 })
+
+it('flush skips a still-throttled repository and records lastScanAt', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-08-19T00:00:00.000Z'))
+  const scan = vi.fn()
+  const scheduler = createScanScheduler({
+    scan,
+    throttleMs: 2_000,
+    debounceMs: 500,
+  })
+  expect(scheduler.runIfDue('repo-1')).toBe(true)
+  expect(scheduler.lastScanAt('repo-1')).toBe(Date.now())
+  scheduler.schedule('repo-1')
+  scheduler.flush()
+  expect(scan).toHaveBeenCalledTimes(1)
+  vi.setSystemTime(new Date('2026-08-19T00:00:03.000Z'))
+  scheduler.schedule('repo-1')
+  scheduler.flush()
+  expect(scan).toHaveBeenCalledTimes(2)
+})

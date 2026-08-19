@@ -151,7 +151,10 @@ export function toolActionForName(
   if (!toolName) {
     return null
   }
-  const normalized = toolName.trim().toLowerCase().replace(/[\s_-]/g, '')
+  const normalized = toolName
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]/g, '')
   if (FILE_READ_TOOLS.has(normalized) || normalized.includes('read')) {
     return 'read'
   }

@@ -52,7 +52,11 @@ export function analyzeRepositoryConflictsReport(
     if (pairTruncated) {
       break
     }
-    for (let rightIndex = leftIndex + 1; rightIndex < sorted.length; rightIndex += 1) {
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < sorted.length;
+      rightIndex += 1
+    ) {
       if (comparedPairs >= OBSERVER_MAX_CONFLICT_PAIR_COMPARISONS) {
         pairTruncated = true
         break
@@ -67,7 +71,8 @@ export function analyzeRepositoryConflictsReport(
         repositoryId: input.repositoryId,
         left,
         right,
-        commonBase: input.commonBaseForPair?.(left, right) ?? pairBase(left, right),
+        commonBase:
+          input.commonBaseForPair?.(left, right) ?? pairBase(left, right),
       })
       if (analyzed) {
         findings.push(analyzed)
@@ -266,9 +271,7 @@ function sideFromUnknownWorktree(
   }
 }
 
-function filesToClaims(
-  worktree: ConflictWorktreeInput,
-): ConflictClaimInput[] {
+function filesToClaims(worktree: ConflictWorktreeInput): ConflictClaimInput[] {
   return worktree.files.map((file) => ({
     resourceType: 'file',
     resourceKey: file.path,
@@ -330,19 +333,29 @@ function pairConfidence(
     'reported',
     'verified',
   ]
-  return order[
-    Math.min(
-      order.indexOf(left.attributionConfidence),
-      order.indexOf(right.attributionConfidence),
-    )
-  ] ?? 'inferred'
+  return (
+    order[
+      Math.min(
+        order.indexOf(left.attributionConfidence),
+        order.indexOf(right.attributionConfidence),
+      )
+    ] ?? 'inferred'
+  )
 }
 
 function pairBase(left: ConflictSide, right: ConflictSide): string | null {
-  if (left.headCommit && right.headCommit && left.headCommit === right.headCommit) {
+  if (
+    left.headCommit &&
+    right.headCommit &&
+    left.headCommit === right.headCommit
+  ) {
     return left.headCommit
   }
-  if (left.baseCommit && right.baseCommit && left.baseCommit === right.baseCommit) {
+  if (
+    left.baseCommit &&
+    right.baseCommit &&
+    left.baseCommit === right.baseCommit
+  ) {
     return left.baseCommit
   }
   return null

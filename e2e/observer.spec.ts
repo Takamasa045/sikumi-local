@@ -4,10 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { expect, test } from '@playwright/test'
-import {
-  createTemporaryGitRepository,
-  trackOwnedDirectory,
-} from './owned-temp'
+import { createTemporaryGitRepository, trackOwnedDirectory } from './owned-temp'
 
 test.describe.configure({ mode: 'serial' })
 
@@ -31,29 +28,48 @@ test('observer e2e covers adapters, git-only unknown, conflicts, persistence, an
   writeFileSync(join(worktree, 'src/users.ts'), 'export const users = 3\n')
   mkdirSync(join(first, 'src/db/schema'), { recursive: true })
   mkdirSync(join(worktree, 'src/api'), { recursive: true })
-  writeFileSync(join(first, 'src/db/schema/users.ts'), 'export const schema = 1\n')
+  writeFileSync(
+    join(first, 'src/db/schema/users.ts'),
+    'export const schema = 1\n',
+  )
   writeFileSync(join(worktree, 'src/api/users.ts'), 'export const api = 1\n')
 
   await page.goto('/#observer')
   await page.getByLabel('観測するRepositoryの場所').fill(first)
   await page.getByRole('button', { name: '観測するRepositoryを追加' }).click()
-  await expect(page.getByText(basename(first), { exact: false }).first()).toBeVisible()
+  await expect(
+    page.getByText(basename(first), { exact: false }).first(),
+  ).toBeVisible()
 
   await page.getByLabel('観測するRepositoryの場所').fill(second)
   await page.getByRole('button', { name: '観測するRepositoryを追加' }).click()
-  await expect(page.getByText(basename(second), { exact: false }).first()).toBeVisible()
+  await expect(
+    page.getByText(basename(second), { exact: false }).first(),
+  ).toBeVisible()
   await expect(page.getByTestId('observer-stats')).toBeVisible()
-  await expect(page.getByText('変更元不明', { exact: false }).first()).toBeVisible()
+  await expect(
+    page.getByText('変更元不明', { exact: false }).first(),
+  ).toBeVisible()
 
   await page.getByRole('link', { name: '設定' }).click()
   await expect(page.getByTestId('observer-adapters')).toBeVisible()
-  for (const source of ['codex', 'cursor', 'grok-build', 'claude-code', 'claude-desktop']) {
+  for (const source of [
+    'codex',
+    'cursor',
+    'grok-build',
+    'claude-code',
+    'claude-desktop',
+  ]) {
     await expect(page.getByTestId(`observer-adapter-${source}`)).toBeVisible()
   }
   await expect(
     page.getByRole('link', { name: 'Legacy Executionを開く' }),
   ).toHaveCount(0)
-  await expect(page.getByRole('navigation', { name: '主要画面' }).getByRole('link', { name: '庭' })).toBeVisible()
+  await expect(
+    page
+      .getByRole('navigation', { name: '主要画面' })
+      .getByRole('link', { name: '庭' }),
+  ).toBeVisible()
 
   const repositoryId = await registerThenIngest(page, first, worktree)
 
@@ -65,7 +81,9 @@ test('observer e2e covers adapters, git-only unknown, conflicts, persistence, an
   await page.getByLabel('危険度').selectOption('high')
   await page.getByText('未確認のみ').click()
   await page.getByLabel('危険度').selectOption('')
-  await expect(page.getByRole('button', { name: '詳しく見る' }).first()).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: '詳しく見る' }).first(),
+  ).toBeVisible()
   await page.getByRole('button', { name: '詳しく見る' }).first().click()
   await expect(page.getByRole('button', { name: '確認した' })).toBeVisible()
   await page.getByRole('button', { name: '確認した' }).click()
@@ -95,11 +113,14 @@ async function registerThenIngest(
   })
   const workspaces = await page.request.get('/api/workspaces')
   const listed = (await workspaces.json()) as {
-    workspaces: Array<{ repository: { id: string; absolutePath: string; displayName: string } }>
+    workspaces: Array<{
+      repository: { id: string; absolutePath: string; displayName: string }
+    }>
   }
   const repositoryId =
-    listed.workspaces.find((item) => item.repository.absolutePath.includes(basename(repo)))
-      ?.repository.id ?? listed.workspaces[0]?.repository.id
+    listed.workspaces.find((item) =>
+      item.repository.absolutePath.includes(basename(repo)),
+    )?.repository.id ?? listed.workspaces[0]?.repository.id
   if (!repositoryId) {
     throw new Error('registered repository was not found')
   }
@@ -164,12 +185,15 @@ async function registerThenIngest(
     occurredAt: new Date(stamp + 5_000).toISOString(),
   })
   writeFileSync(join(repo, 'src/recovered.ts'), 'export const recovered = 1\n')
-  const rescan = await page.request.post(`/api/repositories/${repositoryId}/rescan`, {
-    headers: {
-      origin: new URL(page.url()).origin,
-      'x-csrf-token': token,
+  const rescan = await page.request.post(
+    `/api/repositories/${repositoryId}/rescan`,
+    {
+      headers: {
+        origin: new URL(page.url()).origin,
+        'x-csrf-token': token,
+      },
     },
-  })
+  )
   expect(rescan.ok(), await rescan.text()).toBeTruthy()
   const activity = (await rescan.json()) as {
     activity?: { changedFileCount?: number }

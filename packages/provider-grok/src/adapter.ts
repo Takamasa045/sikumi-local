@@ -26,7 +26,12 @@ import {
   extractJsonObject,
   validateJsonSchema,
 } from '@sikumi-local/provider-sdk'
-import { mapGrokSessionUpdate, permissionOptionId } from './map-event.js'
+import {
+  isDuplicateNonTerminalProgress,
+  mapGrokSessionUpdate,
+  permissionOptionId,
+} from './map-event.js'
+import { selectSchemaMatchingJsonObject } from './result-json.js'
 import {
   assertSupportedGrokProtocol,
   assertWorkspaceGrokProtocol,
@@ -77,6 +82,18 @@ const DISCONNECTED: ProviderCapabilities = {
 }
 
 const MAX_SCHEMA_REPAIRS = 2
+export const DEFAULT_GROK_RUN_TIMEOUT_MS = 15 * 60 * 1000
+
+export function resolveGrokRunTimeoutMs(maxDurationMs?: number): number {
+  if (
+    typeof maxDurationMs === 'number' &&
+    Number.isFinite(maxDurationMs) &&
+    maxDurationMs > 0
+  ) {
+    return maxDurationMs
+  }
+  return DEFAULT_GROK_RUN_TIMEOUT_MS
+}
 
 export interface GrokProviderOptions {
   readonly commandName?: string
@@ -99,6 +116,7 @@ interface ActiveRun {
   sessionId?: string
   rawText: string
   finished: boolean
+  lastEmitted?: CanonicalEvent
 }
 
 export function createGrokProvider(
@@ -257,6 +275,7 @@ export function createGrokProvider(
       'stdio',
     ]
     assertGrokArgsSafe(args)
+    const runTimeoutMs = resolveGrokRunTimeoutMs(specification.maxDurationMs)
     const child = spawn({
       executable,
       args,
@@ -264,9 +283,7 @@ export function createGrokProvider(
       env: specification.environment,
       allowedCwdRoots: specification.allowedCwdRoots,
       parentEnv,
-      ...(specification.maxDurationMs === undefined
-        ? {}
-        : { timeoutMs: specification.maxDurationMs }),
+      timeoutMs: runTimeoutMs,
     })
     const rpc = createJsonRpcClient(child)
     const events = new AsyncQueue<CanonicalEvent>()
@@ -285,14 +302,10 @@ export function createGrokProvider(
       if (message.method !== 'session/update') {
         return
       }
-      const mapped = mapGrokSessionUpdate(
-        specification.runId,
-        message.params,
-        now(),
+      emitMapped(
+        active,
+        mapGrokSessionUpdate(specification.runId, message.params, now()),
       )
-      if (mapped) {
-        events.push(mapped)
-      }
       const text = extractChunkText(message.params)
       if (text) {
         active.rawText += text
@@ -355,9 +368,15 @@ export function createGrokProvider(
             await rpc.request('session/load', {
               sessionId: specification.providerSessionId,
               cwd: specification.cwd,
+              mcpServers: [],
             }),
           )
-        : asObject(await rpc.request('session/new', { cwd: specification.cwd }))
+        : asObject(
+            await rpc.request('session/new', {
+              cwd: specification.cwd,
+              mcpServers: [],
+            }),
+          )
       const sessionId =
         (typeof session.sessionId === 'string' && session.sessionId) ||
         specification.providerSessionId
@@ -403,10 +422,18 @@ export function createGrokProvider(
       active.rawText = ''
       try {
         const result = asObject(
-          await active.rpc?.request('session/prompt', {
-            sessionId,
-            prompt: [{ type: 'text', text: prompt }],
-          }),
+          await active.rpc?.request(
+            'session/prompt',
+            {
+              sessionId,
+              prompt: [{ type: 'text', text: prompt }],
+            },
+            {
+              timeoutMs: resolveGrokRunTimeoutMs(
+                active.specification.maxDurationMs,
+              ),
+            },
+          ),
         )
         const stopReason =
           typeof result.stopReason === 'string' ? result.stopReason : 'end_turn'
@@ -425,9 +452,10 @@ export function createGrokProvider(
           return
         }
         const parsed =
-          extractJsonObject(active.rawText) ??
-          extractJsonObject(
+          selectSchemaMatchingJsonObject(active.rawText, schema) ??
+          selectSchemaMatchingJsonObject(
             typeof result.result === 'string' ? result.result : '',
+            schema,
           )
         if (parsed && validateJsonSchema(parsed, schema).ok) {
           finishSuccessful(active, JSON.stringify(parsed), parsed)
@@ -483,9 +511,7 @@ export function createGrokProvider(
       env: specification.environment,
       allowedCwdRoots: specification.allowedCwdRoots,
       parentEnv,
-      ...(specification.maxDurationMs === undefined
-        ? {}
-        : { timeoutMs: specification.maxDurationMs }),
+      timeoutMs: resolveGrokRunTimeoutMs(specification.maxDurationMs),
     })
     const events = new AsyncQueue<CanonicalEvent>()
     const active: ActiveRun = {
@@ -513,14 +539,10 @@ export function createGrokProvider(
         if (typeof raw.sessionId === 'string') {
           active.sessionId = raw.sessionId
         }
-        const mapped = mapGrokSessionUpdate(
-          active.specification.runId,
-          raw,
-          now(),
+        emitMapped(
+          active,
+          mapGrokSessionUpdate(active.specification.runId, raw, now()),
         )
-        if (mapped) {
-          active.events.push(mapped)
-        }
         const text = extractChunkText(raw)
         if (text) {
           active.rawText += text
@@ -567,7 +589,9 @@ export function createGrokProvider(
         return
       }
       const schema = active.specification.outputSchema
-      const parsed = extractJsonObject(active.rawText)
+      const parsed = schema
+        ? selectSchemaMatchingJsonObject(active.rawText, schema)
+        : extractJsonObject(active.rawText)
       if (schema && (!parsed || !validateJsonSchema(parsed, schema).ok)) {
         finishInvalid(active)
         return
@@ -647,7 +671,23 @@ export function createGrokProvider(
         occurredAt: now(),
         summary: '仕事を中止しました',
       })
+      return
     }
+    if (exit.timedOut) {
+      finishRun(active, {
+        type: 'run.failed',
+        runId: active.specification.runId,
+        occurredAt: now(),
+        summary: '制限時間を超えたため仕事を止めました',
+      })
+      return
+    }
+    finishRun(active, {
+      type: 'run.failed',
+      runId: active.specification.runId,
+      occurredAt: now(),
+      summary: '調査を完了できませんでした',
+    })
   }
 
   function createHandle(active: ActiveRun): ProviderRunHandle {
@@ -658,6 +698,17 @@ export function createGrokProvider(
       events: () => active.events,
       cancel: () => adapter.cancelRun(active.specification.runId),
     })
+  }
+
+  function emitMapped(active: ActiveRun, mapped: CanonicalEvent | null): void {
+    if (!mapped) {
+      return
+    }
+    if (isDuplicateNonTerminalProgress(active.lastEmitted, mapped)) {
+      return
+    }
+    active.lastEmitted = mapped
+    active.events.push(mapped)
   }
 
   function finishRun(active: ActiveRun, terminal: CanonicalEvent): void {

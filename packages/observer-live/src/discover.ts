@@ -61,7 +61,7 @@ export function discoverLiveSessions(
       title,
       lastObservedAt: nowStamp,
     })
-    byKey.set(`${identified.source}:${located.root.repositoryId}`, sighting)
+    byKey.set(processSightingKey(identified.source, process.pid), sighting)
   }
 
   for (const record of sessionRecords) {
@@ -72,22 +72,49 @@ export function discoverLiveSessions(
     if (!sighting) {
       continue
     }
-    const key = `${sighting.source}:${sighting.repositoryId}`
+    if (attachSessionTitleToProcesses(byKey, sighting)) {
+      continue
+    }
+    const key = sessionFileSightingKey(sighting.source, sighting.repositoryId)
     const existing = byKey.get(key)
     if (!existing) {
       byKey.set(key, sighting)
+    }
+  }
+
+  return [...byKey.values()]
+}
+
+function processSightingKey(source: string, pid: number): string {
+  return `process:${source}:${pid}`
+}
+
+function sessionFileSightingKey(source: string, repositoryId: string): string {
+  return `session:${source}:${repositoryId}`
+}
+
+function attachSessionTitleToProcesses(
+  byKey: Map<string, LiveSighting>,
+  sighting: LiveSighting,
+): boolean {
+  let attached = false
+  for (const [key, existing] of byKey) {
+    if (
+      existing.kind !== 'process' ||
+      existing.source !== sighting.source ||
+      existing.repositoryId !== sighting.repositoryId
+    ) {
       continue
     }
+    attached = true
     if (
-      existing.kind === 'process' &&
       !acceptStoredTitle(existing.title) &&
       acceptStoredTitle(sighting.title)
     ) {
       byKey.set(key, { ...existing, title: sighting.title })
     }
   }
-
-  return [...byKey.values()]
+  return attached
 }
 
 function titleForLocatedPlace(

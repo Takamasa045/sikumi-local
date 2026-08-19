@@ -1,7 +1,12 @@
 export { discoverLiveSessions } from './discover.js'
 export { liveSightingToEvent } from './events.js'
 export { identifyLiveAgent, isIgnoredLiveHaystack } from './identify.js'
-export { declaredWorkspaceCwd, locateLiveProcess } from './locate.js'
+export {
+  declaredWorkspaceCwd,
+  isLiveProcessExternalSessionId,
+  liveProcessExternalSessionId,
+  locateLiveProcess,
+} from './locate.js'
 export { resetPlaceIdentityCache, sameRepoIdentity } from './identity.js'
 export {
   isBindableCwd,

@@ -349,6 +349,73 @@ describe('live discovery without hooks', () => {
       status: 'active',
     })
   })
+
+  it('keeps two live grok processes at the same registered folder as two sessions', async () => {
+    const { store, dataDirectory } = openIsolatedStore()
+    const tsugite = track(createTemporaryGitRepository())
+    const workspace = store.createWorkspace({
+      absolutePath: tsugite,
+      displayName: 'tsugite',
+      currentBranch: 'main',
+      remoteName: null,
+      remoteUrl: null,
+      readable: true,
+    })
+    const service = trackService(
+      createObserverService(store, dataDirectory, {
+        consistencyIntervalMs: 0,
+        liveHomeDir: track(createTemporaryDirectory()),
+        liveCurrentUser: 'mei',
+        listLiveProcesses: () => [
+          {
+            pid: 248,
+            user: 'mei',
+            command: 'grok',
+            args: 'grok',
+            cwd: tsugite,
+          },
+          {
+            pid: 26794,
+            user: 'mei',
+            command: 'grok',
+            args: 'grok',
+            cwd: tsugite,
+          },
+          {
+            pid: 99,
+            user: 'mei',
+            command: 'fake-claude',
+            args: 'fake-claude',
+            cwd: tsugite,
+          },
+        ],
+      }),
+    )
+    await service.recover()
+
+    const overview = service.today()
+    const repository = overview.repositories.find(
+      (item) => item.repositoryId === workspace.repository.id,
+    )
+    const groks = repository?.sessions.filter(
+      (item) => item.source === 'grok-build' && item.status === 'active',
+    )
+    expect(groks).toHaveLength(2)
+    expect(
+      repository?.sessions.some((item) => item.source === 'claude-code'),
+    ).toBe(false)
+    expect(
+      store
+        .listExternalSessions({ repositoryId: workspace.repository.id })
+        .map((session) => session.externalSessionId)
+        .filter((id): id is string => Boolean(id)),
+    ).toEqual(
+      expect.arrayContaining([
+        `live:grok-build:${workspace.repository.id}:pid:248`,
+        `live:grok-build:${workspace.repository.id}:pid:26794`,
+      ]),
+    )
+  })
 })
 
 function writeCodexRollout(

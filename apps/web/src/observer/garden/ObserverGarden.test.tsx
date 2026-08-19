@@ -190,6 +190,70 @@ describe('ObserverGarden', () => {
     expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
   })
 
+  it('walks two live Grok CLIs at one place even when both titles are 作業中', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_tsugite', 'tsugite', [
+          session({
+            id: 'grok-248',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'active',
+            activity: 'editing',
+            lastObservedLabel: 'たった今',
+          }),
+          session({
+            id: 'grok-26794',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'active',
+            activity: 'editing',
+            lastObservedAt: '2026-08-18T23:59:00.000Z',
+            lastObservedLabel: 'たった今',
+          }),
+        ]),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    const walkers = within(residents).getAllByRole('listitem')
+    expect(walkers).toHaveLength(2)
+    expect(within(residents).getAllByText('tsugite番')).toHaveLength(2)
+    expect(within(residents).getByText('動いている')).toBeVisible()
+    expect(within(residents).getByText(ANOTHER_LIVE_WORK)).toBeVisible()
+    expect(within(residents).queryByText('Grok Build')).toBeNull()
+    const groundXs = walkers.map((item) =>
+      Number(item.getAttribute('data-ground-x')),
+    )
+    expect(Math.abs(groundXs[0]! - groundXs[1]!)).toBeGreaterThanOrEqual(12)
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_tsugite')).getByRole(
+        'button',
+      ),
+    )
+    const first = screen.getByTestId('garden-inspect')
+    expect(first).toHaveTextContent('動いている')
+    expect(first).not.toHaveTextContent(ANOTHER_LIVE_WORK)
+    expect(first).not.toHaveTextContent('Grok Build')
+    expect(first).not.toHaveTextContent('まだ分かっていません')
+
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_tsugite-2')).getByRole(
+        'button',
+      ),
+    )
+    const second = screen.getByTestId('garden-inspect')
+    expect(second).toHaveTextContent(ANOTHER_LIVE_WORK)
+    expect(second).not.toHaveTextContent('Grok Build')
+    expect(second).not.toHaveTextContent('まだ分かっていません')
+  })
+
   it('does not stack two working places on the same walk stop', () => {
     renderGarden(
       overviewOf([

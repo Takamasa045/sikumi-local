@@ -17,6 +17,10 @@ import {
 } from '@sikumi-local/observer-core'
 import { discoverLiveSessions } from './discover.js'
 import { identifyLiveAgent } from './identify.js'
+import {
+  isLiveProcessExternalSessionId,
+  liveProcessExternalSessionId,
+} from './locate.js'
 import { resetPlaceIdentityCache, sameRepoIdentity } from './identity.js'
 import { isBindableCwd, matchRegisteredRoot } from './match.js'
 import {
@@ -120,6 +124,26 @@ describe('acceptStoredTitle', () => {
     expect(acceptGoalText('作業中')).toBeNull()
     expect(acceptGoalText('Codexの作業が始まりました')).toBeNull()
     expect(acceptGoalText('Claude Codeがファイルを扱っています')).toBeNull()
+  })
+})
+
+describe('live process session ids', () => {
+  it('keys a living process by pid, not by place alone', () => {
+    expect(liveProcessExternalSessionId('grok-build', 'repo-tsugite', 248)).toBe(
+      'live:grok-build:repo-tsugite:pid:248',
+    )
+    expect(liveProcessExternalSessionId('grok-build', 'repo-tsugite', 26794)).toBe(
+      'live:grok-build:repo-tsugite:pid:26794',
+    )
+    expect(
+      isLiveProcessExternalSessionId('live:grok-build:repo-tsugite:pid:248'),
+    ).toBe(true)
+    expect(isLiveProcessExternalSessionId('live:grok-build:repo-tsugite')).toBe(
+      false,
+    )
+    expect(isLiveProcessExternalSessionId('live:grok-build:sess-old')).toBe(
+      false,
+    )
   })
 })
 
@@ -448,6 +472,58 @@ describe('discoverLiveSessions', () => {
       kind: 'process',
       cwd: tsugite,
     })
+  })
+
+  it('keeps two live grok processes at the same registered folder as two sightings', () => {
+    const home = track(createTempDir('home-'))
+    const tsugite = track(createTempDir('tsugite-'))
+    writeGrokSession(home, {
+      id: 'sess-tsugite',
+      cwd: tsugite,
+      mtime: NOW - 8_000,
+      title: '作業中',
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-tsugite', 'ws-tsugite', tsugite)],
+      listProcesses: () => [
+        processRow({
+          pid: 248,
+          user: 'mei',
+          command: 'grok',
+          args: 'grok',
+          cwd: tsugite,
+        }),
+        processRow({
+          pid: 26794,
+          user: 'mei',
+          command: 'grok',
+          args: 'grok',
+          cwd: tsugite,
+        }),
+        processRow({
+          pid: 99,
+          user: 'mei',
+          command: 'fake-claude',
+          args: 'fake-claude',
+          cwd: tsugite,
+        }),
+      ],
+    })
+
+    const groks = sightings.filter((item) => item.source === 'grok-build')
+    expect(groks).toHaveLength(2)
+    expect(groks.map((item) => item.pid).sort((left, right) => left! - right!)).toEqual([
+      248,
+      26794,
+    ])
+    expect(new Set(groks.map((item) => item.externalSessionId)).size).toBe(2)
+    expect(groks.every((item) => item.kind === 'process')).toBe(true)
+    expect(sightings.some((item) => item.source === 'claude-code')).toBe(false)
+    expect(JSON.stringify(sightings)).not.toContain('fake-claude')
   })
 
   it('prefers a readable session title over a generic live 作業中 title', () => {

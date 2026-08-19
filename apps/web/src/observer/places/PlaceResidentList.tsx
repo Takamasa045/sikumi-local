@@ -10,7 +10,6 @@ type PlaceResidentListProps = {
   readonly overview: TodayOverview | null
   readonly workspaces?: readonly Workspace[]
   readonly selectedRepositoryId?: string | null
-  readonly variant?: 'page' | 'garden'
   readonly onSelect: (repositoryId: string) => void
 }
 
@@ -18,17 +17,12 @@ export function PlaceResidentList({
   overview,
   workspaces = [],
   selectedRepositoryId = null,
-  variant = 'page',
   onSelect,
 }: PlaceResidentListProps) {
   const residents = collectPlaceResidents(overview, workspaces)
-  const className =
-    variant === 'garden'
-      ? 'observer-place-list observer-place-list--garden'
-      : 'observer-place-list'
 
   return (
-    <section className={className} aria-label="○○番の一覧">
+    <section className="observer-place-list" aria-label="○○番の一覧">
       <div className="observer-place-list__heading">
         <p className="section-kicker">観測している場所</p>
         <h3>○○番の一覧</h3>
@@ -38,9 +32,7 @@ export function PlaceResidentList({
       </div>
       {residents.length === 0 ? (
         <p className="observer-place-list__empty">
-          {variant === 'garden'
-            ? '登録した場所がまだありません。今日の作業場からフォルダを追加してください。'
-            : '登録した場所がまだありません。下の欄からフォルダを追加してください。'}
+          登録した場所がまだありません。下の欄からフォルダを追加してください。
         </p>
       ) : (
         <ul className="observer-place-list__rows" role="list">

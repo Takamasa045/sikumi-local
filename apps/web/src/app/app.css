@@ -1394,11 +1394,6 @@ footer span {
 .observer-place-row__work {
   font-size: 14px;
 }
-.observer-place-list--garden {
-  padding: 16px 18px;
-  background: var(--washi);
-  border: 1px solid #c6beaa;
-}
 .observer-card,
 .observer-worktree {
   display: grid;

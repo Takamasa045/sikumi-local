@@ -22,11 +22,18 @@ test('the garden is the default home screen', async ({ page }) => {
   await expect(page.getByRole('form', { name: '仕事を頼む' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '仕事を頼む' })).toHaveCount(0)
   await expect(page.getByTestId('world-stage')).toHaveCount(0)
-  await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toHaveCount(0)
   await expect(page.getByTestId('garden-employee')).toHaveCount(0)
+  await expect(
+    page.getByText(
+      '登録した場所がまだありません。今日の作業場からフォルダを追加してください。',
+    ),
+  ).toBeVisible()
 })
 
-test('the garden shows real current Git-only data', async ({ page }) => {
+test('the garden shows registered places as characters, not a list', async ({
+  page,
+}) => {
   const repositoryPath = createTemporaryGitRepository('sikumi-e2e-garden-')
   writeFileSync(join(repositoryPath, 'uncommitted.txt'), 'uncommitted change\n')
 
@@ -36,29 +43,33 @@ test('the garden shows real current Git-only data', async ({ page }) => {
   await expect(
     page.getByText(basename(repositoryPath), { exact: false }).first(),
   ).toBeVisible()
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
+  await expect(page.getByText('しくみローカル番').first()).toBeVisible()
 
   await page.getByRole('link', { name: '庭' }).click()
 
-  await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
-  await expect(
-    page.getByText(`${basename(repositoryPath)}番`, { exact: false }).first(),
-  ).toBeVisible()
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toHaveCount(0)
+  await expect(page.getByRole('list', { name: '庭の住人' })).toBeVisible()
+  await expect(page.getByText('しくみローカル番').first()).toBeVisible()
+  await expect(page.getByText('まだ分かっていません').first()).toBeVisible()
   await expect(page.getByTestId('garden-employee')).toHaveCount(0)
-
   await expect(
     page.getByRole('heading', { name: '出どころ未確認の変更' }),
-  ).toBeVisible()
-  const unattributed = page.getByRole('list', {
-    name: '出どころ未確認の変更',
-  })
-  await expect(unattributed).toBeVisible()
-  await expect(unattributed).toContainText(basename(repositoryPath))
-  const observedAgents = page.getByRole('list', {
-    name: '観測中のエージェント',
-  })
-  if ((await observedAgents.count()) > 0) {
-    await expect(observedAgents).not.toContainText(basename(repositoryPath))
-  }
+  ).toHaveCount(0)
+  await expect(page.getByText('変更元不明の作業')).toHaveCount(0)
+  await expect(page.getByRole('form', { name: '仕事を頼む' })).toHaveCount(0)
+
+  const resident = page
+    .getByRole('list', { name: '庭の住人' })
+    .getByRole('listitem')
+  await expect(resident).not.toHaveAttribute('data-station', 'observatory')
+  await resident.getByRole('button').click()
+  await expect(page.getByTestId('garden-inspect')).toContainText(
+    'しくみローカル番',
+  )
+  await expect(page.getByTestId('garden-inspect')).toContainText(
+    'まだ分かっていません',
+  )
 })
 
 test("a user can move between garden, today's workshop, and settings", async ({
@@ -70,6 +81,7 @@ test("a user can move between garden, today's workshop, and settings", async ({
   await expect(
     page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
   ).toBeVisible()
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
 
   await page.getByRole('link', { name: '設定' }).click()
   await expect(
@@ -78,6 +90,7 @@ test("a user can move between garden, today's workshop, and settings", async ({
 
   await page.getByRole('link', { name: '庭' }).click()
   await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toHaveCount(0)
 })
 
 test('a user can click a garden station to see what is happening', async ({
@@ -85,7 +98,7 @@ test('a user can click a garden station to see what is happening', async ({
 }) => {
   await page.goto('/#garden')
 
-  await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toHaveCount(0)
   await expect(page.getByTestId('garden-employee')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
   await expect(

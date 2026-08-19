@@ -68,7 +68,7 @@ describe('Shikumi Local garden', () => {
       screen.queryByRole('link', { name: 'Legacy Executionを開く' }),
     ).not.toBeInTheDocument()
     expect(await screen.findByText('Repository未登録')).toBeVisible()
-    expect(screen.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
     expect(screen.queryByTestId('garden-employee')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: '仕事を頼む' }),
@@ -90,7 +90,7 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByTestId('default-tool')).toHaveTextContent('ローカル観測')
     expect(
       await screen.findByText(
-        '各AIアプリで作業を始めると、観測できたエージェントがここに現れます',
+        '登録した場所がまだありません。今日の作業場からフォルダを追加してください。',
       ),
     ).toBeVisible()
   })
@@ -273,24 +273,29 @@ describe('Shikumi Local garden', () => {
     ).toBeVisible()
     expect(await screen.findByText('my-project番')).toBeVisible()
     expect(screen.queryByTestId('garden-employee')).not.toBeInTheDocument()
-    const agents = await screen.findByRole('list', {
-      name: '観測中のエージェント',
+    const residents = await screen.findByRole('list', {
+      name: '庭の住人',
     })
-    expect(within(agents).getByText('APIを直している')).toBeVisible()
-    expect(within(agents).getAllByText('Codex').length).toBeGreaterThan(0)
-    const unverified = screen.getByRole('list', {
-      name: '出どころ未確認の変更',
-    })
-    expect(within(unverified).getByText('my-project')).toBeVisible()
-    expect(within(unverified).getByText('2 件')).toBeVisible()
+    expect(within(residents).getByText('APIを直している')).toBeVisible()
+    expect(within(residents).queryByText('Codex')).toBeNull()
+    expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+    expect(
+      screen.queryByRole('list', { name: '出どころ未確認の変更' }),
+    ).toBeNull()
     expect(
       screen.queryByRole('button', { name: '仕事を頼む' }),
     ).not.toBeInTheDocument()
 
-    await userEvent.click(screen.getByTestId('observer-place-repo_1'))
-    expect(
-      await screen.findByRole('region', { name: 'my-projectの様子' }),
-    ).toBeVisible()
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_1')).getByRole('button'),
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'my-project番',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'APIを直している',
+    )
     expect(
       screen.queryByRole('button', { name: '仕事を頼む' }),
     ).not.toBeInTheDocument()
@@ -560,11 +565,13 @@ describe('Shikumi Local garden', () => {
 
     try {
       render(<App />)
+      expect(await screen.findByText('my-project番')).toBeVisible()
+      expect(screen.getByText('まだ分かっていません')).toBeVisible()
       expect(
-        await screen.findByText(
-          '各AIアプリで作業を始めると、観測できたエージェントがここに現れます',
+        screen.queryByText(
+          '登録した場所がまだありません。今日の作業場からフォルダを追加してください。',
         ),
-      ).toBeVisible()
+      ).toBeNull()
 
       await waitFor(() => {
         expect(
@@ -658,9 +665,12 @@ describe('Shikumi Local garden', () => {
       '1 件の場所',
     )
     expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
+    expect(await screen.findByText('kept-project番')).toBeVisible()
+    expect(screen.getByText('まだ分かっていません')).toBeVisible()
     expect(
-      await screen.findByRole('list', { name: '出どころ未確認の変更' }),
-    ).toBeVisible()
+      screen.queryByRole('list', { name: '出どころ未確認の変更' }),
+    ).toBeNull()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
     await openTodayWorkshop()
     expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
     expect(screen.getByText('kept-project番')).toBeVisible()

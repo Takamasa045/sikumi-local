@@ -31,6 +31,9 @@ export function registerWorkspace(
 
 export function deriveEmployeeName(repositoryName: string): string {
   const normalized = repositoryName.toLowerCase()
+  if (normalized.includes('shikumi') || normalized.includes('sikumi')) {
+    return 'しくみローカル番'
+  }
   if (normalized.includes('blog')) return 'ブログ番'
   if (normalized.includes('content')) return 'コンテンツ番'
   if (normalized.includes('web')) return 'ウェブ番'

@@ -15,8 +15,10 @@ import { poseGesture } from '../../garden/motion'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
 import { useStationTravel } from '../../garden/useStationTravel'
 import { gardenStationLabels, getWorldPack } from '../../garden/worlds'
-import { PlaceResidentList } from '../places/PlaceResidentList'
-import { collectGardenState, type GardenActor } from './gardenState'
+import {
+  collectGardenActors,
+  type GardenPlaceActor,
+} from '../places/placeResidents'
 
 const WORLD_ID = 'dog-office' as const
 const ATLAS_COLUMNS = 3
@@ -42,22 +44,12 @@ const STATION_SLOT_OFFSETS = [
 ] as const
 
 type StationId = (typeof STATION_IDS)[number]
-type ActorTone = GardenActor['tone']
 
 type ObserverGardenProps = {
   overview: TodayOverview | null
   workspaces?: readonly Workspace[]
-  selectedRepositoryId?: string | null
   onOpenWorkshop: () => void
   onOpenSettings: () => void
-  onSelectPlace: (repositoryId: string) => void
-}
-
-const TONE_LABELS: Record<ActorTone, string> = {
-  waiting: '確認待ち',
-  working: '作業中',
-  completed: '完了',
-  observing: '観測中',
 }
 
 function atlasPosition(column: number, row: number): { x: string; y: string } {
@@ -77,32 +69,17 @@ function stationPoint(
   }
 }
 
-function actorAriaLabel(actor: GardenActor): string {
-  return [
-    actor.sourceDisplayName,
-    actor.sessionDisplayName,
-    actor.workSummary,
-    actor.repository.displayName,
-    TONE_LABELS[actor.tone],
-    actor.session.lastObservedLabel || 'さっきまで',
-  ].join('、')
+function actorAriaLabel(actor: GardenPlaceActor): string {
+  return [actor.placeName, actor.workSummary].join('、')
 }
 
-function actorOffset(actor: GardenActor): { x: number; y: number } {
+function actorOffset(actor: GardenPlaceActor): { x: number; y: number } {
   const slot =
     STATION_SLOT_OFFSETS[actor.slot % STATION_SLOT_OFFSETS.length] ??
     STATION_SLOT_OFFSETS[0]!
   const lap = Math.floor(actor.slot / STATION_SLOT_OFFSETS.length)
-  const waitingX =
-    actor.station === 'waiting'
-      ? typeof window !== 'undefined' &&
-        typeof window.matchMedia === 'function' &&
-        window.matchMedia('(max-width: 760px)').matches
-        ? 12
-        : 28
-      : 0
   return {
-    x: slot[0] + actor.jitterX + lap * 3 + waitingX,
+    x: slot[0] + actor.jitterX + lap * 3,
     y: slot[1] + actor.jitterY + lap * 2,
   }
 }
@@ -110,18 +87,18 @@ function actorOffset(actor: GardenActor): { x: number; y: number } {
 export function ObserverGarden({
   overview,
   workspaces = [],
-  selectedRepositoryId = null,
   onOpenWorkshop,
   onOpenSettings,
-  onSelectPlace,
 }: ObserverGardenProps) {
   const world = getWorldPack(WORLD_ID)
-  const { actors, bulletin } = collectGardenState(overview)
+  const actors = collectGardenActors(overview, workspaces)
   const reducedMotion = usePrefersReducedMotion()
   const [inspect, setInspect] = useState<GardenInspectSubject | null>(null)
+  const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [actorTravel, setActorTravel] = useState<Record<string, boolean>>({})
   const closeInspect = useCallback(() => {
     setInspect(null)
+    setSelectedKey(null)
   }, [])
   const handleActorTravel = useCallback((key: string, next: boolean) => {
     setActorTravel((current) =>
@@ -144,7 +121,7 @@ export function ObserverGarden({
         continue
       }
       occupants.push({
-        name: actor.sourceDisplayName,
+        name: actor.placeName,
         traveling: actorTravel[actor.key] === true,
         summary: actor.workSummary,
       })
@@ -154,13 +131,6 @@ export function ObserverGarden({
 
   return (
     <div className="observer-garden-page">
-      <PlaceResidentList
-        overview={overview}
-        workspaces={workspaces}
-        selectedRepositoryId={selectedRepositoryId}
-        variant="garden"
-        onSelect={onSelectPlace}
-      />
       <section
         className="observer-garden observer-garden--satoyama"
         role="region"
@@ -207,6 +177,7 @@ export function ObserverGarden({
                   inspect?.kind === 'station' && inspect.station === id
                 }
                 onClick={() => {
+                  setSelectedKey(null)
                   setInspect({
                     kind: 'station',
                     station: id,
@@ -219,38 +190,11 @@ export function ObserverGarden({
             )
           })}
 
-          {bulletin.length > 0 ? (
-            <aside className="observer-garden-bulletin">
-              <h3 className="observer-garden-bulletin-title">
-                出どころ未確認の変更
-              </h3>
-              <ul
-                className="observer-garden-bulletin-list"
-                role="list"
-                aria-label="出どころ未確認の変更"
-              >
-                {bulletin.map((item) => (
-                  <li key={item.key} className="observer-garden-bulletin-item">
-                    <span className="observer-garden-bulletin-repo">
-                      {item.repository.displayName}
-                    </span>
-                    <span className="observer-garden-bulletin-label">
-                      出どころ未確認の変更
-                    </span>
-                    <span className="observer-garden-bulletin-count">
-                      {item.repository.changedFileCount} 件
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </aside>
-          ) : null}
-
           {actors.length > 0 ? (
             <div
               className="observer-garden-actors"
               role="list"
-              aria-label="観測中のエージェント"
+              aria-label="庭の住人"
             >
               {actors.map((actor) => (
                 <ObserverGardenActor
@@ -258,21 +202,18 @@ export function ObserverGarden({
                   actor={actor}
                   world={world}
                   reducedMotion={reducedMotion}
-                  selected={
-                    inspect?.kind === 'character' &&
-                    inspect.name === actor.sourceDisplayName
-                  }
+                  selected={selectedKey === actor.key}
                   onTravelingChange={(next) => {
                     handleActorTravel(actor.key, next)
                   }}
                   onSelect={() => {
+                    setSelectedKey(actor.key)
                     setInspect({
                       kind: 'character',
-                      name: actor.sourceDisplayName,
+                      name: actor.placeName,
                       station: actor.station,
                       traveling: actorTravel[actor.key] === true,
                       summary: actor.workSummary,
-                      jobTitle: TONE_LABELS[actor.tone],
                     })
                   }}
                 />
@@ -280,7 +221,7 @@ export function ObserverGarden({
             </div>
           ) : (
             <p className="observer-garden-guide">
-              各AIアプリで作業を始めると、観測できたエージェントがここに現れます
+              登録した場所がまだありません。今日の作業場からフォルダを追加してください。
             </p>
           )}
 
@@ -301,7 +242,7 @@ function ObserverGardenActor({
   onSelect,
   onTravelingChange,
 }: {
-  readonly actor: GardenActor
+  readonly actor: GardenPlaceActor
   readonly world: ReturnType<typeof getWorldPack>
   readonly reducedMotion: boolean
   readonly selected: boolean
@@ -324,9 +265,7 @@ function ObserverGardenActor({
       ? 'waiting'
       : actor.tone === 'working'
         ? 'working'
-        : actor.tone === 'completed'
-          ? 'delivering'
-          : 'idle'
+        : 'idle'
   const gesture = poseGesture(pose, traveling && !reducedMotion)
   const atlas = atlasPosition(actor.column, actor.row)
   const spriteStyle = {
@@ -367,7 +306,7 @@ function ObserverGardenActor({
         .join(' ')}
       role="listitem"
       aria-label={actorAriaLabel(actor)}
-      data-source={actor.session.source}
+      data-testid={`garden-place-${actor.repositoryId}`}
       data-status={actor.tone}
       data-station={actor.station}
       data-gesture={gesture}
@@ -383,22 +322,8 @@ function ObserverGardenActor({
         <div className="observer-garden-actor-sprite" style={spriteStyle} />
       </button>
       <div className="observer-garden-bubble">
-        <p className="observer-garden-bubble-session">
-          {actor.sessionDisplayName}
-        </p>
-        <p className="observer-garden-bubble-source">
-          {actor.sourceDisplayName}
-        </p>
+        <p className="observer-garden-bubble-source">{actor.placeName}</p>
         <p className="observer-garden-bubble-title">{actor.workSummary}</p>
-        <p className="observer-garden-bubble-repo">
-          {actor.repository.displayName}
-        </p>
-        <p className="observer-garden-bubble-status">
-          {TONE_LABELS[actor.tone]}
-        </p>
-        <p className="observer-garden-bubble-observed">
-          {actor.session.lastObservedLabel || 'さっきまで'}
-        </p>
       </div>
     </article>
   )

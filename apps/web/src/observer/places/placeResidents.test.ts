@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
 import type { Workspace } from '@sikumi-local/core'
 import {
+  collectGardenActors,
   collectPlaceResidents,
   deriveEmployeeName,
   derivePlaceName,
   placeActivityLabel,
+  SHIKUMI_PLACE_NAME,
   UNKNOWN_PLACE_WORK,
 } from './placeResidents'
 
@@ -23,6 +25,15 @@ describe('derivePlaceName', () => {
     expect(derivePlaceName('agent-workflow-kits')).toBe('agent-workflow-kits番')
     expect(deriveEmployeeName('my-blog')).toBe('ブログ番')
     expect(deriveEmployeeName('')).toBe('この場所番')
+  })
+
+  it('names shikumi and sikumi places しくみローカル番', () => {
+    expect(deriveEmployeeName('sikumi-local')).toBe(SHIKUMI_PLACE_NAME)
+    expect(deriveEmployeeName('my-shikumi-notes')).toBe(SHIKUMI_PLACE_NAME)
+    expect(
+      derivePlaceName('sikumi-e2e-garden-abc', 'sikumi-e2e-garden-abc番'),
+    ).toBe(SHIKUMI_PLACE_NAME)
+    expect(derivePlaceName('sikumi-local', 'キット番')).toBe('キット番')
   })
 })
 
@@ -86,6 +97,19 @@ describe('collectPlaceResidents', () => {
     expect(resident?.placeName).toBe('alpha番')
   })
 
+  it('includes registered workspaces that are not yet in the overview', () => {
+    const residents = collectPlaceResidents(overviewOf([]), [
+      workspace('ws_only', 'ブログ番'),
+    ])
+
+    expect(residents).toHaveLength(1)
+    expect(residents[0]).toMatchObject({
+      placeName: 'ブログ番',
+      working: false,
+      lastObservedWork: UNKNOWN_PLACE_WORK,
+    })
+  })
+
   it('marks waiting places without inventing a work title', () => {
     const [resident] = collectPlaceResidents(
       overviewOf([
@@ -106,6 +130,46 @@ describe('collectPlaceResidents', () => {
     expect(resident?.working).toBe(false)
     expect(resident?.lastObservedWork).toBe(UNKNOWN_PLACE_WORK)
     expect(placeActivityLabel(resident!)).toBe('確認待ち')
+  })
+})
+
+describe('collectGardenActors', () => {
+  it('makes one ground character per registered place', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'my-blog', [
+          session({
+            id: 'run',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+        repository('repo_b', 'ws_b', 'notes', []),
+      ]),
+      [workspace('ws_a', 'ブログ番')],
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.map((actor) => actor.placeName).sort()).toEqual([
+      'notes番',
+      'ブログ番',
+    ])
+    expect(
+      actors.every((actor) =>
+        ['archive', 'workbench', 'delivery', 'waiting', 'rest'].includes(
+          actor.station,
+        ),
+      ),
+    ).toBe(true)
+    const working = actors.find((actor) => actor.placeName === 'ブログ番')
+    expect(working?.station).toBe('workbench')
+    expect(working?.workSummary).toBe('APIを直している')
+    const quiet = actors.find((actor) => actor.placeName === 'notes番')
+    expect(quiet?.workSummary).toBe(UNKNOWN_PLACE_WORK)
+    expect(['archive', 'rest', 'delivery']).toContain(quiet?.station)
   })
 })
 

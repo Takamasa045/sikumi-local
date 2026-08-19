@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
 import { ObserverGarden } from './ObserverGarden'
 
@@ -12,10 +13,10 @@ afterEach(() => {
 })
 
 describe('ObserverGarden', () => {
-  it('shows Codex and Claude Code agents at the same time', () => {
+  it('shows registered places as ○○番 characters, not tool dogs or a list', () => {
     renderGarden(
       overviewOf([
-        repository('repo_a', 'alpha', [
+        repository('repo_a', 'my-blog', [
           session({
             id: 's1',
             source: 'codex',
@@ -35,57 +36,49 @@ describe('ObserverGarden', () => {
             lastObservedLabel: '1分前',
           }),
         ]),
+        repository('repo_b', 'notes', []),
       ]),
+      [workspace('ws_repo_a', 'ブログ番')],
     )
 
-    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    expect(within(agents).getAllByText('Codex')).toHaveLength(2)
-    expect(within(agents).getAllByText('Claude Code')).toHaveLength(2)
-    expect(within(agents).getByText('APIを直している')).toBeVisible()
-    expect(within(agents).getByText('テストを書いている')).toBeVisible()
-    expect(within(agents).getAllByText('alpha')).toHaveLength(2)
-    expect(within(agents).getByText('3分前')).toBeVisible()
-    expect(within(agents).getByText('1分前')).toBeVisible()
-    expect(within(agents).getAllByText('作業中')).toHaveLength(2)
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getByText('ブログ番')).toBeVisible()
+    expect(within(residents).getByText('APIを直している')).toBeVisible()
+    expect(within(residents).getByText('notes番')).toBeVisible()
+    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).queryByText('Codex')).toBeNull()
+    expect(within(residents).queryByText('Claude Code')).toBeNull()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+    expect(screen.queryByTestId('garden-employee')).toBeNull()
+    expect(screen.queryByText('サグル')).toBeNull()
+    expect(
+      screen.queryByRole('list', { name: '出どころ未確認の変更' }),
+    ).toBeNull()
   })
 
-  it('keeps the same session id distinct across repositories', () => {
+  it('keeps one character per registered place even when idle', () => {
     renderGarden(
       overviewOf([
-        repository('repo_a', 'alpha', [
-          session({
-            id: 'shared',
-            source: 'cursor',
-            displayName: 'Cursor',
-            title: 'alphaの修正',
-            status: 'running',
-            activity: 'working',
-          }),
-        ]),
-        repository('repo_b', 'beta', [
-          session({
-            id: 'shared',
-            source: 'cursor',
-            displayName: 'Cursor',
-            title: 'betaの修正',
-            status: 'running',
-            activity: 'working',
-          }),
-        ]),
+        repository('repo_a', 'alpha', []),
+        repository('repo_b', 'beta', []),
       ]),
     )
 
-    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    expect(within(agents).getByText('alphaの修正')).toBeVisible()
-    expect(within(agents).getByText('betaの修正')).toBeVisible()
-    expect(within(agents).getAllByText('Cursor')).toHaveLength(4)
-    expect(within(agents).getByText('alpha')).toBeVisible()
-    expect(within(agents).getByText('beta')).toBeVisible()
-    expect(screen.getByText('alpha番')).toBeVisible()
-    expect(screen.getByText('beta番')).toBeVisible()
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getAllByRole('listitem')).toHaveLength(2)
+    expect(within(residents).getByText('alpha番')).toBeVisible()
+    expect(within(residents).getByText('beta番')).toBeVisible()
+    expect(within(residents).getAllByText('まだ分かっていません')).toHaveLength(
+      2,
+    )
+    expect(
+      within(residents)
+        .getAllByRole('listitem')
+        .every((item) => item.getAttribute('data-station') !== 'observatory'),
+    ).toBe(true)
   })
 
-  it('separates git and inferred sessions from observed agents', () => {
+  it('does not use git or inferred work as the job name', () => {
     renderGarden(
       overviewOf([
         repository(
@@ -93,27 +86,12 @@ describe('ObserverGarden', () => {
           'alpha',
           [
             session({
-              id: 'agent',
-              source: 'grok',
-              displayName: 'Grok Build',
-              title: '庭を整えている',
-              status: 'running',
-              activity: 'working',
-            }),
-            session({
               id: 'git',
               source: 'git',
               displayName: 'Git作業',
-              title: '未帰属の差分',
+              title: '変更元不明の作業',
               attributionConfidence: 'observed',
             }),
-          ],
-          4,
-        ),
-        repository(
-          'repo_b',
-          'beta',
-          [
             session({
               id: 'guess',
               source: 'codex',
@@ -122,148 +100,54 @@ describe('ObserverGarden', () => {
               attributionConfidence: 'inferred',
             }),
           ],
-          2,
+          4,
         ),
       ]),
     )
 
-    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    expect(within(agents).getAllByText('Grok Build')).toHaveLength(2)
-    expect(within(agents).getByText('庭を整えている')).toBeVisible()
-    expect(within(agents).queryByText('Git作業')).toBeNull()
-    expect(within(agents).queryByText('未帰属の差分')).toBeNull()
-    expect(within(agents).queryByText('Codexらしい')).toBeNull()
-    expect(within(agents).queryByText('推測された作業')).toBeNull()
-
-    const unverified = screen.getByRole('list', {
-      name: '出どころ未確認の変更',
-    })
-    expect(within(unverified).getByText('alpha')).toBeVisible()
-    expect(within(unverified).getByText('beta')).toBeVisible()
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getByText('alpha番')).toBeVisible()
+    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
+    expect(within(residents).queryByText('Git作業')).toBeNull()
+    expect(within(residents).queryByText('Codexらしい')).toBeNull()
     expect(
-      within(unverified).getAllByText('出どころ未確認の変更'),
-    ).toHaveLength(2)
-    expect(within(unverified).getByText('4 件')).toBeVisible()
-    expect(within(unverified).getByText('2 件')).toBeVisible()
+      screen.queryByRole('list', { name: '出どころ未確認の変更' }),
+    ).toBeNull()
   })
 
-  it('shows the empty garden when no external sessions exist', () => {
-    renderGarden(
-      overviewOf([
-        repository('repo_a', 'alpha', [
-          session({
-            id: 'git',
-            source: 'git',
-            displayName: 'Git作業',
-            attributionConfidence: 'observed',
-          }),
-        ]),
-      ]),
-    )
+  it('shows the empty garden when no place is registered', () => {
+    renderGarden(overviewOf([]))
 
     expect(
       screen.getByText(
-        '各AIアプリで作業を始めると、観測できたエージェントがここに現れます',
+        '登録した場所がまだありません。今日の作業場からフォルダを追加してください。',
       ),
     ).toBeVisible()
-    expect(
-      screen.queryByRole('list', { name: '観測中のエージェント' }),
-    ).toBeNull()
+    expect(screen.queryByRole('list', { name: '庭の住人' })).toBeNull()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
 
     renderGarden(null)
     expect(
       screen.getAllByText(
-        '各AIアプリで作業を始めると、観測できたエージェントがここに現れます',
+        '登録した場所がまだありません。今日の作業場からフォルダを追加してください。',
       ).length,
     ).toBeGreaterThan(0)
   })
 
-  it('labels waiting status as 確認待ち', () => {
+  it('names shikumi places しくみローカル番', () => {
     renderGarden(
       overviewOf([
-        repository('repo_a', 'alpha', [
-          session({
-            id: 'wait',
-            source: 'claude-desktop',
-            displayName: 'Claudeアプリ',
-            title: '承認が必要',
-            status: 'idle',
-            activity: 'waiting',
-          }),
-        ]),
+        repository('repo_a', 'sikumi-local', []),
+        repository('repo_b', 'my-shikumi-notes', []),
       ]),
     )
 
-    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    const agent = within(agents).getByRole('listitem')
-    expect(within(agent).getByText('確認待ち')).toBeVisible()
-    expect(agent).toHaveAttribute('data-status', 'waiting')
-    expect(within(agent).getAllByText('Claudeアプリ')).toHaveLength(2)
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getAllByText('しくみローカル番')).toHaveLength(2)
   })
 
-  it('does not invent a brand for an unknown source', () => {
-    renderGarden(
-      overviewOf([
-        repository('repo_a', 'alpha', [
-          session({
-            id: 'mystery',
-            source: 'mystery-bot',
-            displayName: '実験用ツール',
-            title: '未知の作業',
-            status: 'running',
-            activity: 'working',
-          }),
-        ]),
-      ]),
-    )
-
-    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    expect(within(agents).getAllByText('実験用ツール')).toHaveLength(2)
-    expect(within(agents).queryByText('mystery-bot')).toBeNull()
-    expect(within(agents).queryByText('Codex')).toBeNull()
-    expect(within(agents).queryByText('Claude Code')).toBeNull()
-    expect(within(agents).queryByText('Grok Build')).toBeNull()
-    expect(within(agents).queryByText('Cursor')).toBeNull()
-    expect(within(agents).queryByText('Claudeアプリ')).toBeNull()
-  })
-
-  it('lists registered places as ○○番 and does not keep a workshop master dog', () => {
-    renderGarden(
-      overviewOf([
-        repository('repo_a', 'agent-workflow-kits', []),
-        repository('repo_b', 'notes', []),
-      ]),
-    )
-
-    const places = screen.getByRole('region', { name: '○○番の一覧' })
-    expect(within(places).getByText('agent-workflow-kits番')).toBeVisible()
-    expect(within(places).getByText('notes番')).toBeVisible()
-    expect(screen.queryByTestId('garden-employee')).toBeNull()
-    expect(screen.queryByText('サグル')).toBeNull()
-    expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
-  })
-
-  it('opens a place from the garden list', async () => {
-    const onSelectPlace = vi.fn()
-    renderGarden(overviewOf([repository('repo_a', 'alpha', [])]), onSelectPlace)
-
-    await userEvent.click(screen.getByTestId('observer-place-repo_a'))
-    expect(onSelectPlace).toHaveBeenCalledWith('repo_a')
-  })
-
-  it('explains a station in place when it is clicked', async () => {
-    renderGarden(null)
-
-    await userEvent.click(screen.getByRole('button', { name: '資料棚' }))
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      'この工房の資料を読む場所',
-    )
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      '資料棚に、いまは誰もいません',
-    )
-  })
-
-  it('opens observed work in place without turning a tool into an employee', async () => {
+  it('opens current work in place without turning a tool into an employee', async () => {
     renderGarden(
       overviewOf([
         repository('repo_a', 'alpha', [
@@ -279,13 +163,14 @@ describe('ObserverGarden', () => {
       ]),
     )
 
-    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    await userEvent.click(within(agents).getByRole('button'))
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
+    )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('Codex')
-    expect(inspect).toHaveTextContent('作業中')
+    expect(inspect).toHaveTextContent('alpha番')
     expect(inspect).toHaveTextContent('APIを直している')
     expect(inspect).toHaveTextContent('作業台')
+    expect(inspect).not.toHaveTextContent('Codex')
     expect(inspect).not.toHaveTextContent('望遠鏡')
     expect(screen.queryByTestId('garden-employee')).toBeNull()
     expect(
@@ -293,7 +178,7 @@ describe('ObserverGarden', () => {
     ).toBeNull()
   })
 
-  it('hides idle sessions and does not put live dogs on the observatory', () => {
+  it('hides idle sessions and does not put residents on the observatory', () => {
     renderGarden(
       overviewOf([
         repository('repo_a', 'alpha', [
@@ -317,22 +202,28 @@ describe('ObserverGarden', () => {
       ]),
     )
 
-    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
+    const residents = screen.getByRole('list', { name: '庭の住人' })
     expect(
-      within(agents).queryByText('エージェントワークフローキッズ版'),
+      within(residents).queryByText('エージェントワークフローキッズ版'),
     ).toBeNull()
-    expect(within(agents).getByText('alphaが対象です')).toBeVisible()
-    expect(within(agents).queryByText('Codexの作業が始まりました')).toBeNull()
-    expect(within(agents).getByRole('listitem')).toHaveAttribute(
+    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(
+      within(residents).queryByText('Codexの作業が始まりました'),
+    ).toBeNull()
+    expect(within(residents).getByRole('listitem')).toHaveAttribute(
       'data-station',
       'workbench',
     )
     expect(
-      within(agents).queryByRole('listitem', { name: /望遠鏡/ }),
+      within(residents).queryByRole('listitem', { name: /望遠鏡/ }),
     ).toBeNull()
+    expect(within(residents).getByRole('listitem')).not.toHaveAttribute(
+      'data-station',
+      'observatory',
+    )
   })
 
-  it('says the work is unknown when no real title or repository remains', async () => {
+  it('says the work is unknown when no real title remains', async () => {
     renderGarden(
       overviewOf([
         repository('repo_a', '', [
@@ -348,16 +239,25 @@ describe('ObserverGarden', () => {
       ]),
     )
 
-    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    expect(
-      within(agents).getByText('仕事の内容はまだ分かっていません'),
-    ).toBeVisible()
-    await userEvent.click(within(agents).getByRole('button'))
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    await userEvent.click(within(residents).getByRole('button'))
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      '仕事の内容はまだ分かっていません',
+      'まだ分かっていません',
     )
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('作業台')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
+  })
+
+  it('explains a station in place when it is clicked', async () => {
+    renderGarden(null)
+
+    await userEvent.click(screen.getByRole('button', { name: '資料棚' }))
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'この工房の資料を読む場所',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      '資料棚に、いまは誰もいません',
+    )
   })
 
   it('names the waiting place in picture words', async () => {
@@ -377,25 +277,29 @@ describe('ObserverGarden', () => {
     )
 
     await userEvent.click(
-      within(
-        within(
-          screen.getByRole('list', { name: '観測中のエージェント' }),
-        ).getByRole('listitem'),
-      ).getByRole('button'),
+      within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認の場所')
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('承認が必要')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('確認札')
+    expect(screen.getByTestId('garden-place-repo_a')).toHaveAttribute(
+      'data-station',
+      'waiting',
+    )
   })
 })
 
-function renderGarden(overview: TodayOverview | null, onSelectPlace = vi.fn()) {
+function renderGarden(
+  overview: TodayOverview | null,
+  workspaces: Workspace[] = [],
+) {
   return render(
     <ObserverGarden
       overview={overview}
+      workspaces={workspaces}
       onOpenWorkshop={vi.fn()}
       onOpenSettings={vi.fn()}
-      onSelectPlace={onSelectPlace}
     />,
   )
 }
@@ -447,5 +351,26 @@ function session(
     lastObservedAt: '2026-08-19T00:00:00.000Z',
     lastObservedLabel: null,
     ...partial,
+  }
+}
+
+function workspace(id: string, employeeName?: string): Workspace {
+  return {
+    id,
+    name: id,
+    ...(employeeName ? { employeeName } : {}),
+    defaultProviderId: null,
+    worldPackId: 'dog-office',
+    createdAt: '2026-08-19T00:00:00.000Z',
+    updatedAt: '2026-08-19T00:00:00.000Z',
+    repository: {
+      id: `repo_${id}`,
+      absolutePath: `/tmp/${id}`,
+      displayName: id,
+      currentBranch: 'main',
+      remoteName: 'origin',
+      remoteUrl: null,
+      readable: true,
+    },
   }
 }

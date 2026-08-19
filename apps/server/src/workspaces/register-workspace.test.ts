@@ -34,6 +34,18 @@ describe('registerWorkspace', () => {
     expect(workspace.employeeName).toBe('イトパン')
   })
 
+  it('shikumi を含む場所はしくみローカル番にする', () => {
+    const store = createMemoryStore()
+    const workspace = registerWorkspace(
+      store,
+      '/Users/example/sikumi-local',
+      undefined,
+      () => sampleInspection('/Users/example/sikumi-local', 'sikumi-local'),
+    )
+
+    expect(workspace.employeeName).toBe('しくみローカル番')
+  })
+
   it('rejects a duplicate real path', () => {
     const store = createMemoryStore()
     const inspection = sampleInspection('/Users/example/project')
@@ -69,10 +81,13 @@ describe('registerWorkspace', () => {
   })
 })
 
-function sampleInspection(absolutePath: string): GitInspection {
+function sampleInspection(
+  absolutePath: string,
+  displayName = 'project',
+): GitInspection {
   return {
     absolutePath,
-    displayName: 'project',
+    displayName,
     currentBranch: 'main',
     remoteName: 'origin',
     remoteUrl: 'https://github.com/example/project.git',

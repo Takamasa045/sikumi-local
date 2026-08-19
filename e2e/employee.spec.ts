@@ -41,20 +41,15 @@ test('employee packs remain available through the legacy API but are not garden 
   await expect(page.getByRole('combobox', { name: '担当' })).toHaveCount(0)
   await expect(page.getByRole('heading', { name: 'AI社員' })).toHaveCount(0)
 
-  const observingAgents = page.getByRole('list', { name: '観測中のエージェント' })
-  const agentCount = await observingAgents.count()
-  if (agentCount === 0) {
-    await expect(
-      page.getByRole('heading', { name: 'ミル' }),
-    ).toHaveCount(0)
-    await expect(
-      page.getByRole('heading', { name: 'サグル' }),
-    ).toHaveCount(0)
-    await expect(
-      page.getByRole('listitem').filter({ hasText: /^ミル$/ }),
-    ).toHaveCount(0)
-    await expect(
-      page.getByRole('listitem').filter({ hasText: /^サグル$/ }),
-    ).toHaveCount(0)
+  await expect(
+    page.getByRole('list', { name: '観測中のエージェント' }),
+  ).toHaveCount(0)
+  const residents = page.getByRole('list', { name: '庭の住人' })
+  if ((await residents.count()) > 0) {
+    await expect(residents).not.toContainText('ミル')
+    await expect(residents).not.toContainText('サグル')
   }
+  await expect(page.getByRole('heading', { name: 'ミル' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'サグル' })).toHaveCount(0)
+  await expect(page.getByTestId('garden-employee')).toHaveCount(0)
 })

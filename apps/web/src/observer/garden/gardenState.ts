@@ -7,29 +7,8 @@ type OverviewRepository = TodayOverview['repositories'][number]
 type OverviewSession = OverviewRepository['sessions'][number]
 
 export type AgentStation =
-  'observatory' | 'workbench' | 'delivery' | 'waiting' | 'rest'
+  'archive' | 'workbench' | 'delivery' | 'waiting' | 'rest'
 export type ActorTone = 'waiting' | 'working' | 'completed' | 'observing'
-
-export type GardenActor = {
-  key: string
-  session: OverviewSession
-  repository: OverviewRepository
-  station: AgentStation
-  tone: ActorTone
-  column: number
-  row: number
-  slot: number
-  jitterX: number
-  jitterY: number
-  sourceDisplayName: string
-  sessionDisplayName: string
-  workSummary: string
-}
-
-export type BulletinItem = {
-  key: string
-  repository: OverviewRepository
-}
 
 const KNOWN_SOURCE_LABELS: Record<string, string> = {
   aider: 'Aider',
@@ -52,23 +31,6 @@ const KNOWN_SOURCE_LABELS: Record<string, string> = {
   windsurf: 'Windsurf',
 }
 
-const SOURCE_COLUMN: Record<string, number> = {
-  anthropic: 0,
-  claude: 0,
-  'claude-code': 0,
-  'claude-desktop': 0,
-  codex: 0,
-  copilot: 1,
-  cursor: 1,
-  vscode: 1,
-  windsurf: 1,
-  chatgpt: 2,
-  gemini: 2,
-  grok: 2,
-  'grok-build': 2,
-  openai: 2,
-}
-
 const GENERIC_WORK_TITLES = new Set([
   '作業',
   '作業中',
@@ -86,9 +48,6 @@ const GENERIC_WORK_PATTERNS = [
   /のサブエージェントが始まりました$/,
 ]
 
-const ATLAS_COLUMNS = 3
-const ATLAS_ROWS = 4
-
 export function sourceKey(source: string | null | undefined): string {
   return (source ?? '').trim().toLowerCase()
 }
@@ -99,15 +58,6 @@ export function knownSourceLabel(
   const key = sourceKey(source)
   if (!key) return null
   return KNOWN_SOURCE_LABELS[key] ?? null
-}
-
-export function atlasColumnForSource(
-  source: string | null | undefined,
-): number {
-  const key = sourceKey(source)
-  const mapped = SOURCE_COLUMN[key]
-  if (mapped != null) return mapped % ATLAS_COLUMNS
-  return stableHash(`source:${key}`) % ATLAS_COLUMNS
 }
 
 export function resolveTone(
@@ -214,101 +164,6 @@ export function describeGardenWork(
   return UNKNOWN_GARDEN_WORK
 }
 
-export function sessionVisibleName(session: OverviewSession): string {
-  const named = session.displayName?.trim()
-  if (named) return named
-  const title = session.title?.trim()
-  if (title && !isGenericWorkTitle(title)) return title
-  return '無題'
-}
-
-export function actorNames(session: OverviewSession): {
-  sourceDisplayName: string
-  sessionDisplayName: string
-} {
-  const sessionDisplayName = sessionVisibleName(session)
-  const mapped = knownSourceLabel(session.source)
-  return {
-    sourceDisplayName: mapped ?? sessionDisplayName,
-    sessionDisplayName,
-  }
-}
-
-export function collectGardenState(overview: TodayOverview | null): {
-  actors: GardenActor[]
-  bulletin: BulletinItem[]
-} {
-  const actors: GardenActor[] = []
-  const bulletin: BulletinItem[] = []
-  const seenRepositories = new Set<string>()
-  const repositories = overview?.repositories ?? []
-  const nowMs = parseOverviewNow(overview)
-
-  for (const repository of repositories) {
-    const sessions = repository.sessions ?? []
-    let hasUnconfirmed = false
-
-    for (const session of sessions) {
-      if (isUnconfirmedChange(session)) {
-        hasUnconfirmed = true
-        continue
-      }
-      if (!shouldShowGardenDog(session, nowMs)) continue
-
-      const hash = stableHash(`${repository.repositoryId}|${session.id}`)
-      const tone = resolveTone(session.status, session.activity)
-      const names = actorNames(session)
-      actors.push({
-        key: `${repository.repositoryId}:${session.id}`,
-        session,
-        repository,
-        station: stationForTone(tone),
-        tone,
-        column: atlasColumnForSource(session.source),
-        row: hash % ATLAS_ROWS,
-        slot: 0,
-        jitterX: ((hash % 7) - 3) * 0.18,
-        jitterY: (((hash >>> 4) % 5) - 2) * 0.14,
-        sourceDisplayName: names.sourceDisplayName,
-        sessionDisplayName: names.sessionDisplayName,
-        workSummary: describeGardenWork(session, repository),
-      })
-    }
-
-    if (hasUnconfirmed && !seenRepositories.has(repository.repositoryId)) {
-      seenRepositories.add(repository.repositoryId)
-      bulletin.push({
-        key: repository.repositoryId,
-        repository,
-      })
-    }
-  }
-
-  const slotCursor = new Map<AgentStation, number>()
-  actors.sort((left, right) => left.key.localeCompare(right.key))
-  for (const actor of actors) {
-    const next = slotCursor.get(actor.station) ?? 0
-    actor.slot = next
-    slotCursor.set(actor.station, next + 1)
-  }
-
-  return { actors, bulletin }
-}
-
-function parseOverviewNow(overview: TodayOverview | null): number {
-  const parsed = overview?.generatedAt ? Date.parse(overview.generatedAt) : NaN
-  return Number.isNaN(parsed) ? Date.now() : parsed
-}
-
 function includesToken(value: string, token: string): boolean {
   return value.includes(token)
-}
-
-function stableHash(input: string): number {
-  let hash = 2166136261
-  for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index)
-    hash = Math.imul(hash, 16777619)
-  }
-  return hash >>> 0
 }

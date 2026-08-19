@@ -13,7 +13,12 @@ import {
 } from '../../garden/GardenInspect'
 import { poseGesture } from '../../garden/motion'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
-import { gardenStationLabels, getWorldPack } from '../../garden/worlds'
+import { useGardenWorldPack } from '../../garden/useGardenWorldPack'
+import {
+  gardenStationLabels,
+  getWorldPack,
+  worldPacks,
+} from '../../garden/worlds'
 import {
   collectGardenActors,
   type GardenPlaceActor,
@@ -21,7 +26,6 @@ import {
 import { placeRepoLabel } from './gardenWalk'
 import { useWorkingWalk } from './useWorkingWalk'
 
-const WORLD_ID = 'dog-office' as const
 const ATLAS_COLUMNS = 3
 const ATLAS_ROWS = 4
 const ATLAS_X_PERCENTS = ['0%', '50%', '100%'] as const
@@ -82,7 +86,7 @@ export function ObserverGarden({
   workspaces = [],
   onOpenWorkshop,
 }: ObserverGardenProps) {
-  const world = getWorldPack(WORLD_ID)
+  const { world, setWorldPackId } = useGardenWorldPack()
   const actors = collectGardenActors(overview, workspaces)
   const reducedMotion = usePrefersReducedMotion()
   const [inspect, setInspect] = useState<GardenInspectSubject | null>(null)
@@ -127,6 +131,7 @@ export function ObserverGarden({
         className="observer-garden observer-garden--satoyama"
         role="region"
         aria-label="観測の庭"
+        data-world-pack={world.id}
         style={gardenStyle}
       >
         <div className="observer-garden-mist" aria-hidden="true" />
@@ -134,9 +139,28 @@ export function ObserverGarden({
         <header className="observer-garden-nav">
           <div className="observer-garden-heading-group">
             <h2 className="observer-garden-heading">観測の庭</h2>
-            <p className="observer-garden-sign">犬たちの里山アトリエ</p>
+            <p className="observer-garden-sign">{world.name}</p>
           </div>
           <div className="observer-garden-nav-actions">
+            <div
+              className="observer-garden-look"
+              role="group"
+              aria-label="庭の様子"
+            >
+              {worldPacks.map((pack) => (
+                <button
+                  key={pack.id}
+                  type="button"
+                  className="observer-garden-nav-button observer-garden-look-button"
+                  aria-pressed={world.id === pack.id}
+                  onClick={() => {
+                    setWorldPackId(pack.id)
+                  }}
+                >
+                  {pack.lookName}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               className="observer-garden-nav-button observer-garden-nav-workshop"

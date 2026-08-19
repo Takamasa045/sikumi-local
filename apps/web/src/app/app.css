@@ -2785,3 +2785,26 @@ footer span {
     animation: none !important;
   }
 }
+
+.observer-garden.observer-garden--satoyama .observer-garden-look {
+  display: inline-flex;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid rgba(244, 234, 216, 0.28);
+  border-radius: 999px;
+  background: rgba(28, 24, 18, 0.28);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-look-button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 5px 10px;
+  opacity: 0.72;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-button[aria-pressed='true'] {
+  background: rgba(244, 234, 216, 0.2);
+  opacity: 1;
+}

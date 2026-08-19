@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WORKING_WALK_FIRST_STEP_MS, WORKING_WALK_STOPS } from './gardenWalk'
 import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
+import { GARDEN_WORLD_PACK_STORAGE_KEY } from '../../garden/useGardenWorldPack'
+import { getWorldPack } from '../../garden/worlds'
 import { ObserverGarden } from './ObserverGarden'
 
 type RepositoryView = TodayOverview['repositories'][number]
@@ -11,6 +13,7 @@ type SessionView = RepositoryView['sessions'][number]
 
 afterEach(() => {
   vi.useRealTimers()
+  localStorage.removeItem(GARDEN_WORLD_PACK_STORAGE_KEY)
 })
 
 describe('ObserverGarden', () => {
@@ -494,7 +497,89 @@ describe('ObserverGarden', () => {
     expect(inspect).not.toHaveTextContent('ほかにもある')
     expect(inspect.querySelector('.garden-inspect__leftover')).toBeNull()
   })
+
+  it('stays on the satoyama atelier until a look is chosen', () => {
+    renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
+
+    const garden = screen.getByRole('region', { name: '観測の庭' })
+    const dogOffice = getWorldPack('dog-office')
+    expect(garden).toHaveAttribute('data-world-pack', 'dog-office')
+    expect(garden.style.backgroundImage).toContain(dogOffice.backgroundUrl)
+    expect(gardenLookButton('里山')).toHaveAttribute('aria-pressed', 'true')
+    expect(gardenLookButton('工房')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('犬たちの里山アトリエ')).toBeVisible()
+    expect(screen.queryByText('dog-office')).toBeNull()
+    expect(screen.queryByText('craft-workshop')).toBeNull()
+    expect(screen.queryByText('worldPackId')).toBeNull()
+    expect(actorAtlasUrl('repo_a')).toContain(dogOffice.character.atlasUrl)
+  })
+
+  it('renders the workshop look from a stored choice', () => {
+    localStorage.setItem(GARDEN_WORLD_PACK_STORAGE_KEY, 'craft-workshop')
+    renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
+
+    const garden = screen.getByRole('region', { name: '観測の庭' })
+    const workshop = getWorldPack('craft-workshop')
+    expect(garden).toHaveAttribute('data-world-pack', 'craft-workshop')
+    expect(garden.style.backgroundImage).toContain(workshop.backgroundUrl)
+    expect(screen.getByText('職人工房')).toBeVisible()
+    expect(actorAtlasUrl('repo_a')).toContain(workshop.character.atlasUrl)
+    expect(screen.getByRole('button', { name: '作業台' })).toHaveStyle({
+      left: '56%',
+      top: '53%',
+    })
+    expect(screen.queryByText('craft-workshop')).toBeNull()
+  })
+
+  it('switches background and characters to the workshop look', async () => {
+    const firstView = renderGarden(
+      overviewOf([repository('repo_a', 'alpha', [])]),
+    )
+
+    await userEvent.click(gardenLookButton('工房'))
+
+    const garden = screen.getByRole('region', { name: '観測の庭' })
+    const workshop = getWorldPack('craft-workshop')
+    expect(garden).toHaveAttribute('data-world-pack', 'craft-workshop')
+    expect(garden.style.backgroundImage).toContain(workshop.backgroundUrl)
+    expect(actorAtlasUrl('repo_a')).toContain(workshop.character.atlasUrl)
+    expect(gardenLookButton('工房')).toHaveAttribute('aria-pressed', 'true')
+    expect(gardenLookButton('里山')).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('職人工房')).toBeVisible()
+    expect(screen.getByRole('button', { name: '作業台' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '納品台' })).toBeVisible()
+    expect(screen.queryByRole('heading', { name: '工房の整え方' })).toBeNull()
+    expect(screen.queryByText('craft-workshop')).toBeNull()
+
+    const first = garden.style.backgroundImage
+    const firstAtlas = actorAtlasUrl('repo_a')
+    firstView.unmount()
+    renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
+    expect(screen.getByRole('region', { name: '観測の庭' })).toHaveAttribute(
+      'data-world-pack',
+      'craft-workshop',
+    )
+    expect(
+      screen.getByRole('region', { name: '観測の庭' }).style.backgroundImage,
+    ).toBe(first)
+    expect(actorAtlasUrl('repo_a')).toBe(firstAtlas)
+  })
 })
+
+function gardenLookButton(name: '里山' | '工房') {
+  return within(screen.getByRole('group', { name: '庭の様子' })).getByRole(
+    'button',
+    { name },
+  )
+}
+
+function actorAtlasUrl(repositoryId: string): string {
+  const sprite = screen
+    .getByTestId(`garden-place-${repositoryId}`)
+    .querySelector('.observer-garden-actor-sprite')
+  expect(sprite).toBeInstanceOf(HTMLElement)
+  return (sprite as HTMLElement).style.backgroundImage
+}
 
 function renderGarden(
   overview: TodayOverview | null,

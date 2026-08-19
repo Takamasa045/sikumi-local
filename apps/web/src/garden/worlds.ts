@@ -41,10 +41,13 @@ export function describeStationOccupants(
     .join('。')
 }
 
+export const defaultWorldPackId: WorldPackId = 'dog-office'
+
 export interface WorldPack {
   readonly id: WorldPackId
   readonly name: string
   readonly shortName: string
+  readonly lookName: string
   readonly description: string
   readonly backgroundUrl: string
   readonly stations: Readonly<
@@ -67,6 +70,7 @@ export const worldPacks: readonly WorldPack[] = [
     id: 'dog-office',
     name: '犬たちの里山アトリエ',
     shortName: '里山の庭',
+    lookName: '里山',
     description: '竹林と縁側に囲まれた、犬たちの静かな仕事場。',
     backgroundUrl: dogBackground,
     stations: {
@@ -92,6 +96,7 @@ export const worldPacks: readonly WorldPack[] = [
     id: 'craft-workshop',
     name: '職人工房',
     shortName: '和の工房',
+    lookName: '工房',
     description: '木工・金工・和紙・漆の机が並ぶ、灯りの工房。',
     backgroundUrl: craftBackground,
     stations: {
@@ -114,6 +119,16 @@ export const worldPacks: readonly WorldPack[] = [
     },
   },
 ]
+
+export function isWorldPackId(
+  id: string | null | undefined,
+): id is WorldPackId {
+  return worldPacks.some((pack) => pack.id === id)
+}
+
+export function resolveWorldPackId(id: string | null | undefined): WorldPackId {
+  return isWorldPackId(id) ? id : defaultWorldPackId
+}
 
 export function getWorldPack(id: string): WorldPack {
   return worldPacks.find((pack) => pack.id === id) ?? worldPacks[0]!

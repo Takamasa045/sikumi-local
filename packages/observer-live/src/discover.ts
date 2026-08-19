@@ -1,11 +1,22 @@
 import { nowIso } from '@sikumi-local/observer-core'
 import { identifyLiveAgent, isIgnoredLiveHaystack } from './identify.js'
-import { locateLiveProcess, sightingFromLocatedProcess } from './locate.js'
-import { matchRegisteredPlace } from './match.js'
+import {
+  declaredWorkspaceCwd,
+  locateLiveProcess,
+  sightingFromLocatedProcess,
+} from './locate.js'
+import { matchRegisteredPlace, uniqueMatchedPlace } from './match.js'
 import { listCurrentUserLiveProcesses } from './processes.js'
 import { listRecentSessionRecords, toLiveSighting } from './session-files.js'
+import { isSittingLiveProcess } from './sitting.js'
 import { acceptStoredTitle } from './titles.js'
-import type { LiveDiscoveryInput, LiveSighting } from './types.js'
+import type {
+  ExistingLiveSession,
+  LiveDiscoveryInput,
+  LiveProcessRow,
+  LiveSighting,
+  LiveSightingActivity,
+} from './types.js'
 
 export function discoverLiveSessions(
   input: LiveDiscoveryInput,
@@ -37,16 +48,37 @@ export function discoverLiveSessions(
     if (!identified) {
       continue
     }
-    const located = locateLiveProcess({
-      process,
-      roots: input.roots,
-      sessionCwds: sessionRecords
-        .filter((record) => record.source === identified.source)
-        .map((record) => record.cwd),
-    })
+    const recentCwds = sessionRecords
+      .filter((record) => record.source === identified.source)
+      .map((record) => record.cwd)
+    const waitingCwds = waitingSessionCwds(
+      input.existingSessions,
+      identified.source,
+    )
+    const located =
+      locateLiveProcess({
+        process,
+        roots: input.roots,
+        sessionCwds: recentCwds,
+      }) ??
+      locateLiveProcess({
+        process,
+        roots: input.roots,
+        sessionCwds: waitingCwds,
+      })
     if (!located) {
       continue
     }
+    const activity = activityForLocatedProcess({
+      process,
+      now,
+      boundFromOwnCwd: boundFromOwnPlace(process, input.roots),
+      waitingHere: waitingCwds.some(
+        (cwd) =>
+          matchRegisteredPlace(cwd, input.roots)?.root.repositoryId ===
+          located.root.repositoryId,
+      ),
+    })
     const title = titleForLocatedPlace(
       sessionRecords,
       identified.source,
@@ -60,6 +92,7 @@ export function discoverLiveSessions(
       located,
       title,
       lastObservedAt: nowStamp,
+      activity,
     })
     byKey.set(processSightingKey(identified.source, process.pid), sighting)
   }
@@ -115,6 +148,68 @@ function attachSessionTitleToProcesses(
     }
   }
   return attached
+}
+
+function waitingSessionCwds(
+  sessions: readonly ExistingLiveSession[] | undefined,
+  source: string,
+): string[] {
+  if (!sessions) {
+    return []
+  }
+  const cwds: string[] = []
+  for (const session of sessions) {
+    if (session.source !== source || !session.cwd) {
+      continue
+    }
+    if (!isAdoptableWaitingSession(session)) {
+      continue
+    }
+    cwds.push(session.cwd)
+  }
+  return cwds
+}
+
+function isAdoptableWaitingSession(session: ExistingLiveSession): boolean {
+  if (isTerminalSessionStatus(session.status)) {
+    return false
+  }
+  return (
+    session.status === 'waiting-for-user' ||
+    session.activity === 'waiting-for-user' ||
+    session.status === 'stale'
+  )
+}
+
+function isTerminalSessionStatus(status: string): boolean {
+  return status === 'completed' || status === 'ended' || status === 'failed'
+}
+
+function boundFromOwnPlace(
+  process: LiveProcessRow,
+  roots: LiveDiscoveryInput['roots'],
+): boolean {
+  return Boolean(
+    uniqueMatchedPlace(
+      [declaredWorkspaceCwd(process.args), process.cwd],
+      roots,
+    ) || uniqueMatchedPlace(process.childCwds ?? [], roots),
+  )
+}
+
+function activityForLocatedProcess(input: {
+  readonly process: LiveProcessRow
+  readonly now: number
+  readonly boundFromOwnCwd: boolean
+  readonly waitingHere: boolean
+}): LiveSightingActivity {
+  if (isSittingLiveProcess(input.process, input.now)) {
+    return 'idle'
+  }
+  if (!input.boundFromOwnCwd && input.waitingHere) {
+    return 'waiting-for-user'
+  }
+  return 'editing'
 }
 
 function titleForLocatedPlace(

@@ -32,7 +32,7 @@ export function liveSightingToEvent(
     baseCommit: null,
     headCommit: null,
     actorKind: 'agent',
-    activity: 'editing',
+    activity: sighting.activity ?? 'editing',
     resource: null,
     summary: sighting.title,
     attributionConfidence: sighting.attributionConfidence,

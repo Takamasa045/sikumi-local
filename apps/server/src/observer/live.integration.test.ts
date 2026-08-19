@@ -416,6 +416,130 @@ describe('live discovery without hooks', () => {
       ]),
     )
   })
+
+  it('does not keep a days-old sitting grok active next to the working one', async () => {
+    const { store, dataDirectory } = openIsolatedStore()
+    const tsugite = track(createTemporaryGitRepository())
+    const workspace = store.createWorkspace({
+      absolutePath: tsugite,
+      displayName: 'tsugite',
+      currentBranch: 'main',
+      remoteName: null,
+      remoteUrl: null,
+      readable: true,
+    })
+    const now = Date.parse('2026-08-19T00:10:00.000Z')
+    const service = trackService(
+      createObserverService(store, dataDirectory, {
+        consistencyIntervalMs: 0,
+        liveHomeDir: track(createTemporaryDirectory()),
+        liveCurrentUser: 'mei',
+        now: () => now,
+        listLiveProcesses: () => [
+          {
+            pid: 248,
+            user: 'mei',
+            command: 'grok',
+            args: 'grok',
+            cwd: tsugite,
+            state: 'R+',
+            cpuPercent: 18,
+            startedAtMs: now - 20 * 60_000,
+            childCount: 3,
+          },
+          {
+            pid: 26794,
+            user: 'mei',
+            command: 'grok',
+            args: 'grok',
+            cwd: tsugite,
+            state: 'S+',
+            cpuPercent: 0,
+            startedAtMs: now - 4 * 86_400_000,
+            childCount: 0,
+          },
+        ],
+      }),
+    )
+    await service.recover()
+
+    const sessions = store.listExternalSessions({
+      repositoryId: workspace.repository.id,
+    })
+    const groks = sessions.filter((item) => item.source === 'grok-build')
+    expect(
+      groks.find((item) => item.externalSessionId?.endsWith(':pid:248')),
+    ).toMatchObject({
+      status: 'active',
+      activity: 'editing',
+    })
+    expect(
+      groks.find((item) => item.externalSessionId?.endsWith(':pid:26794')),
+    ).toMatchObject({
+      status: 'idle',
+      activity: 'idle',
+    })
+  })
+
+  it('keeps a stale Codex wait at tsugite when the app-server cwd is /', async () => {
+    const { store, dataDirectory } = openIsolatedStore()
+    const tsugite = track(createTemporaryGitRepository())
+    const workspace = store.createWorkspace({
+      absolutePath: tsugite,
+      displayName: 'tsugite',
+      currentBranch: 'main',
+      remoteName: null,
+      remoteUrl: null,
+      readable: true,
+    })
+    store.upsertExternalSession({
+      id: 'sess-codex-wait',
+      source: 'codex',
+      surface: 'desktop-app',
+      externalSessionId: 'live:codex:sess-wait',
+      workspaceId: workspace.id,
+      repositoryId: workspace.repository.id,
+      cwd: tsugite,
+      worktreePath: tsugite,
+      branch: null,
+      baseCommit: null,
+      headCommit: null,
+      title: '作業中',
+      status: 'stale',
+      activity: 'waiting-for-user',
+      attributionConfidence: 'verified',
+      startedAt: '2026-08-18T23:00:00.000Z',
+      lastObservedAt: '2026-08-18T23:11:00.000Z',
+      endedAt: null,
+    })
+    const service = trackService(
+      createObserverService(store, dataDirectory, {
+        consistencyIntervalMs: 0,
+        liveHomeDir: track(createTemporaryDirectory()),
+        liveCurrentUser: 'mei',
+        listLiveProcesses: () => [
+          {
+            pid: 91,
+            user: 'mei',
+            command: 'ChatGPT',
+            args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+            cwd: '/',
+          },
+        ],
+      }),
+    )
+    await service.recover()
+
+    const overview = service.today()
+    const repository = overview.repositories.find(
+      (item) => item.repositoryId === workspace.repository.id,
+    )
+    const session = repository?.sessions.find((item) => item.source === 'codex')
+    expect(session).toMatchObject({
+      source: 'codex',
+      status: 'waiting-for-user',
+    })
+  })
 })
 
 function writeCodexRollout(

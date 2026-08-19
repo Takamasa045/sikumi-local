@@ -75,18 +75,39 @@ export function resolveTone(
   status: string | null | undefined,
   activity: string | null | undefined,
 ): ActorTone {
-  const haystack = `${status ?? ''} ${activity ?? ''}`.toLowerCase()
-  if (includesToken(haystack, 'waiting')) return 'waiting'
+  const statusKey = (status ?? '').toLowerCase()
+  const activityKey = (activity ?? '').toLowerCase()
   if (
-    includesToken(haystack, 'running') ||
-    includesToken(haystack, 'working') ||
-    includesToken(haystack, 'active')
+    includesToken(statusKey, 'waiting') ||
+    includesToken(activityKey, 'waiting')
+  ) {
+    return 'waiting'
+  }
+  if (includesToken(statusKey, 'stale')) {
+    return 'observing'
+  }
+  if (
+    includesToken(activityKey, 'idle') &&
+    !includesToken(statusKey, 'running') &&
+    !includesToken(statusKey, 'working')
+  ) {
+    return 'observing'
+  }
+  if (
+    includesToken(statusKey, 'running') ||
+    includesToken(statusKey, 'working') ||
+    includesToken(activityKey, 'running') ||
+    includesToken(activityKey, 'working') ||
+    includesToken(activityKey, 'editing') ||
+    (includesToken(statusKey, 'active') && !includesToken(activityKey, 'idle'))
   ) {
     return 'working'
   }
   if (
-    includesToken(haystack, 'completed') ||
-    includesToken(haystack, 'finished')
+    includesToken(statusKey, 'completed') ||
+    includesToken(activityKey, 'completed') ||
+    includesToken(statusKey, 'finished') ||
+    includesToken(activityKey, 'finished')
   ) {
     return 'completed'
   }
@@ -132,11 +153,14 @@ export function shouldShowGardenDog(
   if (!isObservedAgent(session) || isUnconfirmedChange(session)) {
     return false
   }
-  if (!isRecentlyObserved(session.lastObservedAt, nowMs)) {
+  const tone = resolveTone(session.status, session.activity)
+  if (tone === 'waiting') {
+    return true
+  }
+  if (tone !== 'working') {
     return false
   }
-  const tone = resolveTone(session.status, session.activity)
-  return tone === 'waiting' || tone === 'working'
+  return isRecentlyObserved(session.lastObservedAt, nowMs)
 }
 
 export function isGenericWorkTitle(title: string | null | undefined): boolean {

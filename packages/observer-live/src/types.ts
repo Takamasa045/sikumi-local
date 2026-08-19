@@ -29,6 +29,20 @@ export interface LiveProcessRow {
   readonly cwd: string | null
   readonly ppid?: number | null
   readonly childCwds?: readonly string[]
+  readonly state?: string | null
+  readonly cpuPercent?: number | null
+  readonly startedAtMs?: number | null
+  readonly childCount?: number
+}
+
+export type LiveSightingActivity = 'editing' | 'idle' | 'waiting-for-user'
+
+export interface ExistingLiveSession {
+  readonly source: string
+  readonly cwd: string | null
+  readonly repositoryId: string | null
+  readonly status: string
+  readonly activity: string
 }
 
 export interface LiveSighting {
@@ -44,6 +58,7 @@ export interface LiveSighting {
   readonly ingestionMethod: IngestionMethod
   readonly externalSessionId: string
   readonly pid: number | null
+  readonly activity?: LiveSightingActivity
 }
 
 export interface LiveDiscoveryInput {
@@ -52,6 +67,7 @@ export interface LiveDiscoveryInput {
   readonly currentUser: string
   readonly now?: number
   readonly listProcesses?: () => readonly LiveProcessRow[]
+  readonly existingSessions?: readonly ExistingLiveSession[]
 }
 
 export function isLiveAgentSource(

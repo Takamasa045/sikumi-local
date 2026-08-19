@@ -55,6 +55,21 @@ describe('nextSessionStatus', () => {
       'waiting-for-user',
     )
   })
+
+  it('keeps approval wait when a host process is only sitting at /', () => {
+    expect(
+      nextSessionStatus(
+        { ...liveProcessEvent(), activity: 'waiting-for-user' },
+        'stale',
+      ),
+    ).toBe('waiting-for-user')
+  })
+
+  it('does not treat a sitting live process as active work', () => {
+    expect(
+      nextSessionStatus({ ...liveProcessEvent(), activity: 'idle' }, 'active'),
+    ).toBe('idle')
+  })
 })
 
 function liveProcessEvent() {

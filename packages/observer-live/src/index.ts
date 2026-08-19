@@ -1,9 +1,11 @@
 export { discoverLiveSessions } from './discover.js'
 export { liveSightingToEvent } from './events.js'
 export { identifyLiveAgent, isIgnoredLiveHaystack } from './identify.js'
+export { resetPlaceIdentityCache, sameRepoIdentity } from './identity.js'
 export {
   isBindableCwd,
   isSameLeafAlias,
+  leafTwinFolder,
   matchRegisteredPlace,
   matchRegisteredRoot,
 } from './match.js'

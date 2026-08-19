@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import {
   mkdirSync,
@@ -12,6 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { OBSERVER_LIVE_SESSION_MAX_AGE_MS } from '@sikumi-local/observer-core'
 import { discoverLiveSessions } from './discover.js'
 import { identifyLiveAgent } from './identify.js'
+import { resetPlaceIdentityCache, sameRepoIdentity } from './identity.js'
 import { isBindableCwd, matchRegisteredRoot } from './match.js'
 import { encodeClaudeProjectDir } from './session-files.js'
 import { acceptStoredTitle } from './titles.js'
@@ -21,6 +23,7 @@ const NOW = Date.parse('2026-08-19T00:10:00.000Z')
 const tempDirectories: string[] = []
 
 afterEach(() => {
+  resetPlaceIdentityCache()
   for (const directory of tempDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -269,6 +272,30 @@ describe('discoverLiveSessions', () => {
   })
 })
 
+describe('same-repo identity', () => {
+  it('treats https and ssh remotes as the same repo and refuses a different package', () => {
+    const projects = track(createTempDir('id-'))
+    const hataraki = join(projects, 'hataraki')
+    const twin = join(projects, '*開発', 'hataraki')
+    const other = join(projects, 'work', 'hataraki')
+    writeIdentifiedRepo(hataraki, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    writeIdentifiedRepo(twin, {
+      packageName: 'hataraki',
+      remoteUrl: 'git@github.com:example/hataraki.git',
+    })
+    writeIdentifiedRepo(other, {
+      packageName: 'sikumi-local',
+      remoteUrl: 'https://github.com/Takamasa045/sikumi-local.git',
+    })
+    expect(sameRepoIdentity(hataraki, twin)).toBe(true)
+    expect(sameRepoIdentity(hataraki, other)).toBe(false)
+    expect(sameRepoIdentity(hataraki, '/Users/missing/hataraki')).toBe(false)
+  })
+})
+
 describe('matchRegisteredRoot', () => {
   it('does not treat a sibling path as the registered folder', () => {
     const roots = [root('repo', 'ws', '/Users/mei/project')]
@@ -278,36 +305,108 @@ describe('matchRegisteredRoot', () => {
     expect(matchRegisteredRoot('/Users/mei/project-other', roots)).toBeNull()
   })
 
-  it('treats a same-leaf nested twin as the registered place', () => {
+  it('does not treat a same-leaf nested folder as the registered place without the same repo', () => {
     const roots = [root('repo', 'ws', '/Users/takamasa/Projects/hataraki')]
     expect(
       matchRegisteredRoot(
         '/Users/takamasa/Projects/*開発/hataraki',
         roots,
-      )?.repositoryId,
-    ).toBe('repo')
+      ),
+    ).toBeNull()
     expect(
       matchRegisteredRoot(
         '/Users/takamasa/Projects/*開発/hataraki/src',
         roots,
-      )?.repositoryId,
-    ).toBe('repo')
-    expect(
-      matchRegisteredRoot('/Users/other/hataraki', roots),
+      ),
     ).toBeNull()
+    expect(matchRegisteredRoot('/Users/other/hataraki', roots)).toBeNull()
     expect(
       matchRegisteredRoot('/Users/takamasa/Documents/hataraki', roots),
     ).toBeNull()
     expect(isBindableCwd('/')).toBe(false)
     expect(matchRegisteredRoot('/', roots)).toBeNull()
   })
+
+  it('aliases a same-leaf nested twin only when remote or package name match', () => {
+    const projects = track(createTempDir('projects-'))
+    const registered = join(projects, 'hataraki')
+    const olderSikumi = join(projects, '*開発', 'hataraki')
+    const trueTwin = join(projects, 'work', 'hataraki')
+    writeIdentifiedRepo(registered, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    writeIdentifiedRepo(olderSikumi, {
+      packageName: 'sikumi-local',
+      remoteUrl: 'https://github.com/Takamasa045/sikumi-local.git',
+    })
+    writeIdentifiedRepo(trueTwin, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    const roots = [root('repo', 'ws', registered)]
+    expect(matchRegisteredRoot(olderSikumi, roots)).toBeNull()
+    expect(matchRegisteredRoot(join(olderSikumi, 'src'), roots)).toBeNull()
+    expect(matchRegisteredRoot(trueTwin, roots)?.repositoryId).toBe('repo')
+    expect(matchRegisteredRoot(join(trueTwin, 'src'), roots)?.repositoryId).toBe(
+      'repo',
+    )
+  })
 })
 
 describe('desktop and alias discovery', () => {
-  it('binds a Codex process in a same-leaf twin folder to the registered place', () => {
+  it('does not bind a Codex process in an older same-leaf checkout of another repo', () => {
     const home = track(createTempDir('home-'))
-    const registered = '/Users/takamasa/Projects/hataraki'
-    const live = '/Users/takamasa/Projects/*開発/hataraki'
+    const projects = track(createTempDir('projects-'))
+    const registered = join(projects, 'hataraki')
+    const olderSikumi = join(projects, '*開発', 'hataraki')
+    writeIdentifiedRepo(registered, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    writeIdentifiedRepo(olderSikumi, {
+      packageName: 'sikumi-local',
+      remoteUrl: 'https://github.com/Takamasa045/sikumi-local.git',
+    })
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', registered)],
+      listProcesses: () => [
+        processRow({
+          pid: 31,
+          user: 'mei',
+          command: 'codex',
+          args: 'codex',
+          cwd: olderSikumi,
+        }),
+        processRow({
+          pid: 32,
+          user: 'mei',
+          command: 'codex',
+          args: 'codex',
+          cwd: '/Users/other/hataraki',
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(0)
+  })
+
+  it('binds a Codex process in a same-leaf twin that is the same repo', () => {
+    const home = track(createTempDir('home-'))
+    const projects = track(createTempDir('projects-'))
+    const registered = join(projects, 'hataraki')
+    const live = join(projects, '*開発', 'hataraki')
+    writeIdentifiedRepo(registered, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    writeIdentifiedRepo(live, {
+      packageName: 'hataraki',
+      remoteUrl: 'git@github.com:example/hataraki.git',
+    })
     const sightings = discoverLiveSessions({
       homeDir: home,
       currentUser: 'mei',
@@ -321,13 +420,6 @@ describe('desktop and alias discovery', () => {
           args: 'codex',
           cwd: live,
         }),
-        processRow({
-          pid: 32,
-          user: 'mei',
-          command: 'codex',
-          args: 'codex',
-          cwd: '/Users/other/hataraki',
-        }),
       ],
     })
 
@@ -340,10 +432,19 @@ describe('desktop and alias discovery', () => {
     })
   })
 
-  it('ignores leftover fixture processes even inside a registered twin', () => {
+  it('ignores leftover fixture processes and does not treat an older same-leaf checkout as hataraki', () => {
     const home = track(createTempDir('home-'))
-    const registered = '/Users/takamasa/Projects/hataraki'
-    const live = '/Users/takamasa/Projects/*開発/hataraki'
+    const projects = track(createTempDir('projects-'))
+    const registered = join(projects, 'hataraki')
+    const live = join(projects, '*開発', 'hataraki')
+    writeIdentifiedRepo(registered, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    writeIdentifiedRepo(live, {
+      packageName: 'sikumi-local',
+      remoteUrl: 'https://github.com/Takamasa045/sikumi-local.git',
+    })
     const sightings = discoverLiveSessions({
       homeDir: home,
       currentUser: 'mei',
@@ -374,19 +475,23 @@ describe('desktop and alias discovery', () => {
       ],
     })
 
-    expect(sightings).toHaveLength(1)
-    expect(sightings[0]).toMatchObject({
-      source: 'codex',
-      surface: 'desktop-app',
-      repositoryId: 'repo-hataraki',
-    })
+    expect(sightings).toHaveLength(0)
     expect(sightings.some((item) => item.source === 'claude-code')).toBe(false)
   })
 
-  it('uses a child cwd when Codex Desktop is alive at /', () => {
+  it('uses a same-repo child cwd when Codex Desktop is alive at /', () => {
     const home = track(createTempDir('home-'))
-    const registered = '/Users/takamasa/Projects/hataraki'
-    const live = '/Users/takamasa/Projects/*開発/hataraki'
+    const projects = track(createTempDir('projects-'))
+    const registered = join(projects, 'hataraki')
+    const live = join(projects, '*開発', 'hataraki')
+    writeIdentifiedRepo(registered, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    writeIdentifiedRepo(live, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
     const sightings = discoverLiveSessions({
       homeDir: home,
       currentUser: 'mei',
@@ -415,10 +520,19 @@ describe('desktop and alias discovery', () => {
     })
   })
 
-  it('uses a recent Codex session cwd when Desktop cwd is / and children do not help', () => {
+  it('does not bind Desktop at / through an older same-leaf checkout of another repo', () => {
     const home = track(createTempDir('home-'))
-    const registered = '/Users/takamasa/Projects/hataraki'
-    const live = '/Users/takamasa/Projects/*開発/hataraki'
+    const projects = track(createTempDir('projects-'))
+    const registered = join(projects, 'hataraki')
+    const live = join(projects, '*開発', 'hataraki')
+    writeIdentifiedRepo(registered, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    writeIdentifiedRepo(live, {
+      packageName: 'sikumi-local',
+      remoteUrl: 'https://github.com/Takamasa045/sikumi-local.git',
+    })
     writeCodexSession(home, {
       id: 'sess-hataraki',
       cwd: live,
@@ -445,20 +559,22 @@ describe('desktop and alias discovery', () => {
       ],
     })
 
-    expect(sightings).toHaveLength(1)
-    expect(sightings[0]).toMatchObject({
-      source: 'codex',
-      kind: 'process',
-      repositoryId: 'repo-hataraki',
-      title: '働きの直し',
-      attributionConfidence: 'correlated',
-    })
+    expect(sightings).toHaveLength(0)
   })
 
-  it('binds Desktop at / through a real temp registered folder and a * twin session', () => {
+  it('binds Desktop at / through a same-repo * twin session', () => {
     const home = track(createTempDir('home-'))
-    const registered = track(createTempDir('hataraki-'))
-    const live = join(dirname(registered), '*開発', basename(registered))
+    const projects = track(createTempDir('projects-'))
+    const registered = join(projects, 'hataraki')
+    const live = join(projects, '*開発', 'hataraki')
+    writeIdentifiedRepo(registered, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
+    writeIdentifiedRepo(live, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
     writeCodexSession(home, {
       id: 'sess-real',
       cwd: live,
@@ -484,6 +600,33 @@ describe('desktop and alias discovery', () => {
     expect(sightings).toHaveLength(1)
     expect(sightings[0]?.repositoryId).toBe('repo-hataraki')
     expect(sightings[0]?.kind).toBe('process')
+  })
+
+  it('does not invent a place when Desktop children sit in several registered folders', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = track(createTempDir('hataraki-'))
+    const blog = track(createTempDir('blog-'))
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [
+        root('repo-hataraki', 'ws-hataraki', hataraki),
+        root('repo-blog', 'ws-blog', blog),
+      ],
+      listProcesses: () => [
+        processRow({
+          pid: 81,
+          user: 'mei',
+          command: 'codex',
+          args: 'codex',
+          cwd: '/',
+          childCwds: [hataraki, blog],
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(0)
   })
 
   it('does not invent a place when Desktop cwd is / and two registered folders have recent sessions', () => {
@@ -582,5 +725,24 @@ function createTempDir(prefix: string): string {
 
 function track(directory: string): string {
   tempDirectories.push(directory)
+  return directory
+}
+
+function writeIdentifiedRepo(
+  directory: string,
+  identity: {
+    readonly packageName: string
+    readonly remoteUrl: string
+  },
+): string {
+  mkdirSync(directory, { recursive: true })
+  execFileSync('git', ['init', '-b', 'main'], { cwd: directory })
+  writeFileSync(
+    join(directory, 'package.json'),
+    `${JSON.stringify({ name: identity.packageName }, null, 2)}\n`,
+  )
+  execFileSync('git', ['remote', 'add', 'origin', identity.remoteUrl], {
+    cwd: directory,
+  })
   return directory
 }

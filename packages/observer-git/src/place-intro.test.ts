@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -38,12 +38,7 @@ describe('readPlaceIntro', () => {
     const root = createTemp()
     writeFileSync(
       join(root, 'README.md'),
-      [
-        '# Tsugite',
-        '',
-        'A local video-production workshop.',
-        '',
-      ].join('\n'),
+      ['# Tsugite', '', 'A local video-production workshop.', ''].join('\n'),
     )
     writeFileSync(
       join(root, 'README.ja.md'),
@@ -90,6 +85,85 @@ describe('readPlaceIntro', () => {
       ['# README.md', '', 'まだ分かっていません', ''].join('\n'),
     )
     expect(readPlaceIntro(root)).toBeNull()
+  })
+
+  it('reads a long Japanese README after language-switch lines and keeps the work words', () => {
+    const root = createTemp()
+    const workshop =
+      'AI動画を作って終わりにせず、素材、制作ログ、判断、好みを次の制作へ継いでいくローカル動画制作工房です。'
+    writeFileSync(
+      join(root, 'README.md'),
+      ['# Tsugite', '', 'A local video-production workshop.', ''].join('\n'),
+    )
+    writeFileSync(
+      join(root, 'README.ja.md'),
+      [
+        '# Tsugite',
+        '（言語切替リンク: English | 日本語 | 中文 | 한국어）',
+        workshop,
+        '',
+        '## 詳細',
+        'あ'.repeat(12_000),
+        '',
+      ].join('\n'),
+    )
+    const intro = readPlaceIntro(root)
+    expect(statSync(join(root, 'README.ja.md')).size).toBeGreaterThan(16 * 1024)
+    expect(intro).toBe(workshop)
+    expect(intro).toContain('動画')
+    expect(intro).toContain('工房')
+    expect(intro).not.toContain('English | 日本語')
+    expect(intro).not.toContain('Tsugite')
+    expect(intro).not.toContain('README')
+    expect(intro).not.toContain('言語切替')
+  })
+
+  it('skips markdown language tabs and heading-only proper names', () => {
+    const root = createTemp()
+    writeFileSync(
+      join(root, 'README.ja.md'),
+      [
+        '# Tsugite',
+        '',
+        '[English](README.md) | [日本語](README.ja.md) | [中文](README.zh.md) | [한국어](README.ko.md)',
+        '',
+        'AI動画を作って終わりにせず、素材、制作ログ、判断、好みを次の制作へ継いでいくローカル動画制作工房です。',
+        '',
+      ].join('\n'),
+    )
+    const intro = readPlaceIntro(root)
+    expect(intro).toContain('動画')
+    expect(intro).toContain('ローカル動画制作工房')
+    expect(intro).not.toContain('Tsugite')
+    expect(intro).not.toContain('English')
+    expect(intro).not.toContain('README')
+  })
+
+  it('keeps a work word when the 80-character clip would otherwise drop it', () => {
+    const root = createTemp()
+    const prefix = `${'あ'.repeat(70)}。`
+    const work = 'ローカル動画制作工房です。'
+    writeFileSync(
+      join(root, 'README.md'),
+      ['# はたらき', '', `${prefix}${work}`, ''].join('\n'),
+    )
+    const intro = readPlaceIntro(root)
+    expect(intro).toContain('動画')
+    expect(intro).not.toContain('README')
+    expect(intro?.length).toBeLessThanOrEqual(80)
+  })
+
+  it('does not make an intro from leftover confirmation areas or porch copy', () => {
+    const root = createTemp()
+    writeFileSync(
+      join(root, 'README.md'),
+      ['# 作業中のファイル', '', '確認用の仕組み', ''].join('\n'),
+    )
+    expect(readPlaceIntro(root)).toBeNull()
+
+    const porch = createTemp()
+    writeFileSync(join(porch, 'README.md'), '縁側にいます\n')
+    expect(readPlaceIntro(porch)).toBeNull()
   })
 })
 

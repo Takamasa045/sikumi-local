@@ -63,6 +63,10 @@ test('the garden shows registered places as characters, not a list', async ({
     .getByRole('list', { name: '庭の住人' })
     .getByRole('listitem')
   await expect(resident).not.toHaveAttribute('data-station', 'observatory')
+  await expect(resident).not.toHaveAttribute('data-station', 'archive')
+  expect(
+    Number(await resident.getAttribute('data-ground-x')),
+  ).toBeGreaterThanOrEqual(36)
   await resident.getByRole('button').click()
   const inspect = page.getByTestId('garden-inspect')
   await expect(inspect).toContainText('しくみローカル番')

@@ -15,7 +15,20 @@ export const SHIKUMI_PLACE_NAME = 'しくみローカル番'
 
 const ATLAS_COLUMNS = 3
 const ATLAS_ROWS = 4
-const QUIET_STATIONS = ['archive', 'rest', 'delivery'] as const
+const QUIET_STATIONS = ['rest', 'delivery'] as const
+
+export const GARDEN_GROUND = {
+  minX: 36,
+  maxX: 84,
+  minY: 34,
+  maxY: 64,
+} as const
+
+const WORKBENCH_POINT = { x: 49, y: 38 }
+const WAITING_POINT = { x: 78, y: 44 }
+const REST_POINT = { x: 53, y: 49 }
+const DELIVERY_POINT = { x: 69, y: 27 }
+const GROUND_Y_WAVE = [0, 8, -5, 10, 3, -7, 5] as const
 
 type OverviewRepository = TodayOverview['repositories'][number]
 type OverviewSession = OverviewRepository['sessions'][number]
@@ -57,6 +70,8 @@ export type GardenPlaceActor = {
   readonly driverNote: string | null
   readonly station: GardenPlaceStation
   readonly tone: GardenPlaceTone
+  readonly groundX: number
+  readonly groundY: number
   readonly column: number
   readonly row: number
   readonly slot: number
@@ -168,7 +183,7 @@ export function collectGardenActors(
   workspaces: readonly Workspace[] = [],
 ): GardenPlaceActor[] {
   const residents = collectPlaceResidents(overview, workspaces)
-  const slotCursor = new Map<GardenPlaceStation, number>()
+  const plots = assignGardenGroundPlots(residents)
   return residents
     .map((resident) => {
       const hash = stableHash(resident.repositoryId)
@@ -178,6 +193,7 @@ export function collectGardenActors(
           ? 'working'
           : 'observing'
       const inspect = describePlaceInspect(resident)
+      const plot = plots.get(resident.repositoryId)
       return {
         key: resident.repositoryId,
         repositoryId: resident.repositoryId,
@@ -187,21 +203,18 @@ export function collectGardenActors(
         implementationLook: inspect.implementationLook,
         nextStep: inspect.nextStep,
         driverNote: inspect.driverNote,
-        station: stationForResident(resident, hash),
+        station: plot?.station ?? stationForResident(resident),
         tone,
+        groundX: plot?.x ?? REST_POINT.x,
+        groundY: plot?.y ?? REST_POINT.y,
         column: hash % ATLAS_COLUMNS,
         row: (hash >>> 3) % ATLAS_ROWS,
-        slot: 0,
+        slot: plot?.slot ?? 0,
         jitterX: ((hash % 7) - 3) * 0.18,
         jitterY: (((hash >>> 4) % 5) - 2) * 0.14,
       }
     })
     .sort((left, right) => left.key.localeCompare(right.key))
-    .map((actor) => {
-      const slot = slotCursor.get(actor.station) ?? 0
-      slotCursor.set(actor.station, slot + 1)
-      return { ...actor, slot }
-    })
 }
 
 export function stationForResident(
@@ -211,6 +224,121 @@ export function stationForResident(
   if (resident.waiting) return 'waiting'
   if (resident.working) return 'workbench'
   return QUIET_STATIONS[hash % QUIET_STATIONS.length] ?? 'rest'
+}
+
+export function assignGardenGroundPlots(
+  residents: readonly Pick<
+    PlaceResident,
+    'repositoryId' | 'waiting' | 'working'
+  >[],
+): ReadonlyMap<
+  string,
+  {
+    readonly x: number
+    readonly y: number
+    readonly station: GardenPlaceStation
+    readonly slot: number
+  }
+> {
+  const plots = spreadGardenGroundPlots(residents.length)
+  const unused = plots.map((_, index) => index)
+  const assigned = new Map<
+    string,
+    {
+      readonly x: number
+      readonly y: number
+      readonly station: GardenPlaceStation
+      readonly slot: number
+    }
+  >()
+  const ordered = [...residents].sort((left, right) =>
+    left.repositoryId.localeCompare(right.repositoryId),
+  )
+
+  function takeClosest(target: { readonly x: number; readonly y: number }) {
+    let bestUnused = 0
+    let bestDistance = Number.POSITIVE_INFINITY
+    for (let index = 0; index < unused.length; index += 1) {
+      const plot = plots[unused[index]!]
+      if (!plot) continue
+      const distance = (plot.x - target.x) ** 2 + (plot.y - target.y) ** 2
+      if (distance < bestDistance) {
+        bestDistance = distance
+        bestUnused = index
+      }
+    }
+    const plotIndex = unused.splice(bestUnused, 1)[0] ?? 0
+    return { plot: plots[plotIndex] ?? REST_POINT, slot: plotIndex }
+  }
+
+  for (const resident of ordered.filter((item) => item.waiting)) {
+    const { plot, slot } = takeClosest(WAITING_POINT)
+    assigned.set(resident.repositoryId, {
+      x: plot.x,
+      y: plot.y,
+      station: 'waiting',
+      slot,
+    })
+  }
+  for (const resident of ordered.filter(
+    (item) => !item.waiting && item.working,
+  )) {
+    const { plot, slot } = takeClosest(WORKBENCH_POINT)
+    assigned.set(resident.repositoryId, {
+      x: plot.x,
+      y: plot.y,
+      station: 'workbench',
+      slot,
+    })
+  }
+  for (const resident of ordered.filter(
+    (item) => !item.waiting && !item.working,
+  )) {
+    const plotIndex = unused.shift() ?? 0
+    const plot = plots[plotIndex] ?? REST_POINT
+    assigned.set(resident.repositoryId, {
+      x: plot.x,
+      y: plot.y,
+      station: quietStationForPlot(plot),
+      slot: plotIndex,
+    })
+  }
+  return assigned
+}
+
+export function spreadGardenGroundPlots(
+  count: number,
+): readonly { readonly x: number; readonly y: number }[] {
+  if (count <= 0) {
+    return []
+  }
+  if (count === 1) {
+    return [{ x: 58, y: 50 }]
+  }
+  const span = GARDEN_GROUND.maxX - GARDEN_GROUND.minX
+  return Array.from({ length: count }, (_, index) => {
+    const x = GARDEN_GROUND.minX + (span * index) / (count - 1)
+    const waved = 48 + GROUND_Y_WAVE[index % GROUND_Y_WAVE.length]!
+    return {
+      x,
+      y: clamp(waved, GARDEN_GROUND.minY, GARDEN_GROUND.maxY),
+    }
+  })
+}
+
+function quietStationForPlot(plot: {
+  readonly x: number
+  readonly y: number
+}): GardenPlaceStation {
+  const restDistance =
+    (plot.x - REST_POINT.x) ** 2 + (plot.y - REST_POINT.y) ** 2
+  const deliveryDistance =
+    (plot.x - DELIVERY_POINT.x) ** 2 + (plot.y - DELIVERY_POINT.y) ** 2
+  return restDistance <= deliveryDistance ? 'rest' : 'delivery'
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
 }
 
 export function placeActivityLabel(resident: PlaceResident): string {

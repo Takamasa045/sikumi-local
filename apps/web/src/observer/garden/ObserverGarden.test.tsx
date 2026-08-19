@@ -71,11 +71,18 @@ describe('ObserverGarden', () => {
     expect(within(residents).getAllByText('まだ分かっていません')).toHaveLength(
       2,
     )
+    const items = within(residents).getAllByRole('listitem')
     expect(
-      within(residents)
-        .getAllByRole('listitem')
-        .every((item) => item.getAttribute('data-station') !== 'observatory'),
+      items.every(
+        (item) => item.getAttribute('data-station') !== 'observatory',
+      ),
     ).toBe(true)
+    expect(
+      items.every((item) => item.getAttribute('data-station') !== 'archive'),
+    ).toBe(true)
+    const groundXs = items.map((item) => item.getAttribute('data-ground-x'))
+    expect(new Set(groundXs).size).toBe(2)
+    expect(groundXs.every((value) => Number(value) >= 36)).toBe(true)
   })
 
   it('does not use git or inferred work as the job name', () => {

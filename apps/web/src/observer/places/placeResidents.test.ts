@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
 import type { Workspace } from '@sikumi-local/core'
 import {
+  assignGardenGroundPlots,
   collectGardenActors,
   collectPlaceResidents,
   deriveEmployeeName,
   derivePlaceName,
   describePlaceInspect,
+  GARDEN_GROUND,
   placeActivityLabel,
   SHIKUMI_PLACE_NAME,
+  spreadGardenGroundPlots,
   UNKNOWN_PLACE_WORK,
 } from './placeResidents'
 
@@ -162,9 +165,12 @@ describe('collectGardenActors', () => {
     ])
     expect(
       actors.every((actor) =>
-        ['archive', 'workbench', 'delivery', 'waiting', 'rest'].includes(
-          actor.station,
-        ),
+        ['workbench', 'delivery', 'waiting', 'rest'].includes(actor.station),
+      ),
+    ).toBe(true)
+    expect(
+      actors.every(
+        (actor) => !['archive', 'observatory'].includes(actor.station),
       ),
     ).toBe(true)
     const working = actors.find((actor) => actor.placeName === 'ブログ番')
@@ -178,7 +184,110 @@ describe('collectGardenActors', () => {
     expect(quiet?.nowText).toBe('静か。まだ分かっていません')
     expect(quiet?.implementationLook).toBe(UNKNOWN_PLACE_WORK)
     expect(quiet?.nextStep).toBe('次に動かすまで待つ')
-    expect(['archive', 'rest', 'delivery']).toContain(quiet?.station)
+    expect(['rest', 'delivery']).toContain(quiet?.station)
+    expect(working?.groundX).not.toBe(quiet?.groundX)
+    expect(Math.min(working!.groundX, quiet!.groundX)).toBeGreaterThanOrEqual(
+      GARDEN_GROUND.minX,
+    )
+  })
+
+  it('scatters quiet places across the center-to-right ground', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'alpha', []),
+        repository('repo_b', 'ws_b', 'beta', []),
+        repository('repo_c', 'ws_c', 'gamma', []),
+        repository('repo_d', 'ws_d', 'delta', []),
+      ]),
+    )
+
+    const xs = actors.map((actor) => actor.groundX)
+    expect(actors).toHaveLength(4)
+    expect(new Set(xs.map((value) => value.toFixed(1))).size).toBe(4)
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(GARDEN_GROUND.minX)
+    expect(Math.max(...xs)).toBeLessThanOrEqual(GARDEN_GROUND.maxX)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(20)
+    expect(
+      actors.every(
+        (actor) =>
+          !['archive', 'observatory'].includes(actor.station) &&
+          actor.groundY >= GARDEN_GROUND.minY &&
+          actor.groundY <= GARDEN_GROUND.maxY,
+      ),
+    ).toBe(true)
+  })
+
+  it('keeps working and waiting near their meaning without stacking', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'alpha', [
+          session({
+            id: 'run',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+        repository('repo_b', 'ws_b', 'beta', [
+          session({
+            id: 'wait',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: '承認が必要',
+            status: 'idle',
+            activity: 'waiting',
+          }),
+        ]),
+        repository('repo_c', 'ws_c', 'gamma', []),
+      ]),
+    )
+
+    const working = actors.find((actor) => actor.placeName === 'alpha番')
+    const waiting = actors.find((actor) => actor.placeName === 'beta番')
+    const quiet = actors.find((actor) => actor.placeName === 'gamma番')
+    expect(working?.station).toBe('workbench')
+    expect(waiting?.station).toBe('waiting')
+    expect(['rest', 'delivery']).toContain(quiet?.station)
+    expect(new Set(actors.map((actor) => actor.groundX.toFixed(1))).size).toBe(
+      3,
+    )
+    expect(Math.abs((working?.groundX ?? 0) - 49)).toBeLessThan(
+      Math.abs((waiting?.groundX ?? 0) - 49),
+    )
+    expect(Math.abs((waiting?.groundX ?? 0) - 78)).toBeLessThan(
+      Math.abs((working?.groundX ?? 0) - 78),
+    )
+  })
+})
+
+describe('spreadGardenGroundPlots', () => {
+  it('does not put a single resident on the left roof', () => {
+    expect(spreadGardenGroundPlots(1)).toEqual([{ x: 58, y: 50 }])
+  })
+
+  it('gives each resident a distinct ground plot', () => {
+    const plots = spreadGardenGroundPlots(5)
+    expect(plots).toHaveLength(5)
+    expect(new Set(plots.map((plot) => plot.x.toFixed(2))).size).toBe(5)
+    expect(plots[0]?.x).toBe(GARDEN_GROUND.minX)
+    expect(plots[4]?.x).toBe(GARDEN_GROUND.maxX)
+  })
+})
+
+describe('assignGardenGroundPlots', () => {
+  it('never assigns the roof or telescope stations', () => {
+    const assigned = assignGardenGroundPlots([
+      { repositoryId: 'a', waiting: false, working: false },
+      { repositoryId: 'b', waiting: false, working: false },
+      { repositoryId: 'c', waiting: false, working: true },
+    ])
+    expect(
+      [...assigned.values()].every(
+        (plot) => !['archive', 'observatory'].includes(plot.station),
+      ),
+    ).toBe(true)
   })
 })
 

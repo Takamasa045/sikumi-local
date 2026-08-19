@@ -25,6 +25,7 @@ export interface RepositoryActivityView {
   readonly gitAvailable: boolean
   readonly summary: string
   readonly changedFileCount: number
+  readonly lastChangedAt: string | null
   readonly lastChangedLabel: string | null
   readonly sessions: readonly SessionView[]
   readonly worktrees: readonly WorktreeView[]
@@ -181,6 +182,7 @@ export function buildRepositoryActivity(input: {
     gitAvailable: input.snapshot.available,
     summary,
     changedFileCount,
+    lastChangedAt: input.snapshot.scannedAt,
     lastChangedLabel: relativeTimeLabel(input.snapshot.scannedAt),
     sessions: sessions.items,
     worktrees,

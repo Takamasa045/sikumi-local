@@ -46,6 +46,8 @@ export type PlaceResident = {
   readonly lastObservedWork: string
   readonly lastObservedLabel: string | null
   readonly lastObservedWorkLabel: string | null
+  readonly lastChangedAt: string | null
+  readonly lastObservedAt: string | null
   readonly changedFileCount: number
   readonly areas: readonly string[]
   readonly conflictCount: number
@@ -150,6 +152,8 @@ export function collectPlaceResidents(
       lastObservedWork: describePlaceWork(observed, repository, nowMs),
       lastObservedLabel: latest?.lastObservedLabel ?? null,
       lastObservedWorkLabel: latestObserved?.lastObservedLabel ?? null,
+      lastChangedAt: repository.lastChangedAt ?? null,
+      lastObservedAt: latest?.lastObservedAt ?? null,
       changedFileCount: repository.changedFileCount,
       areas: lookAreas(repository),
       conflictCount: repository.conflicts.length,
@@ -171,6 +175,8 @@ export function collectPlaceResidents(
       lastObservedWork: UNKNOWN_PLACE_WORK,
       lastObservedLabel: null,
       lastObservedWorkLabel: null,
+      lastChangedAt: workspace.updatedAt,
+      lastObservedAt: workspace.updatedAt,
       changedFileCount: 0,
       areas: [],
       conflictCount: 0,
@@ -341,6 +347,38 @@ function quietStationForPlot(plot: {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
+}
+
+export function sortPlaceResidents(
+  residents: readonly PlaceResident[],
+): PlaceResident[] {
+  return [...residents].sort((left, right) => {
+    const leftLive = left.working || left.waiting
+    const rightLive = right.working || right.waiting
+    if (leftLive !== rightLive) {
+      return leftLive ? -1 : 1
+    }
+    const recency = residentRecency(right) - residentRecency(left)
+    if (recency !== 0) {
+      return recency
+    }
+    return left.placeName.localeCompare(right.placeName, 'ja')
+  })
+}
+
+function residentRecency(resident: PlaceResident): number {
+  return Math.max(
+    parseTime(resident.lastChangedAt),
+    parseTime(resident.lastObservedAt),
+  )
+}
+
+function parseTime(value: string | null): number {
+  if (!value) {
+    return 0
+  }
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? 0 : parsed
 }
 
 export function placeActivityLabel(resident: PlaceResident): string {

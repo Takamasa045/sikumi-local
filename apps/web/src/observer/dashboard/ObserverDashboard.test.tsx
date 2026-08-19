@@ -59,6 +59,9 @@ describe('ObserverDashboard', () => {
       />,
     )
 
+    expect(
+      screen.getByRole('heading', { name: '登録した場所' }),
+    ).toBeVisible()
     expect(screen.getByTestId('observer-add-repository')).toBeVisible()
     expect(screen.getByText('first番')).toBeVisible()
     expect(screen.getByText((content) => content === 'first')).toBeVisible()

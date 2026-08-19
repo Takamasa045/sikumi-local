@@ -81,6 +81,7 @@ export const repositoryActivitySchema = z.object({
   gitAvailable: z.boolean(),
   summary: z.string(),
   changedFileCount: z.number(),
+  lastChangedAt: z.string().nullable().optional(),
   lastChangedLabel: z.string().nullable(),
   sessions: z.array(sessionViewSchema),
   worktrees: z.array(worktreeViewSchema),

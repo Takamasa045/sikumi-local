@@ -45,7 +45,8 @@ test('observer e2e covers adapters, git-only unknown, conflicts, persistence, an
   await expect(page.getByTestId('observer-stats')).toBeVisible()
   await expect(page.getByText('変更元不明', { exact: false }).first()).toBeVisible()
 
-  await page.getByRole('link', { name: '設定' }).click()
+  await page.getByRole('contentinfo').getByRole('link', { name: '設定' }).click()
+  await page.getByText('道具をつなぐ（任意）').click()
   await expect(page.getByTestId('observer-adapters')).toBeVisible()
   for (const source of ['codex', 'cursor', 'grok-build', 'claude-code', 'claude-desktop']) {
     await expect(page.getByTestId(`observer-adapter-${source}`)).toBeVisible()
@@ -76,6 +77,7 @@ test('observer e2e covers adapters, git-only unknown, conflicts, persistence, an
   await expect(page.getByTestId('conflict-counts')).toBeVisible()
 
   await page.goto('/#settings')
+  await page.getByText('道具をつなぐ（任意）').click()
   await expect(page.getByTestId('observer-adapters')).toBeVisible()
   await page.getByRole('link', { name: '庭' }).click()
   await expect(page.locator('#garden')).toBeVisible()

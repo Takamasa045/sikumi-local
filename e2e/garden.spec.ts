@@ -18,7 +18,10 @@ test('the garden is the default home screen', async ({ page }) => {
     'page',
   )
   await expect(nav.getByRole('link', { name: '今日の作業場' })).toBeVisible()
-  await expect(nav.getByRole('link', { name: '設定' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: '設定' })).toHaveCount(0)
+  await expect(
+    page.getByRole('contentinfo').getByRole('link', { name: '設定' }),
+  ).toBeVisible()
   await expect(page.getByRole('form', { name: '仕事を頼む' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '仕事を頼む' })).toHaveCount(0)
   await expect(page.getByTestId('world-stage')).toHaveCount(0)
@@ -85,11 +88,11 @@ test("a user can move between garden, today's workshop, and settings", async ({
 
   await page.getByRole('link', { name: '今日の作業場' }).click()
   await expect(
-    page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+    page.getByRole('heading', { name: '登録した場所' }),
   ).toBeVisible()
   await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
 
-  await page.getByRole('link', { name: '設定' }).click()
+  await page.getByRole('contentinfo').getByRole('link', { name: '設定' }).click()
   await expect(
     page.getByRole('heading', { name: '工房の整え方' }),
   ).toBeVisible()
@@ -108,7 +111,7 @@ test('a user can click a garden station to see what is happening', async ({
   await expect(page.getByTestId('garden-employee')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+    page.getByRole('heading', { name: '登録した場所' }),
   ).toHaveCount(0)
 
   await page.getByRole('button', { name: '資料棚' }).click()

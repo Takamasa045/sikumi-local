@@ -4,6 +4,7 @@ import { confirmUnregisterPlace } from '../../workspace/confirmUnregisterPlace'
 import {
   collectPlaceResidents,
   placeActivityLabel,
+  sortPlaceResidents,
   type PlaceResident,
 } from './placeResidents'
 
@@ -22,7 +23,9 @@ export function PlaceResidentList({
   onSelect,
   onUnregister,
 }: PlaceResidentListProps) {
-  const residents = collectPlaceResidents(overview, workspaces)
+  const residents = sortPlaceResidents(
+    collectPlaceResidents(overview, workspaces),
+  )
 
   return (
     <section className="observer-place-list" aria-label="○○番の一覧">
@@ -30,7 +33,7 @@ export function PlaceResidentList({
         <p className="section-kicker">観測している場所</p>
         <h3>○○番の一覧</h3>
         <p>
-          登録した場所を並べて見ます。ここは作業を頼む場所ではなく、それぞれの様子を眺める場所です。
+          動いている場所を先に、そのあと更新が新しい順に並べています。ここは作業を頼む場所ではなく、登録した場所を確認する場所です。
         </p>
       </div>
       {residents.length === 0 ? (

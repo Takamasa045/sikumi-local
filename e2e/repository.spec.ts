@@ -22,7 +22,7 @@ test('a non-git path is rejected from the garden form', async ({ page }) => {
     'Git Repositoryではありません',
   )
   await expect(
-    page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+    page.getByRole('heading', { name: '登録した場所' }),
   ).toBeVisible()
 })
 
@@ -40,7 +40,7 @@ test("a user can register a local git repository from today's workshop", async (
     page.getByText(basename(repositoryPath), { exact: false }).first(),
   ).toBeVisible()
   await expect(
-    page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
+    page.getByRole('heading', { name: '登録した場所' }),
   ).toBeVisible()
   await expect(page.getByTestId('observer-stats')).toBeVisible()
 })

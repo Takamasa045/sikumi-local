@@ -33,9 +33,9 @@ export function ObserverDashboard({
   return (
     <section className="observer-home" aria-label="今日の作業場">
       <p className="section-kicker">今日の作業場</p>
-      <h2>いま何が、どこで起きているか</h2>
+      <h2>登録した場所</h2>
       <p className="observer-lead">
-        普段どおり各AIアプリで作業してください。ここは作業を頼む場所ではなく、登録した場所の様子を眺める場所です。
+        登録した場所を確認する場所です。つなぐは必須ではありません。普段どおり各AIアプリで作業してください。
       </p>
 
       {overview ? (

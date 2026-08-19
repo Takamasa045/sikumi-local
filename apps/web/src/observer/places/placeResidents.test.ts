@@ -11,6 +11,7 @@ import {
   GARDEN_GROUND,
   placeActivityLabel,
   SHIKUMI_PLACE_NAME,
+  sortPlaceResidents,
   spreadGardenGroundPlots,
   UNKNOWN_PLACE_WORK,
 } from './placeResidents'
@@ -116,6 +117,29 @@ describe('collectPlaceResidents', () => {
     })
   })
 
+  it('keeps lastChangedAt and lastObservedAt for sorting', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_a',
+          'ws_a',
+          'alpha',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              lastObservedAt: '2026-08-19T00:09:00.000Z',
+            }),
+          ],
+          { lastChangedAt: '2026-08-19T00:08:00.000Z' },
+        ),
+      ]),
+    )
+
+    expect(resident?.lastChangedAt).toBe('2026-08-19T00:08:00.000Z')
+    expect(resident?.lastObservedAt).toBe('2026-08-19T00:09:00.000Z')
+  })
+
   it('marks waiting places without inventing a work title', () => {
     const [resident] = collectPlaceResidents(
       overviewOf([
@@ -136,6 +160,132 @@ describe('collectPlaceResidents', () => {
     expect(resident?.working).toBe(false)
     expect(resident?.lastObservedWork).toBe(UNKNOWN_PLACE_WORK)
     expect(placeActivityLabel(resident!)).toBe('確認待ち')
+  })
+})
+
+describe('sortPlaceResidents', () => {
+  it('puts live places first, then newest lastChanged or lastObserved', () => {
+    const residents = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_quiet_old',
+          'ws_old',
+          'old-notes',
+          [
+            session({
+              id: 'old',
+              source: 'codex',
+              status: 'idle',
+              activity: 'idle',
+              lastObservedAt: '2026-08-18T00:00:00.000Z',
+            }),
+          ],
+          { lastChangedAt: '2026-08-18T00:00:00.000Z' },
+        ),
+        repository(
+          'repo_quiet_new',
+          'ws_new',
+          'new-notes',
+          [
+            session({
+              id: 'recent',
+              source: 'codex',
+              status: 'idle',
+              activity: 'idle',
+              lastObservedAt: '2026-08-19T00:09:30.000Z',
+            }),
+          ],
+          { lastChangedAt: '2026-08-19T00:04:00.000Z' },
+        ),
+        repository(
+          'repo_working',
+          'ws_work',
+          'zeta',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              displayName: 'Codex',
+              title: 'APIを直している',
+              status: 'running',
+              activity: 'working',
+              lastObservedAt: '2026-08-19T00:08:00.000Z',
+            }),
+          ],
+          { lastChangedAt: '2026-08-19T00:01:00.000Z' },
+        ),
+        repository(
+          'repo_waiting',
+          'ws_wait',
+          'beta',
+          [
+            session({
+              id: 'wait',
+              source: 'claude-code',
+              displayName: 'Claude Code',
+              title: '承認が必要',
+              status: 'idle',
+              activity: 'waiting',
+              lastObservedAt: '2026-08-19T00:09:00.000Z',
+            }),
+          ],
+          { lastChangedAt: '2026-08-19T00:02:00.000Z' },
+        ),
+      ]),
+    )
+
+    expect(sortPlaceResidents(residents).map((item) => item.placeName)).toEqual([
+      'beta番',
+      'zeta番',
+      'new-notes番',
+      'old-notes番',
+    ])
+  })
+
+  it('does not treat git inferred sessions as live work when sorting', () => {
+    const residents = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_git',
+          'ws_git',
+          'git-only',
+          [
+            session({
+              id: 'git',
+              source: 'git',
+              displayName: '変更元不明',
+              title: '変更元不明の作業',
+              attributionConfidence: 'inferred',
+              lastObservedAt: '2026-08-19T00:09:50.000Z',
+            }),
+          ],
+          { lastChangedAt: '2026-08-19T00:09:50.000Z' },
+        ),
+        repository(
+          'repo_working',
+          'ws_work',
+          'alpha',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              title: 'APIを直している',
+              status: 'running',
+              activity: 'working',
+              lastObservedAt: '2026-08-19T00:06:00.000Z',
+            }),
+          ],
+          { lastChangedAt: '2026-08-19T00:01:00.000Z' },
+        ),
+      ]),
+    )
+
+    const sorted = sortPlaceResidents(residents)
+    expect(sorted[0]?.placeName).toBe('alpha番')
+    expect(sorted[0]?.working).toBe(true)
+    expect(sorted[1]?.placeName).toBe('git-only番')
+    expect(sorted[1]?.working).toBe(false)
+    expect(sorted[1]?.waiting).toBe(false)
   })
 })
 
@@ -425,6 +575,7 @@ function repository(
     readonly changedFileCount?: number
     readonly areas?: readonly string[]
     readonly conflictCount?: number
+    readonly lastChangedAt?: string | null
   } = {},
 ): RepositoryView {
   return {
@@ -435,6 +586,7 @@ function repository(
     gitAvailable: true,
     summary: '',
     changedFileCount: extras.changedFileCount ?? 0,
+    lastChangedAt: extras.lastChangedAt ?? null,
     lastChangedLabel: null,
     sessions,
     worktrees: [],

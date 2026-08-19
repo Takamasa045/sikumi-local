@@ -106,11 +106,11 @@ function CharacterBody({
       </dd>
       {hasProgress && live ? (
         <>
-          {knownLine(subject.nowText) ? (
+          {hasFactLines(subject.nowText) ? (
             <>
               <dt>いま</dt>
               <dd>
-                {subject.nowText}
+                <FactLines value={subject.nowText} />
                 {knownLine(subject.driverNote) ? (
                   <span className="garden-inspect__driver">
                     {subject.driverNote}
@@ -119,31 +119,37 @@ function CharacterBody({
               </dd>
             </>
           ) : null}
-          {knownLine(subject.implementationLook) ? (
+          {hasFactLines(subject.implementationLook) ? (
             <>
               <dt>実装の様子</dt>
-              <dd>{subject.implementationLook}</dd>
+              <dd>
+                <FactLines value={subject.implementationLook} />
+              </dd>
             </>
           ) : null}
-          {knownLine(subject.nextStep) ? (
+          {hasFactLines(subject.nextStep) ? (
             <>
               <dt>これから</dt>
-              <dd>{subject.nextStep}</dd>
+              <dd>
+                <FactLines value={subject.nextStep} />
+              </dd>
             </>
           ) : null}
         </>
       ) : hasProgress ? (
         <>
-          {knownLine(
+          {hasFactLines(
             describeStoppedLook(subject.nowText, subject.implementationLook),
           ) ? (
             <>
               <dt>どこまでやったか</dt>
               <dd>
-                {describeStoppedLook(
-                  subject.nowText,
-                  subject.implementationLook,
-                )}
+                <FactLines
+                  value={describeStoppedLook(
+                    subject.nowText,
+                    subject.implementationLook,
+                  )}
+                />
                 {knownLine(subject.driverNote) ? (
                   <span className="garden-inspect__driver">
                     {subject.driverNote}
@@ -152,10 +158,12 @@ function CharacterBody({
               </dd>
             </>
           ) : null}
-          {knownLine(subject.nextStep) ? (
+          {hasFactLines(subject.nextStep) ? (
             <>
               <dt>次はこんな感じか</dt>
-              <dd>{subject.nextStep}</dd>
+              <dd>
+                <FactLines value={subject.nextStep} />
+              </dd>
             </>
           ) : null}
         </>
@@ -167,10 +175,12 @@ function CharacterBody({
               <dd>{subject.jobTitle}</dd>
             </>
           ) : null}
-          {knownLine(subject.summary) ? (
+          {hasFactLines(subject.summary) ? (
             <>
               <dt>いま</dt>
-              <dd>{subject.summary}</dd>
+              <dd>
+                <FactLines value={subject.summary} />
+              </dd>
             </>
           ) : null}
         </>
@@ -201,19 +211,52 @@ function knownLine(value: string | null | undefined): boolean {
   return true
 }
 
+function factLines(value: string | null | undefined): string[] {
+  const seen = new Set<string>()
+  const lines: string[] = []
+  for (const part of (value ?? '').split('\n')) {
+    const trimmed = part.trim()
+    if (!knownLine(trimmed) || seen.has(trimmed)) {
+      continue
+    }
+    seen.add(trimmed)
+    lines.push(trimmed)
+  }
+  return lines
+}
+
+function hasFactLines(value: string | null | undefined): boolean {
+  return factLines(value).length > 0
+}
+
+function FactLines({ value }: { readonly value: string | null | undefined }) {
+  const lines = factLines(value)
+  if (lines.length === 0) {
+    return null
+  }
+  if (lines.length === 1) {
+    return lines[0]
+  }
+  return (
+    <span className="garden-inspect__lines">
+      {lines.map((line) => (
+        <span key={line} className="garden-inspect__line">
+          {line}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 function describeStoppedLook(
   nowText: string | null | undefined,
   implementationLook: string | null | undefined,
 ): string {
-  const now = knownLine(nowText) ? nowText!.trim() : ''
-  const look = knownLine(implementationLook) ? implementationLook!.trim() : ''
-  if (!look || now.includes(look)) {
-    return now
-  }
-  if (!now) {
-    return look
-  }
-  return `${now} ${look}`
+  const now = factLines(nowText)
+  const look = factLines(implementationLook).filter(
+    (line) => !now.includes(line),
+  )
+  return [...now, ...look].join('\n')
 }
 
 function StationBody({

@@ -6,7 +6,9 @@ import {
   describeGardenWork,
   isEverydayRecordTitle,
   isGenericWorkTitle,
+  isSpokenJapaneseTitle,
   shouldShowGardenDog,
+  softenRecordTitle,
   stationForTone,
 } from './gardenState'
 
@@ -199,6 +201,19 @@ describe('describeGardenWork', () => {
     expect(isEverydayRecordTitle('a1b2c3d')).toBe(false)
     expect(isEverydayRecordTitle('Merge branch main')).toBe(false)
     expect(isEverydayRecordTitle('init')).toBe(false)
+  })
+
+  it('softens conventional English titles without inventing Japanese work', () => {
+    expect(softenRecordTitle('feat: launch HATARAKI office UI')).toBe(
+      'launch HATARAKI office UI',
+    )
+    expect(softenRecordTitle('fix(ui): ログイン画面の直し')).toBe(
+      'ログイン画面の直し',
+    )
+    expect(isEverydayRecordTitle('feat: launch HATARAKI office UI')).toBe(true)
+    expect(isSpokenJapaneseTitle('feat: launch HATARAKI office UI')).toBe(false)
+    expect(isSpokenJapaneseTitle('feat: ログイン画面の直し')).toBe(true)
+    expect(isSpokenJapaneseTitle('APIを直している')).toBe(true)
   })
 })
 

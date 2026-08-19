@@ -1,5 +1,6 @@
 import { normalizeComparablePath } from '@sikumi-local/observer-core'
 import { matchLongestObservedRoot } from '@sikumi-local/observer-git'
+import { sameRepoIdentity } from './identity.js'
 import type { RegisteredLiveRoot } from './types.js'
 
 export type RegisteredPlaceKind = 'contained' | 'alias'
@@ -52,7 +53,11 @@ export function matchRegisteredPlace(
 
   let bestAlias: { root: RegisteredLiveRoot; length: number } | null = null
   for (const root of roots) {
-    if (!isSameLeafAlias(candidate, root.absolutePath)) {
+    const twinRoot = leafTwinFolder(candidate, root.absolutePath)
+    if (!twinRoot) {
+      continue
+    }
+    if (!sameRepoIdentity(twinRoot, root.absolutePath)) {
       continue
     }
     const length = normalizeComparablePath(root.absolutePath).length
@@ -67,13 +72,20 @@ export function isSameLeafAlias(
   candidate: string | null | undefined,
   registered: string,
 ): boolean {
+  return leafTwinFolder(candidate, registered) !== null
+}
+
+export function leafTwinFolder(
+  candidate: string | null | undefined,
+  registered: string,
+): string | null {
   if (!candidate || !isBindableCwd(candidate)) {
-    return false
+    return null
   }
   const registeredParts = splitComparablePath(registered)
   const leaf = registeredParts.at(-1)
   if (!leaf || registeredParts.length < 2) {
-    return false
+    return null
   }
   const candidateParts = splitComparablePath(candidate)
   for (let end = candidateParts.length; end >= 1; end -= 1) {
@@ -82,10 +94,11 @@ export function isSameLeafAlias(
       continue
     }
     if (isOneLevelNestedTwin(ancestor, registeredParts)) {
-      return true
+      const normalized = normalizeComparablePath(candidate)
+      return `${normalized.startsWith('/') ? '/' : ''}${ancestor.join('/')}`
     }
   }
-  return false
+  return null
 }
 
 function isOneLevelNestedTwin(

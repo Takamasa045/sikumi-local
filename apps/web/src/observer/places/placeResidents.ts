@@ -4,9 +4,11 @@ import {
   describeGardenWork,
   isEverydayRecordTitle,
   isGenericWorkTitle,
+  isSpokenJapaneseTitle,
   knownSourceLabel,
   resolveTone,
   shouldShowGardenDog,
+  softenRecordTitle,
   sourceKey,
   UNKNOWN_GARDEN_WORK,
 } from '../garden/gardenState'
@@ -243,20 +245,37 @@ export function collectGardenActors(
     .sort((left, right) => left.key.localeCompare(right.key))
 }
 
+export function hasUnfinishedGardenWork(
+  resident: Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'> | {
+    readonly changedFileCount?: number
+    readonly outgoingCount?: number | null
+  },
+): boolean {
+  return (
+    (resident.changedFileCount ?? 0) > 0 || (resident.outgoingCount ?? 0) > 0
+  )
+}
+
 export function stationForResident(
-  resident: Pick<PlaceResident, 'waiting' | 'working' | 'repositoryId'>,
+  resident: Pick<
+    PlaceResident,
+    'waiting' | 'working' | 'repositoryId'
+  > &
+    Partial<Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'>>,
   hash = stableHash(resident.repositoryId),
 ): GardenPlaceStation {
   if (resident.waiting) return 'waiting'
   if (resident.working) return 'workbench'
+  if (hasUnfinishedGardenWork(resident)) return 'rest'
   return QUIET_STATIONS[hash % QUIET_STATIONS.length] ?? 'rest'
 }
 
 export function assignGardenGroundPlots(
-  residents: readonly Pick<
+  residents: readonly (Pick<
     PlaceResident,
     'repositoryId' | 'waiting' | 'working'
-  >[],
+  > &
+    Partial<Pick<PlaceResident, 'changedFileCount' | 'outgoingCount'>>)[],
 ): ReadonlyMap<
   string,
   {
@@ -318,7 +337,20 @@ export function assignGardenGroundPlots(
     })
   }
   for (const resident of ordered.filter(
-    (item) => !item.waiting && !item.working,
+    (item) =>
+      !item.waiting && !item.working && hasUnfinishedGardenWork(item),
+  )) {
+    const { plot, slot } = takeClosest(REST_POINT)
+    assigned.set(resident.repositoryId, {
+      x: plot.x,
+      y: plot.y,
+      station: unfinishedQuietStationForPlot(plot),
+      slot,
+    })
+  }
+  for (const resident of ordered.filter(
+    (item) =>
+      !item.waiting && !item.working && !hasUnfinishedGardenWork(item),
   )) {
     const plotIndex = unused.shift() ?? 0
     const plot = plots[plotIndex] ?? REST_POINT
@@ -350,6 +382,17 @@ export function spreadGardenGroundPlots(
       y: clamp(waved, GARDEN_GROUND.minY, GARDEN_GROUND.maxY),
     }
   })
+}
+
+function unfinishedQuietStationForPlot(plot: {
+  readonly x: number
+  readonly y: number
+}): Exclude<GardenPlaceStation, 'delivery' | 'waiting' | 'archive'> {
+  const restDistance =
+    (plot.x - REST_POINT.x) ** 2 + (plot.y - REST_POINT.y) ** 2
+  const workbenchDistance =
+    (plot.x - WORKBENCH_POINT.x) ** 2 + (plot.y - WORKBENCH_POINT.y) ** 2
+  return restDistance <= workbenchDistance ? 'rest' : 'workbench'
 }
 
 function quietStationForPlot(plot: {
@@ -401,7 +444,7 @@ function parseTime(value: string | null): number {
 
 export function placeActivityLabel(resident: PlaceResident): string {
   if (resident.waiting && resident.working) {
-    return '動いている / 確認待ち'
+    return '動いている。確認待ち'
   }
   if (resident.waiting) {
     return '確認待ち'
@@ -413,48 +456,38 @@ export function placeActivityLabel(resident: PlaceResident): string {
 }
 
 export function describeVisibleFacts(resident: PlaceResident): string {
-  const parts: string[] = []
-  if (resident.working) {
-    parts.push('動いている')
-  } else if (resident.waiting) {
-    parts.push('確認待ち')
+  const spoken = spokenWorkTitle(resident)
+  const area = primaryArea(resident)
+  if (resident.working && spoken) {
+    return spoken
   }
-  const work = resident.lastObservedWork.trim()
-  if (work && isEverydayRecordTitle(work) && work !== UNKNOWN_PLACE_WORK) {
-    parts.push(work)
+  if (resident.working && area) {
+    return `${area}まわりを直している`
   }
   if (resident.changedFileCount > 0) {
-    parts.push(
-      resident.working || resident.waiting
-        ? `作業中のファイルが${resident.changedFileCount}`
-        : `まだしまっていない変更が${resident.changedFileCount}`,
-    )
+    return `しまっていない変更が${resident.changedFileCount}`
   }
-  const area = uniqueLabels(resident.areas).find(
-    (item) => item && item !== '作業中のファイル',
-  )
-  if (area) {
-    parts.push(`${area}あたり`)
+  if (resident.waiting) {
+    return '確認待ち'
+  }
+  if (resident.working) {
+    return '動いている'
   }
   if ((resident.outgoingCount ?? 0) > 0) {
-    parts.push('送っていない')
+    return '送っていない'
   }
   if ((resident.incomingCount ?? 0) > 0) {
-    parts.push('取り込み待ち')
+    return '取り込み待ち'
   }
-  if (resident.lastObservedWorkLabel) {
-    parts.push(`最後に見えたのは${resident.lastObservedWorkLabel}`)
-  }
-  return parts.join(' / ')
+  return spoken ?? ''
 }
 
 export function describePlaceInspect(
   resident: PlaceResident,
 ): PlaceInspectCopy {
-  const nowText = describeVisibleFacts(resident) || null
   return {
-    nowText,
-    implementationLook: describeImplementationLook(resident),
+    nowText: joinFactLines(inspectNowLines(resident)),
+    implementationLook: joinFactLines(inspectLookLines(resident)),
     nextStep: describeNextStep(resident),
     driverNote: resident.driverNote,
   }
@@ -470,17 +503,15 @@ function describePlaceWork(
   )
   const ranked = [...current].sort(compareObservedAt)
   for (const session of ranked) {
-    const title = session.title?.trim()
-    if (title && isEverydayRecordTitle(title) && title !== UNKNOWN_PLACE_WORK) {
+    const title = spokenRecordTitle(session.title)
+    if (title) {
       return title
     }
-    const named = session.displayName?.trim()
+    const named = spokenRecordTitle(session.displayName)
     const sourceLabel = knownSourceLabel(session.source)
     if (
       named &&
-      isEverydayRecordTitle(named) &&
       named !== sourceLabel &&
-      named !== UNKNOWN_PLACE_WORK &&
       named.toLowerCase() !== sourceKey(session.source)
     ) {
       return named
@@ -488,47 +519,113 @@ function describePlaceWork(
   }
   const latest = ranked[0]
   if (latest) {
-    const described = describeGardenWork(latest, repository)
-    if (
-      described &&
-      described !== UNKNOWN_GARDEN_WORK &&
-      described !== UNKNOWN_PLACE_WORK &&
-      isEverydayRecordTitle(described) &&
-      !described.endsWith('が対象です')
-    ) {
+    const described = spokenRecordTitle(describeGardenWork(latest, repository))
+    if (described && !described.endsWith('が対象です')) {
       return described
     }
   }
-  return everydayRecordTitle(repository.latestRecordTitle) ?? ''
+  return spokenRecordTitle(repository.latestRecordTitle) ?? ''
 }
 
-function describeImplementationLook(resident: PlaceResident): string | null {
-  const count = resident.changedFileCount
+function inspectNowLines(resident: PlaceResident): string[] {
+  const lines: string[] = []
+  if (resident.working) {
+    lines.push('動いている')
+  } else if (resident.waiting) {
+    lines.push('確認待ち')
+  }
+  const spoken = spokenWorkTitle(resident)
+  const spokenIsOnlyRecord =
+    Boolean(spoken) &&
+    !resident.working &&
+    !resident.waiting &&
+    spoken === softenRecordTitle(resident.latestRecordTitle)
+  if (spoken && spoken !== lines[0] && !spokenIsOnlyRecord) {
+    lines.push(spoken)
+  }
+  const record = describeLatestRecord(
+    resident,
+    spokenIsOnlyRecord ? null : spoken,
+  )
+  if (record) {
+    lines.push(record)
+  }
+  if (resident.lastObservedWorkLabel) {
+    lines.push(`最後に見えたのは${resident.lastObservedWorkLabel}`)
+  }
+  return lines
+}
+
+function inspectLookLines(resident: PlaceResident): string[] {
+  const lines: string[] = []
+  if (resident.changedFileCount > 0) {
+    lines.push(`しまっていない変更が${resident.changedFileCount}`)
+  }
   const named = uniqueLabels(resident.areas).filter(
     (area) => area !== '作業中のファイル',
   )
   const shown = named.slice(0, 2)
-  if (count <= 0 && shown.length === 0) {
+  if (shown.length === 1) {
+    lines.push(`${shown[0]}あたり`)
+  } else if (shown.length >= 2) {
+    lines.push(`${shown[0]}や${shown[1]}あたり`)
+  }
+  if ((resident.outgoingCount ?? 0) > 0) {
+    lines.push('送っていない')
+  }
+  if ((resident.incomingCount ?? 0) > 0) {
+    lines.push('取り込み待ち')
+  }
+  return lines
+}
+
+function describeLatestRecord(
+  resident: PlaceResident,
+  spoken: string | null,
+): string | null {
+  const title = softenRecordTitle(resident.latestRecordTitle)
+  if (!title || !isEverydayRecordTitle(title)) {
     return null
   }
-  const filesPhrase =
-    count > 0
-      ? resident.working || resident.waiting
-        ? `作業中のファイルが${count}`
-        : `まだしまっていない変更が${count}`
-      : null
-  if (!filesPhrase) {
-    return shown.length === 1
-      ? `${shown[0]}あたり`
-      : `${shown[0]}や${shown[1]}あたり`
+  if (spoken && (title === spoken || softenRecordTitle(spoken) === title)) {
+    return null
   }
-  if (shown.length === 0) {
-    return filesPhrase
+  return `いちばん新しい記録：${title}`
+}
+
+function spokenWorkTitle(
+  resident: Pick<PlaceResident, 'lastObservedWork'>,
+): string | null {
+  const softened = softenRecordTitle(resident.lastObservedWork)
+  if (
+    !softened ||
+    softened === UNKNOWN_PLACE_WORK ||
+    !isSpokenJapaneseTitle(softened)
+  ) {
+    return null
   }
-  if (shown.length === 1) {
-    return `${filesPhrase} / ${shown[0]}あたり`
+  return softened
+}
+
+function primaryArea(resident: Pick<PlaceResident, 'areas'>): string | null {
+  return (
+    uniqueLabels(resident.areas).find((item) => item !== '作業中のファイル') ??
+    null
+  )
+}
+
+function joinFactLines(lines: readonly string[]): string | null {
+  const seen = new Set<string>()
+  const facts: string[] = []
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed || seen.has(trimmed)) {
+      continue
+    }
+    seen.add(trimmed)
+    facts.push(trimmed)
   }
-  return `${filesPhrase} / ${shown[0]}や${shown[1]}あたり`
+  return facts.length > 0 ? facts.join('\n') : null
 }
 
 function describeNextStep(
@@ -609,11 +706,25 @@ export function isConfirmedTool(session: OverviewSession): boolean {
 }
 
 function everydayRecordTitle(value: string | null | undefined): string | null {
-  const trimmed = value?.trim() ?? ''
-  if (!trimmed || !isEverydayRecordTitle(trimmed)) {
+  const softened = softenRecordTitle(value)
+  if (!softened || !isEverydayRecordTitle(softened)) {
     return null
   }
-  return trimmed
+  return softened
+}
+
+function spokenRecordTitle(value: string | null | undefined): string | null {
+  const everyday = everydayRecordTitle(value)
+  if (
+    !everyday ||
+    !isSpokenJapaneseTitle(everyday) ||
+    everyday === UNKNOWN_PLACE_WORK ||
+    everyday === UNKNOWN_GARDEN_WORK ||
+    everyday.includes('まだ分かっていません')
+  ) {
+    return null
+  }
+  return everyday
 }
 
 function uniqueLabels(values: readonly string[]): string[] {

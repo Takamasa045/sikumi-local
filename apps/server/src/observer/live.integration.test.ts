@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, rmSync, writeFileSync, utimesSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -105,18 +106,75 @@ describe('live discovery without hooks', () => {
     ).toBe(false)
   })
 
-  it('binds Codex Desktop at / to a registered place via a same-leaf twin session', async () => {
+  it('does not bind Codex Desktop at / through an older same-leaf checkout of another repo', async () => {
     const { store, dataDirectory } = openIsolatedStore()
-    const registered = track(createTemporaryGitRepository())
+    const registered = track(
+      createTemporaryGitRepository({
+        remoteUrl: 'https://github.com/example/hataraki.git',
+      }),
+    )
+    writePackageName(registered, 'hataraki')
+    store.createWorkspace({
+      absolutePath: registered,
+      displayName: 'hataraki',
+      currentBranch: 'main',
+      remoteName: 'origin',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+      readable: true,
+    })
+    const live = writeIdentifiedTwin(registered, {
+      packageName: 'sikumi-local',
+      remoteUrl: 'https://github.com/Takamasa045/sikumi-local.git',
+    })
+    const home = track(createTemporaryDirectory())
+    writeCodexRollout(home, live, 'sess-other', Date.now() - 15_000)
+
+    const service = trackService(
+      createObserverService(store, dataDirectory, {
+        consistencyIntervalMs: 0,
+        liveHomeDir: home,
+        liveCurrentUser: 'mei',
+        listLiveProcesses: () => [
+          {
+            pid: 77,
+            user: 'mei',
+            command: 'ChatGPT',
+            args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+            cwd: '/',
+          },
+        ],
+      }),
+    )
+    await service.recover()
+
+    const overview = service.today()
+    expect(
+      overview.repositories[0]?.sessions.some(
+        (session) => session.source === 'codex',
+      ),
+    ).toBe(false)
+  })
+
+  it('binds Codex Desktop at / to a registered place via a same-repo twin session', async () => {
+    const { store, dataDirectory } = openIsolatedStore()
+    const registered = track(
+      createTemporaryGitRepository({
+        remoteUrl: 'https://github.com/example/hataraki.git',
+      }),
+    )
+    writePackageName(registered, 'hataraki')
     const workspace = store.createWorkspace({
       absolutePath: registered,
       displayName: 'hataraki',
       currentBranch: 'main',
-      remoteName: null,
-      remoteUrl: null,
+      remoteName: 'origin',
+      remoteUrl: 'https://github.com/example/hataraki.git',
       readable: true,
     })
-    const live = join(dirname(registered), '*開発', basename(registered))
+    const live = writeIdentifiedTwin(registered, {
+      packageName: 'hataraki',
+      remoteUrl: 'https://github.com/example/hataraki.git',
+    })
     const home = track(createTemporaryDirectory())
     writeCodexRollout(home, live, 'sess-hataraki', Date.now() - 15_000)
 
@@ -198,4 +256,23 @@ function trackService(
 function track(directory: string): string {
   tempDirectories.push(directory)
   return directory
+}
+
+function writePackageName(directory: string, name: string): void {
+  writeFileSync(join(directory, 'package.json'), `${JSON.stringify({ name })}\n`)
+}
+
+function writeIdentifiedTwin(
+  registered: string,
+  identity: { readonly packageName: string; readonly remoteUrl: string },
+): string {
+  const live = join(dirname(registered), '*開発', basename(registered))
+  mkdirSync(live, { recursive: true })
+  execFileSync('git', ['init', '-b', 'main'], { cwd: live })
+  writePackageName(live, identity.packageName)
+  execFileSync('git', ['remote', 'add', 'origin', identity.remoteUrl], {
+    cwd: live,
+  })
+  tempDirectories.push(dirname(live))
+  return live
 }

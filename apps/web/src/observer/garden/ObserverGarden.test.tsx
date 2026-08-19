@@ -113,7 +113,7 @@ describe('ObserverGarden', () => {
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
     expect(within(residents).getByText('alpha番')).toBeVisible()
-    expect(within(residents).getByText('まだしまっていない変更が4')).toBeVisible()
+    expect(within(residents).getByText('しまっていない変更が4')).toBeVisible()
     expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
     expect(within(residents).queryByText('Git作業')).toBeNull()
@@ -182,10 +182,13 @@ describe('ObserverGarden', () => {
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('alpha番')
     expect(inspect).toHaveTextContent('いま')
-    expect(inspect).toHaveTextContent('動いている / APIを直している')
+    expect(inspect).toHaveTextContent('動いている')
+    expect(inspect).toHaveTextContent('APIを直している')
+    expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).toHaveTextContent('実装の様子')
-    expect(inspect).toHaveTextContent('作業中のファイルが2')
+    expect(inspect).toHaveTextContent('しまっていない変更が2')
     expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('作業中のファイル')
     expect(inspect).not.toHaveTextContent('これから')
     expect(inspect).not.toHaveTextContent('いまの作業の続き')
     expect(inspect).not.toHaveTextContent('Codexが動かしている')
@@ -310,9 +313,9 @@ describe('ObserverGarden', () => {
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認の場所')
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      '確認待ち / 承認が必要',
-    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認待ち')
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('承認が必要')
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(' / ')
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認が必要')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       'Claudeアプリが動かしている',
@@ -393,9 +396,9 @@ describe('ObserverGarden', () => {
     )
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
-    expect(within(residents).getByText(/働きの直し/)).toBeVisible()
-    expect(within(residents).getByText(/まだしまっていない変更が2/)).toBeVisible()
-    expect(within(residents).getByText(/送っていない/)).toBeVisible()
+    expect(within(residents).getByText('しまっていない変更が2')).toBeVisible()
+    expect(within(residents).queryByText('働きの直し')).toBeNull()
+    expect(within(residents).queryByText(/送っていない/)).toBeNull()
     expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(within(residents).queryByText(/Claude Code/)).toBeNull()
     expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
@@ -404,9 +407,10 @@ describe('ObserverGarden', () => {
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('働きの直し')
-    expect(inspect).toHaveTextContent('まだしまっていない変更が2')
+    expect(inspect).toHaveTextContent('いちばん新しい記録：働きの直し')
+    expect(inspect).toHaveTextContent('しまっていない変更が2')
     expect(inspect).toHaveTextContent('送っていない')
+    expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).not.toHaveTextContent('commit')
     expect(inspect).not.toHaveTextContent('HEAD')
@@ -420,7 +424,7 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('まだしまっていない変更が1')
+    expect(inspect).toHaveTextContent('しまっていない変更が1')
     expect(inspect).toHaveTextContent('画面あたり')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).not.toHaveTextContent('次に動かすまで待つ')

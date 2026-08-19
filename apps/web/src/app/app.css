@@ -2639,6 +2639,14 @@ footer span {
   margin: 0;
   font-size: 13px;
 }
+.garden-inspect__lines {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.garden-inspect__line {
+  display: block;
+}
 .garden-inspect__driver {
   display: block;
   margin-top: 2px;

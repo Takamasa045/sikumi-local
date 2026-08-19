@@ -129,12 +129,12 @@ describe('acceptStoredTitle', () => {
 
 describe('live process session ids', () => {
   it('keys a living process by pid, not by place alone', () => {
-    expect(liveProcessExternalSessionId('grok-build', 'repo-tsugite', 248)).toBe(
-      'live:grok-build:repo-tsugite:pid:248',
-    )
-    expect(liveProcessExternalSessionId('grok-build', 'repo-tsugite', 26794)).toBe(
-      'live:grok-build:repo-tsugite:pid:26794',
-    )
+    expect(
+      liveProcessExternalSessionId('grok-build', 'repo-tsugite', 248),
+    ).toBe('live:grok-build:repo-tsugite:pid:248')
+    expect(
+      liveProcessExternalSessionId('grok-build', 'repo-tsugite', 26794),
+    ).toBe('live:grok-build:repo-tsugite:pid:26794')
     expect(
       isLiveProcessExternalSessionId('live:grok-build:repo-tsugite:pid:248'),
     ).toBe(true)
@@ -516,10 +516,9 @@ describe('discoverLiveSessions', () => {
 
     const groks = sightings.filter((item) => item.source === 'grok-build')
     expect(groks).toHaveLength(2)
-    expect(groks.map((item) => item.pid).sort((left, right) => left! - right!)).toEqual([
-      248,
-      26794,
-    ])
+    expect(
+      groks.map((item) => item.pid).sort((left, right) => left! - right!),
+    ).toEqual([248, 26794])
     expect(new Set(groks.map((item) => item.externalSessionId)).size).toBe(2)
     expect(groks.every((item) => item.kind === 'process')).toBe(true)
     expect(sightings.some((item) => item.source === 'claude-code')).toBe(false)

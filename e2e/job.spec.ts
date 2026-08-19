@@ -10,8 +10,8 @@ test('legacy jobs API remains available without a garden job form', async ({
   const repositoryPath = createTemporaryGitRepository('sikumi-e2e-job-')
 
   await page.goto('/#observer')
-  await page.getByLabel('観測するRepositoryの場所').fill(repositoryPath)
-  await page.getByRole('button', { name: '観測するRepositoryを追加' }).click()
+  await page.getByLabel('場所のパス').fill(repositoryPath)
+  await page.getByRole('button', { name: 'この場所を追加' }).click()
   await expect(
     page.getByText(basename(repositoryPath), { exact: false }).first(),
   ).toBeVisible()

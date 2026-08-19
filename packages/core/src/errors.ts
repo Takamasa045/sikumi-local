@@ -46,6 +46,7 @@ export const errorCodes = [
   'OUTPUT_TOO_LARGE',
   'OBSERVER_EVENT_INVALID',
   'OBSERVER_ADAPTER_UNAVAILABLE',
+  'FOLDER_PICKER_UNAVAILABLE',
 ] as const
 
 export type ErrorCode = (typeof errorCodes)[number]

@@ -35,12 +35,12 @@ test('observer e2e covers adapters, git-only unknown, conflicts, persistence, an
   writeFileSync(join(worktree, 'src/api/users.ts'), 'export const api = 1\n')
 
   await page.goto('/#observer')
-  await page.getByLabel('観測するRepositoryの場所').fill(first)
-  await page.getByRole('button', { name: '観測するRepositoryを追加' }).click()
+  await page.getByLabel('場所のパス').fill(first)
+  await page.getByRole('button', { name: 'この場所を追加' }).click()
   await expect(page.getByText(basename(first), { exact: false }).first()).toBeVisible()
 
-  await page.getByLabel('観測するRepositoryの場所').fill(second)
-  await page.getByRole('button', { name: '観測するRepositoryを追加' }).click()
+  await page.getByLabel('場所のパス').fill(second)
+  await page.getByRole('button', { name: 'この場所を追加' }).click()
   await expect(page.getByText(basename(second), { exact: false }).first()).toBeVisible()
   await expect(page.getByTestId('observer-stats')).toBeVisible()
   await expect(page.getByText('変更元不明', { exact: false }).first()).toBeVisible()

@@ -2,8 +2,10 @@ import { AppError } from '@sikumi-local/core'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CSRF_HEADER_NAME, resetSessionToken } from './session.js'
 import {
+  chooseWorkspaceFolder,
   listWorkspaces,
   registerWorkspace,
+  unregisterWorkspace,
   updateWorkspace,
   updateWorkspaceEmployeeName,
 } from './workspaces.js'
@@ -152,6 +154,55 @@ describe('workspace API client', () => {
       code: 'VALIDATION_FAILED',
       message: 'nope',
     })
+  })
+
+  it('asks the local server to open a native folder picker', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/api/session')) {
+          return jsonResponse({ token: 'boot-session-token' })
+        }
+        expect(String(input)).toMatch(/\/api\/workspaces\/choose-folder$/)
+        expect(init?.method).toBe('POST')
+        return jsonResponse({
+          cancelled: false,
+          path: '/Users/example/blog',
+        })
+      }),
+    )
+
+    await expect(chooseWorkspaceFolder()).resolves.toBe('/Users/example/blog')
+  })
+
+  it('returns null when folder picking is cancelled', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith('/api/session')) {
+          return jsonResponse({ token: 'boot-session-token' })
+        }
+        return jsonResponse({ cancelled: true })
+      }),
+    )
+
+    await expect(chooseWorkspaceFolder()).resolves.toBeNull()
+  })
+
+  it('unregisters a workspace without deleting the folder', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).endsWith('/api/session')) {
+          return jsonResponse({ token: 'boot-session-token' })
+        }
+        expect(String(input)).toMatch(/\/api\/workspaces\/ws_1$/)
+        expect(init?.method).toBe('DELETE')
+        return jsonResponse({ ok: true })
+      }),
+    )
+
+    await expect(unregisterWorkspace('ws_1')).resolves.toBeUndefined()
   })
 
   it('updates the workspace default tool', async () => {

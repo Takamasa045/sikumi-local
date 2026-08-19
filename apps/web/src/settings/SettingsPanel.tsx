@@ -19,10 +19,13 @@ interface PackPreview {
 
 interface SettingsPanelProps {
   readonly workspace: Workspace | null
+  readonly workspaces?: readonly Workspace[]
   readonly providers: readonly ProviderAvailability[]
   readonly busy: boolean
   readonly error: string | null
   readonly onRegister: (path: string, employeeName: string) => void
+  readonly onChooseFolder?: () => Promise<string | null>
+  readonly onUnregister?: (workspaceId: string) => void
   readonly onEmployeeNameChange?: ((employeeName: string) => void) | undefined
   readonly onWorkspaceProviderChange?: (providerId: ProviderId | null) => void
   readonly packs?: readonly InstalledPack[]
@@ -52,10 +55,13 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({
   workspace,
+  workspaces,
   providers,
   busy,
   error,
   onRegister,
+  onChooseFolder,
+  onUnregister,
   onEmployeeNameChange,
   onWorkspaceProviderChange,
   packs = [],
@@ -72,13 +78,22 @@ export function SettingsPanel({
     <section className="settings-panel" id="settings" aria-label="設定">
       <p className="section-kicker">設定</p>
       <h2>工房の整え方</h2>
-      <AdapterSettings />
+      <AdapterSettings
+        key={
+          (workspaces ?? (workspace ? [workspace] : []))
+            .map((item) => item.id)
+            .join(',') || 'none'
+        }
+      />
       <RepositoryPanel
         workspace={workspace}
         busy={busy}
         error={error}
         onRegister={onRegister}
-        onEmployeeNameChange={onEmployeeNameChange}
+        {...(workspaces ? { workspaces } : {})}
+        {...(onChooseFolder ? { onChooseFolder } : {})}
+        {...(onUnregister ? { onUnregister } : {})}
+        {...(onEmployeeNameChange ? { onEmployeeNameChange } : {})}
       />
       {workspace && onWorkspaceProviderChange ? (
         <label className="settings-panel__tool">

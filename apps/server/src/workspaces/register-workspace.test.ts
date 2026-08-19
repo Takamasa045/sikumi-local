@@ -114,6 +114,9 @@ function createMemoryStore(): AppStore {
     importDetachedWorkspace: (input) => {
       throw new Error(`unexpected importDetachedWorkspace ${input.id}`)
     },
+    deleteWorkspace: (id) => {
+      throw new Error(`unexpected deleteWorkspace ${id}`)
+    },
     createWorkspace: (inspection, employeeName) => {
       const workspace: Workspace = {
         id: `ws_${workspaces.length + 1}`,

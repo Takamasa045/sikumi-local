@@ -24,6 +24,21 @@ export const registerWorkspaceRequestSchema = z.object({
   employeeName: z.string().trim().min(1).max(40).optional(),
 })
 
+export const chooseWorkspaceFolderResponseSchema = z.discriminatedUnion(
+  'cancelled',
+  [
+    z.object({ cancelled: z.literal(true) }),
+    z.object({
+      cancelled: z.literal(false),
+      path: z.string().min(1),
+    }),
+  ],
+)
+
+export const unregisterWorkspaceResponseSchema = z.object({
+  ok: z.literal(true),
+})
+
 export const repositorySchema = z.object({
   id: z.string().min(1),
   absolutePath: z.string().min(1),

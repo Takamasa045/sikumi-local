@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ObserverDashboard } from './ObserverDashboard'
 
 describe('ObserverDashboard', () => {
-  it('keeps an add-repository path after repositories already exist', async () => {
+  it('keeps an add-place path after places already exist', async () => {
     const onRegister = vi.fn()
     render(
       <ObserverDashboard
@@ -52,6 +52,8 @@ describe('ObserverDashboard', () => {
         busy={false}
         error={null}
         onRegister={onRegister}
+        onChooseFolder={async () => '/tmp/second'}
+        onUnregister={vi.fn()}
         onSelectRepository={vi.fn()}
         onRescan={vi.fn()}
       />,
@@ -61,13 +63,10 @@ describe('ObserverDashboard', () => {
     expect(screen.getByText('first番')).toBeVisible()
     expect(screen.getByText((content) => content === 'first')).toBeVisible()
     expect(screen.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
-    await userEvent.type(
-      screen.getByLabelText('観測するRepositoryの場所'),
-      '/tmp/second',
-    )
-    await userEvent.click(
-      screen.getByRole('button', { name: '観測するRepositoryを追加' }),
-    )
+    expect(screen.getByRole('button', { name: 'この場所を外す' })).toBeVisible()
+    await userEvent.click(screen.getByRole('button', { name: 'フォルダを選ぶ' }))
+    expect(screen.getByLabelText('場所のパス')).toHaveValue('/tmp/second')
+    await userEvent.click(screen.getByRole('button', { name: 'この場所を追加' }))
     expect(onRegister).toHaveBeenCalledWith('/tmp/second', '')
   })
 })

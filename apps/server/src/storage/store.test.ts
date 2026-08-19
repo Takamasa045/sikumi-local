@@ -406,6 +406,30 @@ describe('AppStore persistence boundary', () => {
     expect(raw.includes('sk-live-secret-value')).toBe(false)
   })
 
+  it('unregisters a workspace without touching the absolute path', () => {
+    const opened = openTempDatabase()
+    const store = createStore(opened.db)
+    const workspace = store.createWorkspace({
+      absolutePath: '/tmp/keep-this-folder',
+      displayName: 'keep-this-folder',
+      currentBranch: 'main',
+      remoteName: 'origin',
+      remoteUrl: null,
+      readable: true,
+    })
+
+    store.deleteWorkspace(workspace.id)
+
+    expect(store.listWorkspaces()).toEqual([])
+    expect(store.getWorkspace(workspace.id)).toBeUndefined()
+    expect(
+      store.findRepositoryByAbsolutePath('/tmp/keep-this-folder'),
+    ).toBeUndefined()
+    expect(() => store.deleteWorkspace(workspace.id)).toThrow(
+      /場所が見つかりません/,
+    )
+  })
+
   it('never writes secret remote credentials into sqlite', () => {
     const opened = openTempDatabase()
     const store = createStore(opened.db)

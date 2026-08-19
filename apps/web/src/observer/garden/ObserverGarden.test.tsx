@@ -367,11 +367,17 @@ describe('ObserverGarden', () => {
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     const inspect = screen.getByTestId('garden-inspect')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
     expect(inspect).toHaveTextContent('alpha番')
-    expect(inspect).toHaveTextContent('いま')
-    expect(inspect).toHaveTextContent('いまの仕事')
+    expect(labels).toContain('いま何をしているか')
+    expect(labels).toContain('次はどうするか')
+    expect(labels).not.toContain('いま')
+    expect(labels).not.toContain('いまの仕事')
     expect(inspect).toHaveTextContent('APIを直している')
     expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).toHaveTextContent('画面の途中を続ける')
     expect(inspect).toHaveTextContent('作業しています')
     expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('画面まわりを直している')
@@ -382,7 +388,7 @@ describe('ObserverGarden', () => {
     expect(inspect).not.toHaveTextContent('画面あたり')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent('作業中のファイル')
-    expect(inspect).not.toHaveTextContent('これから')
+    expect(labels).not.toContain('これから')
     expect(inspect).not.toHaveTextContent('いまの作業の続き')
     expect(inspect).not.toHaveTextContent('Codexが動かしている')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')

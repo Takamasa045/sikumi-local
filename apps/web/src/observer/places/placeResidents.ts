@@ -923,7 +923,11 @@ function describePlaceIntro(resident: PlaceResident): string | null {
   if (fromReadme) {
     return fromReadme
   }
-  if (resident.workStory && resident.changedFileCount === 0 && !resident.working) {
+  if (
+    resident.workStory &&
+    resident.changedFileCount === 0 &&
+    !resident.working
+  ) {
     return resident.workStory
   }
   const title = spokenRecordTitle(resident.latestRecordTitle)
@@ -999,7 +1003,7 @@ function leftoverKindAreas(
   if (resident.workStory && !labels.includes('記事')) {
     return ['記事', ...labels].slice(0, 2)
   }
-  return labels
+  return labels.slice(0, 2)
 }
 
 function leftoverWorkSummary(resident: Pick<PlaceResident, 'areas'>): string {

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { InstalledPack, ProviderId, Workspace } from '@sikumi-local/core'
 import type { ProviderAvailability } from '../api/providers'
 import type { ProviderLoadState } from '../providers/connection-summary'
@@ -68,11 +69,15 @@ export function SettingsPanel({
   providerProbes,
   onRecheckProvider,
 }: SettingsPanelProps) {
+  const [showOptionalConnect, setShowOptionalConnect] = useState(false)
   return (
     <section className="settings-panel" id="settings" aria-label="設定">
       <p className="section-kicker">設定</p>
       <h2>工房の整え方</h2>
-      <AdapterSettings />
+      <p className="observer-lead">
+        普段は今日の作業場でフォルダを登録すれば十分です。そこで動かしている
+        AI は、つなぐ操作なしで庭に出ます。
+      </p>
       <RepositoryPanel
         workspace={workspace}
         busy={busy}
@@ -231,6 +236,16 @@ export function SettingsPanel({
           ))}
         </ul>
       ) : null}
+      <details
+        className="settings-panel__optional"
+        data-testid="optional-connect"
+        onToggle={(event) => {
+          setShowOptionalConnect(event.currentTarget.open)
+        }}
+      >
+        <summary>つなぐ（任意）</summary>
+        {showOptionalConnect ? <AdapterSettings /> : null}
+      </details>
     </section>
   )
 }

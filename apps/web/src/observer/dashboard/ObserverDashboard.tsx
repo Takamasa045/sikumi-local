@@ -31,7 +31,7 @@ export function ObserverDashboard({
       <p className="section-kicker">今日の作業場</p>
       <h2>いま何が、どこで起きているか</h2>
       <p className="observer-lead">
-        普段どおり各AIアプリで作業してください。ここは作業を頼む場所ではなく、登録した場所の様子を眺める場所です。
+        フォルダを登録して、普段どおり各AIアプリで作業してください。つなぐ操作は不要です。ここは作業を頼む場所ではなく、登録した場所の様子を眺める場所です。
       </p>
 
       {overview ? (

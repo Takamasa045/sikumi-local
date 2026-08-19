@@ -27,6 +27,27 @@ afterEach(() => {
 })
 
 describe('SettingsPanel', () => {
+  it('keeps folder registration in front and hides hook install until asked', () => {
+    render(
+      <SettingsPanel
+        workspace={null}
+        providers={[]}
+        busy={false}
+        error={null}
+        onRegister={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByRole('region', { name: 'Repository登録' }),
+    ).toBeVisible()
+    expect(
+      screen.getByText(/今日の作業場でフォルダを登録すれば十分/),
+    ).toBeVisible()
+    expect(screen.queryByRole('heading', { name: '庭につなぐ道具' })).toBeNull()
+    expect(screen.queryAllByRole('button', { name: 'つなぐ' })).toHaveLength(0)
+    expect(screen.getByText('つなぐ（任意）')).toBeVisible()
+  })
+
   it('does not present the garden as a labs or legacy screen', () => {
     render(
       <SettingsPanel

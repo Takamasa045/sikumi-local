@@ -691,6 +691,44 @@ describe('ObserverGarden', () => {
     expect(inspect).not.toHaveTextContent('縁側')
   })
 
+  it('speaks leftover from a read intro when no keyword look matched', async () => {
+    renderGarden(
+      overviewOf([
+        repository(
+          'repo_seminar',
+          'seminar-place',
+          [],
+          6,
+          ['確認用の仕組み', '作業中のファイル'],
+          { placeIntro: 'セミナーの運営をする場所です。' },
+        ),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(
+      within(residents).getByText('セミナーの運営の途中が残っている'),
+    ).toBeVisible()
+    expect(within(residents).queryByText('途中の仕事がある')).toBeNull()
+    expect(within(residents).queryByText(/確認用の仕組み/)).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_seminar')).getByRole(
+        'button',
+      ),
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('この場所は何の仕事か')
+    expect(inspect).toHaveTextContent('セミナーの運営をする場所です。')
+    expect(inspect).toHaveTextContent('セミナーの運営の途中が残っています。')
+    expect(inspect).toHaveTextContent('セミナーの運営の途中を続ける')
+    expect(inspect).not.toHaveTextContent('途中の仕事がある')
+    expect(inspect).not.toHaveTextContent('確認用の仕組み')
+    expect(inspect).not.toHaveTextContent('作業中のファイル')
+    expect(inspect).not.toHaveTextContent('README')
+    expect(inspect).not.toHaveTextContent('縁側')
+  })
+
   it('walks hataraki when grok is live and swaps old confirmation-wait copy', async () => {
     const first = renderGarden(
       overviewOf([

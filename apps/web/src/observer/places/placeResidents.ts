@@ -1256,7 +1256,119 @@ function placeWorkLook(value: string | null | undefined): PlaceWorkLook | null {
       return item.look
     }
   }
+  return lookFromReadIntro(intro)
+}
+
+function lookFromReadIntro(intro: string): PlaceWorkLook | null {
+  const work = everydayWorkPhrase(intro)
+  if (!work) {
+    return null
+  }
+  const working = /(?:している|っている)$/.test(work)
+    ? work
+    : /する$/.test(work)
+      ? `${work.slice(0, -2)}している`
+      : `${work}している`
+  return {
+    working,
+    leftover: `${work}の途中が残っている`,
+    leftoverNow: `${work}の途中が残っています。`,
+    next: `${work}の途中を続ける`,
+  }
+}
+
+const PLACE_INTRO_WRAPPERS = [
+  /のための場所$/,
+  /をする場所$/,
+  /する場所$/,
+  /のためのところ$/,
+  /の場所$/,
+  /場所$/,
+] as const
+
+function everydayWorkPhrase(intro: string): string | null {
+  const source = stripSpokenEnding(intro)
+  if (!isUsableWorkPhrase(source)) {
+    return null
+  }
+  const stripped = stripPlaceIntroWrappers(source)
+  const fromObject = nounBeforeShortVerb(stripped)
+  for (const candidate of [fromObject, stripped, firstSpokenClause(stripped)]) {
+    if (isUsableWorkPhrase(candidate)) {
+      return candidate
+    }
+  }
   return null
+}
+
+function stripPlaceIntroWrappers(value: string): string {
+  let text = value
+  let previous = ''
+  while (text && text !== previous) {
+    previous = text
+    text = stripSpokenEnding(text)
+    for (const wrapper of PLACE_INTRO_WRAPPERS) {
+      if (wrapper.test(text)) {
+        text = text.replace(wrapper, '').trim()
+        break
+      }
+    }
+  }
+  return text.replace(/を$/u, '').trim()
+}
+
+function nounBeforeShortVerb(value: string): string | null {
+  const match = /^(.*)を([^を]{1,8})$/u.exec(value)
+  const noun = match?.[1]?.trim() ?? ''
+  const verb = match?.[2] ?? ''
+  if (!noun || verb.includes('の') || !isUsableWorkPhrase(noun)) {
+    return null
+  }
+  return noun
+}
+
+function firstSpokenClause(value: string): string | null {
+  const clause = value.split(/[、，]/u)[0]?.trim() ?? ''
+  return clause && clause !== value ? clause : null
+}
+
+function stripSpokenEnding(value: string): string {
+  return value
+    .trim()
+    .replace(/[。．.]+$/u, '')
+    .replace(/です$/u, '')
+    .trim()
+}
+
+function isUsableWorkPhrase(value: string | null | undefined): boolean {
+  const phrase = value?.trim() ?? ''
+  if (
+    !phrase ||
+    isBannedWorkPhrase(phrase) ||
+    isLeftoverAreaOnlyPhrase(phrase)
+  ) {
+    return false
+  }
+  return /[\u3040-\u30ff\u4e00-\u9faf]/u.test(phrase)
+}
+
+function isBannedWorkPhrase(value: string): boolean {
+  return (
+    value.includes('まだ分かっていません') ||
+    value.includes('変更元不明') ||
+    value.includes('縁側') ||
+    /README/i.test(value)
+  )
+}
+
+function isLeftoverAreaOnlyPhrase(value: string): boolean {
+  const normalized = value.replace(/[。．.、，,\s]/g, '')
+  return (
+    normalized === '確認用の仕組み' ||
+    normalized === '確認の仕組み' ||
+    normalized === '作業中のファイル' ||
+    normalized === GENERIC_AREA_LABEL
+  )
 }
 
 function hidesLeftoverAreaCopy(
@@ -1593,6 +1705,7 @@ function everydayPlaceIntro(value: string | null | undefined): string | null {
   if (
     intro.includes('まだ分かっていません') ||
     intro.includes('変更元不明') ||
+    intro.includes('縁側にいます') ||
     /\b(SHA|commit|HEAD|origin)\b/i.test(intro) ||
     /[\\/]/.test(intro) ||
     /\.(md|ya?ml|log|ts|tsx|css|json)$/i.test(intro)

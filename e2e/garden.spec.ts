@@ -8,6 +8,10 @@ test('the garden is the default home screen', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
   await expect(page.getByRole('region', { name: '観測の庭' })).toBeVisible()
+  const look = page.getByRole('group', { name: '庭の様子' })
+  await expect(look.getByRole('button', { name: '里山' })).toBeVisible()
+  await expect(look.getByRole('button', { name: '工房' })).toBeVisible()
+  await expect(page.getByText('dog-office')).toHaveCount(0)
   await expect(page.getByTestId('connection-badge')).toContainText(
     'ローカル観測',
   )
@@ -128,11 +132,19 @@ test('a user can click a garden station to see what is happening', async ({
 })
 
 test('the garden remains usable on a phone viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/#garden')
 
   await expect(page.getByRole('region', { name: '観測の庭' })).toBeInViewport()
   await expect(page.getByRole('navigation', { name: '主要画面' })).toBeVisible()
   await expect(page.getByRole('button', { name: '仕事を頼む' })).toHaveCount(0)
+  const look = page.getByRole('group', { name: '庭の様子' })
+  await expect(look.getByRole('button', { name: '里山' })).toBeVisible()
+  await expect(look.getByRole('button', { name: '工房' })).toBeVisible()
+  await expect(look.getByRole('button', { name: '里山' })).toBeEnabled()
+  await expect(look.getByRole('button', { name: '工房' })).toBeEnabled()
+  await expect(page.getByText('dog-office')).toHaveCount(0)
+  await expect(page.getByText('worldPackId')).toHaveCount(0)
 
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,

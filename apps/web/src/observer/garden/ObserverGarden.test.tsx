@@ -786,6 +786,25 @@ describe('ObserverGarden', () => {
     ).toBe(first)
     expect(actorAtlasUrl('repo_a')).toBe(firstAtlas)
   })
+
+  it('keeps the satoyama / workshop switch under the heading, not clipped', () => {
+    renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
+
+    const headingGroup = screen
+      .getByRole('heading', { name: '観測の庭' })
+      .closest('.observer-garden-heading-group')
+    expect(headingGroup).not.toBeNull()
+    const look = screen.getByTestId('garden-look')
+    expect(headingGroup).toContainElement(look)
+    expect(look.className).toContain('observer-garden-look')
+    expect(gardenLookButton('里山')).toBeVisible()
+    expect(gardenLookButton('工房')).toBeVisible()
+    expect(gardenLookButton('里山')).toHaveClass('observer-garden-look-button')
+    expect(screen.queryByText('dog-office')).toBeNull()
+    expect(screen.queryByText('craft-workshop')).toBeNull()
+    expect(screen.queryByText('worldPackId')).toBeNull()
+    expect(screen.queryByRole('heading', { name: '工房の整え方' })).toBeNull()
+  })
 })
 
 function gardenLookButton(name: '里山' | '工房') {

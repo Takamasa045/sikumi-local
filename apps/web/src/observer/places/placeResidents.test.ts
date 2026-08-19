@@ -137,7 +137,7 @@ describe('collectPlaceResidents', () => {
 })
 
 describe('collectGardenActors', () => {
-  it('makes one ground character per registered place', () => {
+  it('shows only live or very recent observed agents, not idle registered places', () => {
     const actors = collectGardenActors(
       overviewOf([
         repository('repo_a', 'ws_a', 'my-blog', [
@@ -151,30 +151,65 @@ describe('collectGardenActors', () => {
           }),
         ]),
         repository('repo_b', 'ws_b', 'notes', []),
+        repository('repo_c', 'ws_c', 'old-wait', [
+          session({
+            id: 'old',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: '見出しの直し',
+            status: 'idle',
+            activity: 'waiting',
+            lastObservedAt: '2026-08-19T00:00:00.000Z',
+          }),
+        ]),
+        repository('repo_d', 'ws_d', 'alpha', [
+          session({
+            id: 'git',
+            source: 'git',
+            displayName: '変更元不明',
+            title: '変更元不明の作業',
+            attributionConfidence: 'inferred',
+          }),
+        ]),
       ]),
       [workspace('ws_a', 'ブログ番')],
     )
 
-    expect(actors).toHaveLength(2)
-    expect(actors.map((actor) => actor.placeName).sort()).toEqual([
-      'notes番',
-      'ブログ番',
-    ])
-    expect(
-      actors.every((actor) =>
-        ['archive', 'workbench', 'delivery', 'waiting', 'rest'].includes(
-          actor.station,
-        ),
-      ),
-    ).toBe(true)
-    const working = actors.find((actor) => actor.placeName === 'ブログ番')
-    expect(working?.station).toBe('workbench')
-    expect(working?.workSummary).toBe('APIを直している')
-    expect(working?.operatorSummary).toBe('Codexが動かしている')
-    const quiet = actors.find((actor) => actor.placeName === 'notes番')
-    expect(quiet?.workSummary).toBe(UNKNOWN_PLACE_WORK)
-    expect(quiet?.operatorSummary).toBeNull()
-    expect(['archive', 'rest', 'delivery']).toContain(quiet?.station)
+    expect(actors).toHaveLength(1)
+    expect(actors[0]).toMatchObject({
+      placeName: 'ブログ番',
+      repositoryName: 'my-blog',
+      station: 'workbench',
+      workSummary: 'APIを直している',
+      operatorSummary: 'Codexが動かしている',
+      stopped: false,
+    })
+  })
+
+  it('keeps a just-stopped waiting agent so the last work can be inspected', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'alpha', [
+          session({
+            id: 'wait',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: '承認が必要',
+            status: 'idle',
+            activity: 'waiting',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]).toMatchObject({
+      placeName: 'alpha番',
+      repositoryName: 'alpha',
+      station: 'waiting',
+      workSummary: '承認が必要',
+      stopped: true,
+    })
   })
 })
 

@@ -39,10 +39,12 @@ export type GardenPlaceActor = {
   readonly key: string
   readonly repositoryId: string
   readonly placeName: string
+  readonly repositoryName: string
   readonly workSummary: string
   readonly operatorSummary: string | null
   readonly station: GardenPlaceStation
   readonly tone: GardenPlaceTone
+  readonly stopped: boolean
   readonly column: number
   readonly row: number
   readonly slot: number
@@ -112,10 +114,12 @@ export function collectPlaceResidents(
         }
         return resolveTone(session.status, session.activity) === 'working'
       }),
-      waiting: observed.some(
-        (session) =>
-          resolveTone(session.status, session.activity) === 'waiting',
-      ),
+      waiting: observed.some((session) => {
+        if (!shouldShowGardenDog(session, nowMs)) {
+          return false
+        }
+        return resolveTone(session.status, session.activity) === 'waiting'
+      }),
       lastObservedWork: describePlaceWork(observed, repository, nowMs),
       lastObservedLabel: latest?.lastObservedLabel ?? null,
       operatorSummary: describePlaceOperator(observed, nowMs),
@@ -147,6 +151,7 @@ export function collectGardenActors(
   const residents = collectPlaceResidents(overview, workspaces)
   const slotCursor = new Map<GardenPlaceStation, number>()
   return residents
+    .filter((resident) => resident.working || resident.waiting)
     .map((resident) => {
       const hash = stableHash(resident.repositoryId)
       const tone: GardenPlaceTone = resident.waiting
@@ -158,10 +163,12 @@ export function collectGardenActors(
         key: resident.repositoryId,
         repositoryId: resident.repositoryId,
         placeName: resident.placeName,
+        repositoryName: resident.repositoryName.trim() || resident.placeName,
         workSummary: resident.lastObservedWork,
         operatorSummary: resident.operatorSummary,
         station: stationForResident(resident, hash),
         tone,
+        stopped: tone === 'waiting',
         column: hash % ATLAS_COLUMNS,
         row: (hash >>> 3) % ATLAS_ROWS,
         slot: 0,
@@ -190,10 +197,9 @@ export function describePlaceOperator(
   sessions: readonly OverviewSession[],
   nowMs: number,
 ): string | null {
-  const live = sessions.filter((session) => {
-    const tone = resolveTone(session.status, session.activity)
-    return tone === 'waiting' || shouldShowGardenDog(session, nowMs)
-  })
+  const live = sessions.filter((session) =>
+    shouldShowGardenDog(session, nowMs),
+  )
   const labels = uniqueLabels(
     live
       .map((session) => knownSourceLabel(session.source))
@@ -233,10 +239,9 @@ function describePlaceWork(
   repository: OverviewRepository,
   nowMs: number,
 ): string {
-  const current = sessions.filter((session) => {
-    const tone = resolveTone(session.status, session.activity)
-    return tone === 'waiting' || shouldShowGardenDog(session, nowMs)
-  })
+  const current = sessions.filter((session) =>
+    shouldShowGardenDog(session, nowMs),
+  )
   const ranked = [...current].sort(compareObservedAt)
   for (const session of ranked) {
     const title = session.title?.trim()

@@ -994,9 +994,6 @@ export function App() {
               onOpenWorkshop={() => {
                 window.location.hash = 'observer'
               }}
-              onOpenSettings={() => {
-                window.location.hash = 'settings'
-              }}
             />
           ) : null}
 

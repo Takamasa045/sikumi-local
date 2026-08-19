@@ -12,6 +12,7 @@ import {
   type GardenInspectSubject,
 } from '../../garden/GardenInspect'
 import { poseGesture } from '../../garden/motion'
+import { useGardenWander } from '../../garden/useGardenWander'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
 import { useStationTravel } from '../../garden/useStationTravel'
 import { gardenStationLabels, getWorldPack } from '../../garden/worlds'
@@ -49,7 +50,6 @@ type ObserverGardenProps = {
   overview: TodayOverview | null
   workspaces?: readonly Workspace[]
   onOpenWorkshop: () => void
-  onOpenSettings: () => void
 }
 
 function atlasPosition(column: number, row: number): { x: string; y: string } {
@@ -70,7 +70,21 @@ function stationPoint(
 }
 
 function actorAriaLabel(actor: GardenPlaceActor): string {
-  return [actor.placeName, actor.workSummary].join('、')
+  return [actor.placeName, actor.repositoryName, actor.workSummary].join('、')
+}
+
+export const GARDEN_EMPTY_NO_PLACES =
+  '登録した場所がまだありません。今日の作業場からフォルダを追加してください。'
+export const GARDEN_EMPTY_NO_LIVE =
+  'いま動いているエージェントはいません。リポの確認は今日の作業場からできます。'
+
+function gardenEmptyMessage(
+  overview: TodayOverview | null,
+  workspaces: readonly Workspace[],
+): string {
+  const registered =
+    workspaces.length > 0 || (overview?.repositories.length ?? 0) > 0
+  return registered ? GARDEN_EMPTY_NO_LIVE : GARDEN_EMPTY_NO_PLACES
 }
 
 function actorOffset(actor: GardenPlaceActor): { x: number; y: number } {
@@ -88,7 +102,6 @@ export function ObserverGarden({
   overview,
   workspaces = [],
   onOpenWorkshop,
-  onOpenSettings,
 }: ObserverGardenProps) {
   const world = getWorldPack(WORLD_ID)
   const actors = collectGardenActors(overview, workspaces)
@@ -152,13 +165,6 @@ export function ObserverGarden({
             >
               今日の作業場
             </button>
-            <button
-              type="button"
-              className="observer-garden-nav-button observer-garden-nav-settings"
-              onClick={onOpenSettings}
-            >
-              設定
-            </button>
           </div>
         </header>
 
@@ -214,6 +220,10 @@ export function ObserverGarden({
                       station: actor.station,
                       traveling: actorTravel[actor.key] === true,
                       summary: actor.workSummary,
+                      repositoryLabel: actor.repositoryName,
+                      stopped: actor.stopped,
+                      progressSummary: actor.workSummary,
+                      nextStepSummary: null,
                       ...(actor.operatorSummary
                         ? { operatorSummary: actor.operatorSummary }
                         : {}),
@@ -224,7 +234,7 @@ export function ObserverGarden({
             </div>
           ) : (
             <p className="observer-garden-guide">
-              登録した場所がまだありません。今日の作業場からフォルダを追加してください。
+              {gardenEmptyMessage(overview, workspaces)}
             </p>
           )}
 
@@ -254,10 +264,12 @@ function ObserverGardenActor({
 }) {
   const point = stationPoint(world.stations, actor.station)
   const offset = actorOffset(actor)
-  const destination = {
+  const home = {
     x: point.x + offset.x,
     y: point.y + offset.y,
   }
+  const wandering = actor.tone === 'working' && !reducedMotion
+  const destination = useGardenWander(home, wandering, reducedMotion)
   const {
     point: travelPoint,
     traveling,
@@ -269,7 +281,10 @@ function ObserverGardenActor({
       : actor.tone === 'working'
         ? 'working'
         : 'idle'
-  const gesture = poseGesture(pose, traveling && !reducedMotion)
+  const gesture = poseGesture(
+    pose,
+    (traveling || wandering) && !reducedMotion,
+  )
   const atlas = atlasPosition(actor.column, actor.row)
   const spriteStyle = {
     '--observer-atlas-x': atlas.x,
@@ -325,7 +340,7 @@ function ObserverGardenActor({
         <div className="observer-garden-actor-sprite" style={spriteStyle} />
       </button>
       <div className="observer-garden-bubble">
-        <p className="observer-garden-bubble-source">{actor.placeName}</p>
+        <p className="observer-garden-bubble-source">{actor.repositoryName}</p>
         <p className="observer-garden-bubble-title">{actor.workSummary}</p>
       </div>
     </article>

@@ -31,7 +31,7 @@ test('the garden is the default home screen', async ({ page }) => {
   ).toBeVisible()
 })
 
-test('the garden shows registered places as characters, not a list', async ({
+test('the garden shows live agents, not idle registered places or a list', async ({
   page,
 }) => {
   const repositoryPath = createTemporaryGitRepository('sikumi-e2e-garden-')
@@ -49,27 +49,20 @@ test('the garden shows registered places as characters, not a list', async ({
   await page.getByRole('link', { name: '庭' }).click()
 
   await expect(page.getByRole('region', { name: '○○番の一覧' })).toHaveCount(0)
-  await expect(page.getByRole('list', { name: '庭の住人' })).toBeVisible()
-  await expect(page.getByText('しくみローカル番').first()).toBeVisible()
-  await expect(page.getByText('まだ分かっていません').first()).toBeVisible()
+  await expect(page.getByRole('list', { name: '庭の住人' })).toHaveCount(0)
+  await expect(
+    page.getByText(
+      'いま動いているエージェントはいません。リポの確認は今日の作業場からできます。',
+    ),
+  ).toBeVisible()
+  await expect(page.getByText('しくみローカル番')).toHaveCount(0)
   await expect(page.getByTestId('garden-employee')).toHaveCount(0)
   await expect(
     page.getByRole('heading', { name: '出どころ未確認の変更' }),
   ).toHaveCount(0)
   await expect(page.getByText('変更元不明の作業')).toHaveCount(0)
   await expect(page.getByRole('form', { name: '仕事を頼む' })).toHaveCount(0)
-
-  const resident = page
-    .getByRole('list', { name: '庭の住人' })
-    .getByRole('listitem')
-  await expect(resident).not.toHaveAttribute('data-station', 'observatory')
-  await resident.getByRole('button').click()
-  await expect(page.getByTestId('garden-inspect')).toContainText(
-    'しくみローカル番',
-  )
-  await expect(page.getByTestId('garden-inspect')).toContainText(
-    'まだ分かっていません',
-  )
+  await expect(page.getByRole('button', { name: '設定' })).toHaveCount(0)
 })
 
 test("a user can move between garden, today's workshop, and settings", async ({

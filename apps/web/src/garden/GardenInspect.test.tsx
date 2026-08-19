@@ -32,6 +32,34 @@ describe('GardenInspect', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('shows how far a stopped agent got without inventing the next step', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'ブログ番',
+          station: 'waiting',
+          traveling: false,
+          summary: '見出しの直し',
+          repositoryLabel: 'my-blog',
+          operatorSummary: 'Claude Codeが確認を待っています',
+          stopped: true,
+          progressSummary: '見出しの直し',
+          nextStepSummary: null,
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('リポジトリ')
+    expect(inspect).toHaveTextContent('my-blog')
+    expect(inspect).toHaveTextContent('どこまでやったか')
+    expect(inspect).toHaveTextContent('見出しの直し')
+    expect(inspect).toHaveTextContent('次はこんな感じか')
+    expect(inspect).toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('いまの仕事')
+  })
+
   it('lists occupant summaries on a station', () => {
     render(
       <GardenInspect

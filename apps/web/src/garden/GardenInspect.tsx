@@ -6,6 +6,8 @@ import {
   gardenStationMeanings,
 } from './worlds'
 
+export const UNKNOWN_INSPECT_FACT = 'まだ分かっていません'
+
 export type GardenInspectSubject =
   | {
       readonly kind: 'character'
@@ -16,6 +18,10 @@ export type GardenInspectSubject =
       readonly summary: string
       readonly jobTitle?: string
       readonly operatorSummary?: string | null
+      readonly repositoryLabel?: string
+      readonly stopped?: boolean
+      readonly progressSummary?: string | null
+      readonly nextStepSummary?: string | null
     }
   | {
       readonly kind: 'station'
@@ -91,6 +97,12 @@ function CharacterBody({
           <dd>{subject.role}</dd>
         </>
       ) : null}
+      {subject.repositoryLabel ? (
+        <>
+          <dt>リポジトリ</dt>
+          <dd>{subject.repositoryLabel}</dd>
+        </>
+      ) : null}
       <dt>場所</dt>
       <dd>
         {subject.traveling ? `${place}へ向かっています` : `${place}にいます`}
@@ -107,10 +119,26 @@ function CharacterBody({
           <dd>{subject.jobTitle}</dd>
         </>
       ) : null}
-      <dt>要約</dt>
-      <dd>{subject.summary}</dd>
+      {subject.stopped ? (
+        <>
+          <dt>どこまでやったか</dt>
+          <dd>{knownFact(subject.progressSummary ?? subject.summary)}</dd>
+          <dt>次はこんな感じか</dt>
+          <dd>{knownFact(subject.nextStepSummary)}</dd>
+        </>
+      ) : (
+        <>
+          <dt>いまの仕事</dt>
+          <dd>{knownFact(subject.summary)}</dd>
+        </>
+      )}
     </dl>
   )
+}
+
+function knownFact(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? ''
+  return trimmed || UNKNOWN_INSPECT_FACT
 }
 
 function StationBody({

@@ -121,12 +121,11 @@ export function shouldShowGardenDog(
   if (!isObservedAgent(session) || isUnconfirmedChange(session)) {
     return false
   }
-  const tone = resolveTone(session.status, session.activity)
-  if (tone === 'waiting') return true
-  if (tone === 'working') {
-    return isRecentlyObserved(session.lastObservedAt, nowMs)
+  if (!isRecentlyObserved(session.lastObservedAt, nowMs)) {
+    return false
   }
-  return false
+  const tone = resolveTone(session.status, session.activity)
+  return tone === 'waiting' || tone === 'working'
 }
 
 export function isGenericWorkTitle(title: string | null | undefined): boolean {

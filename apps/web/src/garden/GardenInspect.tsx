@@ -40,6 +40,9 @@ export type GardenInspectSubject =
         readonly traveling: boolean
         readonly summary?: string
       }[]
+      readonly title?: string
+      readonly meaning?: string
+      readonly occupantsText?: string
     }
 
 interface GardenInspectProps {
@@ -64,7 +67,7 @@ export function GardenInspect({ subject, onClose }: GardenInspectProps) {
   const title =
     subject.kind === 'character'
       ? subject.name
-      : gardenStationLabels[subject.station]
+      : (subject.title ?? gardenStationLabels[subject.station])
 
   return (
     <aside
@@ -410,10 +413,11 @@ function StationBody({
   return (
     <>
       <p className="garden-inspect__meaning">
-        {gardenStationMeanings[subject.station]}
+        {subject.meaning ?? gardenStationMeanings[subject.station]}
       </p>
       <p className="garden-inspect__occupants">
-        {describeStationOccupants(subject.station, subject.occupants)}
+        {subject.occupantsText ??
+          describeStationOccupants(subject.station, subject.occupants)}
       </p>
       {subject.occupants.map((occupant) =>
         occupant.summary ? (

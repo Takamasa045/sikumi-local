@@ -4,8 +4,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   WORKING_WALK_FIRST_STEP_MS,
   WORKING_WALK_LANE_X,
-  WORKING_WALK_STOPS,
+  isWorkingWalkStop,
+  walkStopKind,
 } from './gardenWalk'
+import {
+  GARDEN_GROUND,
+  GARDEN_PLACE_POINTS,
+  GARDEN_WORK_GROUND,
+} from '../places/placeResidents'
 import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
 import { GARDEN_WORLD_PACK_STORAGE_KEY } from '../../garden/useGardenWorldPack'
@@ -267,7 +273,9 @@ describe('ObserverGarden', () => {
     ).toBe(true)
     const groundXs = items.map((item) => item.getAttribute('data-ground-x'))
     expect(new Set(groundXs).size).toBe(2)
-    expect(groundXs.every((value) => Number(value) >= 36)).toBe(true)
+    expect(groundXs.every((value) => Number(value) >= GARDEN_GROUND.minX)).toBe(
+      true,
+    )
   })
 
   it('does not use git or inferred work as the job name', () => {
@@ -483,13 +491,16 @@ describe('ObserverGarden', () => {
   it('explains a station in place when it is clicked', async () => {
     renderGarden(null)
 
-    await userEvent.click(screen.getByRole('button', { name: '資料棚' }))
+    await userEvent.click(screen.getByRole('button', { name: '仕事' }))
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      'この工房の資料を読む場所',
+      '動いている仕事がいる場所',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      '資料棚に、いまは誰もいません',
+      '仕事に、いまは誰もいません',
     )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('縁側')
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('資料棚')
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('作業台')
   })
 
   it('names the waiting place in picture words', async () => {
@@ -680,7 +691,7 @@ describe('ObserverGarden', () => {
     expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
   })
 
-  it('walks a working character between the shelf, bench, and check place', async () => {
+  it('walks a working character with a short pace or a small loop', async () => {
     vi.useFakeTimers()
     renderGarden(
       overviewOf([
@@ -702,7 +713,7 @@ describe('ObserverGarden', () => {
     expect(actor).toHaveAttribute('data-station', 'workbench')
     expect(actor).toHaveAttribute('data-status', 'working')
     expect(actor).toHaveAttribute('data-traveling', 'false')
-    expect(WORKING_WALK_STOPS).toContain(firstStop)
+    expect(isWorkingWalkStop(firstStop)).toBe(true)
 
     await act(async () => {
       vi.advanceTimersByTime(WORKING_WALK_FIRST_STEP_MS + 20)
@@ -712,8 +723,20 @@ describe('ObserverGarden', () => {
     expect(actor).toHaveAttribute('data-gesture', 'walking')
     const nextStop = actor.getAttribute('data-walk-stop')
     expect(nextStop).not.toBe(firstStop)
-    expect(WORKING_WALK_STOPS).toContain(nextStop)
+    expect(isWorkingWalkStop(nextStop)).toBe(true)
+    expect(
+      isWorkingWalkStop(nextStop) ? walkStopKind(nextStop) : nextStop,
+    ).toMatch(/pace|loop/)
+    const walkX = Number(actor.getAttribute('data-walk-x'))
+    const walkY = Number(actor.getAttribute('data-walk-y'))
+    const groundX = Number(actor.getAttribute('data-ground-x'))
+    const groundY = Number(actor.getAttribute('data-ground-y'))
+    expect(Math.hypot(walkX - groundX, walkY - groundY)).toBeLessThan(16)
+    expect(groundY).toBeGreaterThanOrEqual(GARDEN_WORK_GROUND.minY)
+    expect(walkY).toBeGreaterThanOrEqual(GARDEN_WORK_GROUND.minY)
+    expect(walkY).toBeLessThanOrEqual(GARDEN_WORK_GROUND.maxY)
     expect(actor.getAttribute('data-station')).toBe('workbench')
+    expect(actor.getAttribute('data-walk-facing')).toMatch(/left|right/)
   })
 
   it('shows the repository name on the bubble when ○○番 does not already name it', () => {
@@ -951,6 +974,64 @@ describe('ObserverGarden', () => {
     expect(inspect.querySelector('.garden-inspect__leftover')).toBeNull()
   })
 
+  it('shows a square yard with everyday places, not workshop plaques', () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'alpha', [
+          session({
+            id: 's1',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+        repository('repo_b', 'notes', []),
+        repository('repo_c', 'hataraki', [], 3, ['画面']),
+      ]),
+    )
+
+    const garden = screen.getByRole('region', { name: '観測の庭' })
+    expect(garden).toHaveAttribute('data-garden-floor', 'square')
+    expect(garden.className).toContain('observer-garden--satoyama')
+    expect(screen.getByRole('button', { name: '仕事' })).toHaveStyle({
+      left: `${GARDEN_PLACE_POINTS.workbench.x}%`,
+      top: `${GARDEN_PLACE_POINTS.workbench.y}%`,
+    })
+    expect(screen.getByRole('button', { name: '届ける' })).toHaveStyle({
+      left: `${GARDEN_PLACE_POINTS.delivery.x}%`,
+      top: `${GARDEN_PLACE_POINTS.delivery.y}%`,
+    })
+    expect(screen.getByRole('button', { name: '合間' })).toHaveStyle({
+      left: `${GARDEN_PLACE_POINTS.rest.x}%`,
+      top: `${GARDEN_PLACE_POINTS.rest.y}%`,
+    })
+    expect(screen.getByRole('button', { name: '確認待ち' })).toHaveStyle({
+      left: `${GARDEN_PLACE_POINTS.waiting.x}%`,
+      top: `${GARDEN_PLACE_POINTS.waiting.y}%`,
+    })
+    expect(GARDEN_PLACE_POINTS.workbench.y).toBeGreaterThan(
+      GARDEN_PLACE_POINTS.delivery.y,
+    )
+    expect(screen.queryByRole('button', { name: '縁側' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '資料棚' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '資料館' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '作業台' })).toBeNull()
+    expect(screen.queryByRole('button', { name: '納品台' })).toBeNull()
+
+    const working = screen.getByTestId('garden-place-repo_a')
+    const leftover = screen.getByTestId('garden-place-repo_c')
+    const delivered = screen.getByTestId('garden-place-repo_b')
+    expect(Number(working.getAttribute('data-ground-y'))).toBeGreaterThan(
+      Number(delivered.getAttribute('data-ground-y')),
+    )
+    expect(leftover).toHaveAttribute('data-station', 'rest')
+    expect(leftover).toHaveAttribute('data-status', 'observing')
+    expect(delivered).toHaveAttribute('data-station', 'delivery')
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+  })
+
   it('stays on the satoyama atelier until a look is chosen', () => {
     renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
 
@@ -977,9 +1058,9 @@ describe('ObserverGarden', () => {
     expect(garden.style.backgroundImage).toContain(workshop.backgroundUrl)
     expect(screen.getByText('職人工房')).toBeVisible()
     expect(actorAtlasUrl('repo_a')).toContain(workshop.character.atlasUrl)
-    expect(screen.getByRole('button', { name: '作業台' })).toHaveStyle({
-      left: '56%',
-      top: '53%',
+    expect(screen.getByRole('button', { name: '仕事' })).toHaveStyle({
+      left: `${GARDEN_PLACE_POINTS.workbench.x}%`,
+      top: `${GARDEN_PLACE_POINTS.workbench.y}%`,
     })
     expect(screen.queryByText('craft-workshop')).toBeNull()
   })
@@ -999,8 +1080,8 @@ describe('ObserverGarden', () => {
     expect(gardenLookButton('工房')).toHaveAttribute('aria-pressed', 'true')
     expect(gardenLookButton('里山')).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByText('職人工房')).toBeVisible()
-    expect(screen.getByRole('button', { name: '作業台' })).toBeVisible()
-    expect(screen.getByRole('button', { name: '納品台' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '仕事' })).toBeVisible()
+    expect(screen.getByRole('button', { name: '届ける' })).toBeVisible()
     expect(screen.queryByRole('heading', { name: '工房の整え方' })).toBeNull()
     expect(screen.queryByText('craft-workshop')).toBeNull()
 

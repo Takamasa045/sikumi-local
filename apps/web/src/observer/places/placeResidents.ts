@@ -78,17 +78,38 @@ const HOOK_LEFTOVER_TITLE_PATTERNS = [
 ]
 
 export const GARDEN_GROUND = {
-  minX: 36,
-  maxX: 84,
-  minY: 34,
-  maxY: 64,
+  minX: 12,
+  maxX: 88,
+  minY: 16,
+  maxY: 86,
 } as const
 
-const WORKBENCH_POINT = { x: 49, y: 38 }
-const WAITING_POINT = { x: 78, y: 44 }
-const REST_POINT = { x: 53, y: 49 }
-const DELIVERY_POINT = { x: 69, y: 27 }
-const GROUND_Y_WAVE = [0, 8, -5, 10, 3, -7, 5] as const
+export const GARDEN_WORK_GROUND = {
+  minX: 26,
+  maxX: 74,
+  minY: 60,
+  maxY: 82,
+} as const
+
+export const GARDEN_DELIVERY_GROUND = {
+  minX: 30,
+  maxX: 70,
+  minY: 16,
+  maxY: 30,
+} as const
+
+export const GARDEN_PLACE_POINTS = {
+  workbench: { x: 46, y: 72 },
+  delivery: { x: 58, y: 22 },
+  waiting: { x: 86, y: 50 },
+  rest: { x: 14, y: 50 },
+} as const
+
+const WORKBENCH_POINT = GARDEN_PLACE_POINTS.workbench
+const WAITING_POINT = GARDEN_PLACE_POINTS.waiting
+const REST_POINT = GARDEN_PLACE_POINTS.rest
+const DELIVERY_POINT = GARDEN_PLACE_POINTS.delivery
+const GROUND_Y_WAVE = [0, 3, -2, 4, 1, -3, 2] as const
 
 type OverviewRepository = TodayOverview['repositories'][number]
 type OverviewSession = OverviewRepository['sessions'][number]
@@ -604,8 +625,6 @@ export function assignGardenGroundPlots(
     readonly slot: number
   }
 > {
-  const plots = spreadGardenGroundPlots(residents.length)
-  const unused = plots.map((_, index) => index)
   const assigned = new Map<
     string,
     {
@@ -618,67 +637,88 @@ export function assignGardenGroundPlots(
   const ordered = [...residents].sort((left, right) =>
     gardenPlotKey(left).localeCompare(gardenPlotKey(right)),
   )
-
-  function takeClosest(target: { readonly x: number; readonly y: number }) {
-    let bestUnused = 0
-    let bestDistance = Number.POSITIVE_INFINITY
-    for (let index = 0; index < unused.length; index += 1) {
-      const plot = plots[unused[index]!]
-      if (!plot) continue
-      const distance = (plot.x - target.x) ** 2 + (plot.y - target.y) ** 2
-      if (distance < bestDistance) {
-        bestDistance = distance
-        bestUnused = index
-      }
-    }
-    const plotIndex = unused.splice(bestUnused, 1)[0] ?? 0
-    return { plot: plots[plotIndex] ?? REST_POINT, slot: plotIndex }
-  }
-
-  for (const resident of ordered.filter((item) => item.waiting)) {
-    const { plot, slot } = takeClosest(WAITING_POINT)
-    assigned.set(gardenPlotKey(resident), {
-      x: plot.x,
-      y: plot.y,
-      station: 'waiting',
-      slot,
-    })
-  }
-  for (const resident of ordered.filter(
-    (item) => !item.waiting && item.working,
-  )) {
-    const { plot, slot } = takeClosest(WORKBENCH_POINT)
-    assigned.set(gardenPlotKey(resident), {
-      x: plot.x,
-      y: plot.y,
-      station: 'workbench',
-      slot,
-    })
-  }
-  for (const resident of ordered.filter(
+  const waiting = ordered.filter((item) => item.waiting)
+  const working = ordered.filter((item) => !item.waiting && item.working)
+  const leftover = ordered.filter(
     (item) => !item.waiting && !item.working && hasUnfinishedGardenWork(item),
-  )) {
-    const { plot, slot } = takeClosest(REST_POINT)
+  )
+  const quiet = ordered.filter(
+    (item) => !item.waiting && !item.working && !hasUnfinishedGardenWork(item),
+  )
+  let slot = 0
+
+  function place(
+    resident: (typeof ordered)[number],
+    point: { readonly x: number; readonly y: number },
+    station: GardenPlaceStation,
+  ) {
     assigned.set(gardenPlotKey(resident), {
-      x: plot.x,
-      y: plot.y,
-      station: unfinishedQuietStationForPlot(plot),
+      x: point.x,
+      y: point.y,
+      station,
       slot,
     })
+    slot += 1
   }
-  for (const resident of ordered.filter(
-    (item) => !item.waiting && !item.working && !hasUnfinishedGardenWork(item),
-  )) {
-    const plotIndex = unused.shift() ?? 0
-    const plot = plots[plotIndex] ?? REST_POINT
-    assigned.set(gardenPlotKey(resident), {
-      x: plot.x,
-      y: plot.y,
-      station: quietStationForPlot(plot),
-      slot: plotIndex,
-    })
-  }
+
+  spreadAroundX(GARDEN_WORK_GROUND, WORKBENCH_POINT.x, working.length).forEach(
+    (point, index) => {
+      place(working[index]!, point, 'workbench')
+    },
+  )
+  spreadAlongY(
+    WAITING_POINT.x,
+    GARDEN_WORK_GROUND.minY - 22,
+    GARDEN_WORK_GROUND.minY - 2,
+    waiting.length,
+  ).forEach((point, index) => {
+    place(waiting[index]!, point, 'waiting')
+  })
+  spreadAlongY(REST_POINT.x, 36, 70, leftover.length).forEach(
+    (point, index) => {
+      place(leftover[index]!, point, 'rest')
+    },
+  )
+  spreadAroundX(GARDEN_DELIVERY_GROUND, DELIVERY_POINT.x, quiet.length).forEach(
+    (point, index) => {
+      place(quiet[index]!, point, 'delivery')
+    },
+  )
   return assigned
+}
+
+export function isGardenWorkGround(point: {
+  readonly x: number
+  readonly y: number
+}): boolean {
+  return (
+    point.x >= GARDEN_WORK_GROUND.minX &&
+    point.x <= GARDEN_WORK_GROUND.maxX &&
+    point.y >= GARDEN_WORK_GROUND.minY &&
+    point.y <= GARDEN_WORK_GROUND.maxY
+  )
+}
+
+export function isGardenDeliveryGround(point: {
+  readonly x: number
+  readonly y: number
+}): boolean {
+  return (
+    point.x >= GARDEN_DELIVERY_GROUND.minX &&
+    point.x <= GARDEN_DELIVERY_GROUND.maxX &&
+    point.y >= GARDEN_DELIVERY_GROUND.minY &&
+    point.y <= GARDEN_DELIVERY_GROUND.maxY
+  )
+}
+
+export function isGardenEdgeGround(point: {
+  readonly x: number
+  readonly y: number
+}): boolean {
+  const edge = 10
+  return (
+    point.x <= GARDEN_GROUND.minX + edge || point.x >= GARDEN_GROUND.maxX - edge
+  )
 }
 
 export function spreadGardenGroundPlots(
@@ -688,12 +728,12 @@ export function spreadGardenGroundPlots(
     return []
   }
   if (count === 1) {
-    return [{ x: 58, y: 50 }]
+    return [{ x: 50, y: 50 }]
   }
   const span = GARDEN_GROUND.maxX - GARDEN_GROUND.minX
   return Array.from({ length: count }, (_, index) => {
     const x = GARDEN_GROUND.minX + (span * index) / (count - 1)
-    const waved = 48 + GROUND_Y_WAVE[index % GROUND_Y_WAVE.length]!
+    const waved = 50 + GROUND_Y_WAVE[index % GROUND_Y_WAVE.length]!
     return {
       x,
       y: clamp(waved, GARDEN_GROUND.minY, GARDEN_GROUND.maxY),
@@ -701,26 +741,54 @@ export function spreadGardenGroundPlots(
   })
 }
 
-function unfinishedQuietStationForPlot(plot: {
-  readonly x: number
-  readonly y: number
-}): Exclude<GardenPlaceStation, 'delivery' | 'waiting' | 'archive'> {
-  const restDistance =
-    (plot.x - REST_POINT.x) ** 2 + (plot.y - REST_POINT.y) ** 2
-  const workbenchDistance =
-    (plot.x - WORKBENCH_POINT.x) ** 2 + (plot.y - WORKBENCH_POINT.y) ** 2
-  return restDistance <= workbenchDistance ? 'rest' : 'workbench'
+function spreadAroundX(
+  band: {
+    readonly minX: number
+    readonly maxX: number
+    readonly minY: number
+    readonly maxY: number
+  },
+  centerX: number,
+  count: number,
+): readonly { readonly x: number; readonly y: number }[] {
+  if (count <= 0) {
+    return []
+  }
+  const midY = (band.minY + band.maxY) / 2
+  if (count === 1) {
+    return [
+      {
+        x: clamp(centerX, band.minX, band.maxX),
+        y: clamp(midY, band.minY, band.maxY),
+      },
+    ]
+  }
+  const start = centerX - ((count - 1) * WORKING_WALK_LANE_X) / 2
+  return Array.from({ length: count }, (_, index) => {
+    const waved = midY + (GROUND_Y_WAVE[index % GROUND_Y_WAVE.length] ?? 0)
+    return {
+      x: clamp(start + index * WORKING_WALK_LANE_X, band.minX, band.maxX),
+      y: clamp(waved, band.minY, band.maxY),
+    }
+  })
 }
 
-function quietStationForPlot(plot: {
-  readonly x: number
-  readonly y: number
-}): GardenPlaceStation {
-  const restDistance =
-    (plot.x - REST_POINT.x) ** 2 + (plot.y - REST_POINT.y) ** 2
-  const deliveryDistance =
-    (plot.x - DELIVERY_POINT.x) ** 2 + (plot.y - DELIVERY_POINT.y) ** 2
-  return restDistance <= deliveryDistance ? 'rest' : 'delivery'
+function spreadAlongY(
+  x: number,
+  minY: number,
+  maxY: number,
+  count: number,
+): readonly { readonly x: number; readonly y: number }[] {
+  if (count <= 0) {
+    return []
+  }
+  if (count === 1) {
+    return [{ x, y: clamp((minY + maxY) / 2, minY, maxY) }]
+  }
+  return Array.from({ length: count }, (_, index) => ({
+    x,
+    y: clamp(minY + ((maxY - minY) * index) / (count - 1), minY, maxY),
+  }))
 }
 
 function clamp(value: number, min: number, max: number): number {

@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
 import type { Workspace } from '@sikumi-local/core'
 import {
+  assignGardenGroundPlots,
   collectGardenActors,
   collectPlaceResidents,
   deriveEmployeeName,
   derivePlaceName,
+  describePlaceInspect,
+  GARDEN_GROUND,
   placeActivityLabel,
   SHIKUMI_PLACE_NAME,
+  spreadGardenGroundPlots,
   UNKNOWN_PLACE_WORK,
 } from './placeResidents'
 
@@ -65,6 +69,8 @@ describe('collectPlaceResidents', () => {
       waiting: false,
       lastObservedWork: 'APIを直している',
       lastObservedLabel: '1分前',
+      lastObservedWorkLabel: '1分前',
+      driverNote: 'Codexが動かしている',
     })
     expect(residents[1]).toMatchObject({
       placeName: 'ウェブ番',
@@ -159,17 +165,240 @@ describe('collectGardenActors', () => {
     ])
     expect(
       actors.every((actor) =>
-        ['archive', 'workbench', 'delivery', 'waiting', 'rest'].includes(
-          actor.station,
-        ),
+        ['workbench', 'delivery', 'waiting', 'rest'].includes(actor.station),
+      ),
+    ).toBe(true)
+    expect(
+      actors.every(
+        (actor) => !['archive', 'observatory'].includes(actor.station),
       ),
     ).toBe(true)
     const working = actors.find((actor) => actor.placeName === 'ブログ番')
     expect(working?.station).toBe('workbench')
     expect(working?.workSummary).toBe('APIを直している')
+    expect(working?.nowText).toBe('動いている。APIを直している')
+    expect(working?.nextStep).toBe('いまの作業の続き')
+    expect(working?.driverNote).toBe('Codexが動かしている')
     const quiet = actors.find((actor) => actor.placeName === 'notes番')
     expect(quiet?.workSummary).toBe(UNKNOWN_PLACE_WORK)
-    expect(['archive', 'rest', 'delivery']).toContain(quiet?.station)
+    expect(quiet?.nowText).toBe('静か。まだ分かっていません')
+    expect(quiet?.implementationLook).toBe(UNKNOWN_PLACE_WORK)
+    expect(quiet?.nextStep).toBe('次に動かすまで待つ')
+    expect(['rest', 'delivery']).toContain(quiet?.station)
+    expect(working?.groundX).not.toBe(quiet?.groundX)
+    expect(Math.min(working!.groundX, quiet!.groundX)).toBeGreaterThanOrEqual(
+      GARDEN_GROUND.minX,
+    )
+  })
+
+  it('scatters quiet places across the center-to-right ground', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'alpha', []),
+        repository('repo_b', 'ws_b', 'beta', []),
+        repository('repo_c', 'ws_c', 'gamma', []),
+        repository('repo_d', 'ws_d', 'delta', []),
+      ]),
+    )
+
+    const xs = actors.map((actor) => actor.groundX)
+    expect(actors).toHaveLength(4)
+    expect(new Set(xs.map((value) => value.toFixed(1))).size).toBe(4)
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(GARDEN_GROUND.minX)
+    expect(Math.max(...xs)).toBeLessThanOrEqual(GARDEN_GROUND.maxX)
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(20)
+    expect(
+      actors.every(
+        (actor) =>
+          !['archive', 'observatory'].includes(actor.station) &&
+          actor.groundY >= GARDEN_GROUND.minY &&
+          actor.groundY <= GARDEN_GROUND.maxY,
+      ),
+    ).toBe(true)
+  })
+
+  it('keeps working and waiting near their meaning without stacking', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'alpha', [
+          session({
+            id: 'run',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+        repository('repo_b', 'ws_b', 'beta', [
+          session({
+            id: 'wait',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: '承認が必要',
+            status: 'idle',
+            activity: 'waiting',
+          }),
+        ]),
+        repository('repo_c', 'ws_c', 'gamma', []),
+      ]),
+    )
+
+    const working = actors.find((actor) => actor.placeName === 'alpha番')
+    const waiting = actors.find((actor) => actor.placeName === 'beta番')
+    const quiet = actors.find((actor) => actor.placeName === 'gamma番')
+    expect(working?.station).toBe('workbench')
+    expect(waiting?.station).toBe('waiting')
+    expect(['rest', 'delivery']).toContain(quiet?.station)
+    expect(new Set(actors.map((actor) => actor.groundX.toFixed(1))).size).toBe(
+      3,
+    )
+    expect(Math.abs((working?.groundX ?? 0) - 49)).toBeLessThan(
+      Math.abs((waiting?.groundX ?? 0) - 49),
+    )
+    expect(Math.abs((waiting?.groundX ?? 0) - 78)).toBeLessThan(
+      Math.abs((working?.groundX ?? 0) - 78),
+    )
+  })
+})
+
+describe('spreadGardenGroundPlots', () => {
+  it('does not put a single resident on the left roof', () => {
+    expect(spreadGardenGroundPlots(1)).toEqual([{ x: 58, y: 50 }])
+  })
+
+  it('gives each resident a distinct ground plot', () => {
+    const plots = spreadGardenGroundPlots(5)
+    expect(plots).toHaveLength(5)
+    expect(new Set(plots.map((plot) => plot.x.toFixed(2))).size).toBe(5)
+    expect(plots[0]?.x).toBe(GARDEN_GROUND.minX)
+    expect(plots[4]?.x).toBe(GARDEN_GROUND.maxX)
+  })
+})
+
+describe('assignGardenGroundPlots', () => {
+  it('never assigns the roof or telescope stations', () => {
+    const assigned = assignGardenGroundPlots([
+      { repositoryId: 'a', waiting: false, working: false },
+      { repositoryId: 'b', waiting: false, working: false },
+      { repositoryId: 'c', waiting: false, working: true },
+    ])
+    expect(
+      [...assigned.values()].every(
+        (plot) => !['archive', 'observatory'].includes(plot.station),
+      ),
+    ).toBe(true)
+  })
+})
+
+describe('describePlaceInspect', () => {
+  it('says what is happening now, how the work looks, and what comes next', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_a',
+          'ws_a',
+          'my-blog',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              displayName: 'Codex',
+              title: 'APIを直している',
+              status: 'running',
+              activity: 'working',
+              lastObservedLabel: '1分前',
+            }),
+          ],
+          {
+            changedFileCount: 3,
+            areas: ['画面', 'API', '作業中のファイル'],
+          },
+        ),
+      ]),
+    )
+
+    expect(describePlaceInspect(resident!)).toEqual({
+      nowText: '動いている。APIを直している（1分前）',
+      implementationLook: '作業中のファイルがいくつかある。画面やAPIあたりです',
+      nextStep: 'いまの作業の続き',
+      driverNote: 'Codexが動かしている',
+    })
+  })
+
+  it('does not use git unknown-source copy as the job name', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_a',
+          'ws_a',
+          'alpha',
+          [
+            session({
+              id: 'git',
+              source: 'git',
+              displayName: '変更元不明',
+              title: '変更元不明の作業',
+              attributionConfidence: 'inferred',
+              lastObservedLabel: '2分前',
+            }),
+          ],
+          {
+            changedFileCount: 1,
+            areas: ['ログイン状態'],
+          },
+        ),
+      ]),
+    )
+
+    const inspect = describePlaceInspect(resident!)
+    expect(inspect.nowText).toBe('静か。まだ分かっていません')
+    expect(inspect.implementationLook).toBe(
+      '作業中のファイルが1つある。ログイン状態あたりです',
+    )
+    expect(inspect.nextStep).toBe('次に動かすまで待つ')
+    expect(inspect.driverNote).toBeNull()
+    expect(inspect.nowText).not.toContain('変更元不明')
+    expect(inspect.implementationLook).not.toContain('変更元不明')
+  })
+
+  it('asks for a check when the place is waiting', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'alpha', [
+          session({
+            id: 'wait',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: '承認が必要',
+            status: 'idle',
+            activity: 'waiting',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(describePlaceInspect(resident!)).toMatchObject({
+      nowText: '確認待ち。承認が必要',
+      implementationLook: UNKNOWN_PLACE_WORK,
+      nextStep: '確認が必要',
+      driverNote: 'Claude Codeが動かしている',
+    })
+  })
+
+  it('asks for a check when overlapping work is already known', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'alpha', [], {
+          conflictCount: 1,
+        }),
+      ]),
+    )
+
+    expect(describePlaceInspect(resident!).nextStep).toBe('確認が必要')
+    expect(describePlaceInspect(resident!).nowText).toBe(
+      '静か。まだ分かっていません',
+    )
   })
 })
 
@@ -191,6 +420,11 @@ function repository(
   workspaceId: string,
   displayName: string,
   sessions: SessionView[],
+  extras: {
+    readonly changedFileCount?: number
+    readonly areas?: readonly string[]
+    readonly conflictCount?: number
+  } = {},
 ): RepositoryView {
   return {
     repositoryId,
@@ -199,12 +433,21 @@ function repository(
     available: true,
     gitAvailable: true,
     summary: '',
-    changedFileCount: 0,
+    changedFileCount: extras.changedFileCount ?? 0,
     lastChangedLabel: null,
     sessions,
     worktrees: [],
-    conflicts: [],
-    areas: [],
+    conflicts: Array.from(
+      { length: extras.conflictCount ?? 0 },
+      (_, index) => ({
+        id: `conflict_${index}`,
+        level: 'yellow',
+        score: 40,
+        summary: '作業が近づいています',
+        status: 'open',
+      }),
+    ),
+    areas: [...(extras.areas ?? [])],
   }
 }
 

@@ -63,13 +63,20 @@ test('the garden shows registered places as characters, not a list', async ({
     .getByRole('list', { name: '庭の住人' })
     .getByRole('listitem')
   await expect(resident).not.toHaveAttribute('data-station', 'observatory')
+  await expect(resident).not.toHaveAttribute('data-station', 'archive')
+  expect(
+    Number(await resident.getAttribute('data-ground-x')),
+  ).toBeGreaterThanOrEqual(36)
   await resident.getByRole('button').click()
-  await expect(page.getByTestId('garden-inspect')).toContainText(
-    'しくみローカル番',
-  )
-  await expect(page.getByTestId('garden-inspect')).toContainText(
-    'まだ分かっていません',
-  )
+  const inspect = page.getByTestId('garden-inspect')
+  await expect(inspect).toContainText('しくみローカル番')
+  await expect(inspect).toContainText('いま')
+  await expect(inspect).toContainText('静か。まだ分かっていません')
+  await expect(inspect).toContainText('実装の様子')
+  await expect(inspect).toContainText('作業中のファイル')
+  await expect(inspect).toContainText('これから')
+  await expect(inspect).toContainText('次に動かすまで待つ')
+  await expect(inspect).not.toContainText('変更元不明の作業')
 })
 
 test("a user can move between garden, today's workshop, and settings", async ({

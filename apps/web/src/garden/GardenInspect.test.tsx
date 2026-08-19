@@ -28,6 +28,61 @@ describe('GardenInspect', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it('shows place progress in everyday words when the copy is given', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'ブログ番',
+          station: 'workbench',
+          traveling: false,
+          summary: 'APIを直している',
+          nowText: '動いている。APIを直している',
+          implementationLook: '作業中のファイルがいくつかある。画面あたりです',
+          nextStep: 'いまの作業の続き',
+          driverNote: 'Codexが動かしている',
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('ブログ番')
+    expect(inspect).toHaveTextContent('いま')
+    expect(inspect).toHaveTextContent('動いている。APIを直している')
+    expect(inspect).toHaveTextContent('Codexが動かしている')
+    expect(inspect).toHaveTextContent('実装の様子')
+    expect(inspect).toHaveTextContent(
+      '作業中のファイルがいくつかある。画面あたりです',
+    )
+    expect(inspect).toHaveTextContent('これから')
+    expect(inspect).toHaveTextContent('いまの作業の続き')
+    expect(inspect).not.toHaveTextContent('役割')
+    expect(inspect).not.toHaveTextContent('要約')
+  })
+
+  it('says the work is unknown instead of inventing missing facts', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'notes番',
+          station: 'rest',
+          traveling: false,
+          summary: 'まだ分かっていません',
+          nowText: '静か。まだ分かっていません',
+          implementationLook: 'まだ分かっていません',
+          nextStep: '次に動かすまで待つ',
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
+    expect(inspect).toHaveTextContent('実装の様子')
+    expect(inspect).toHaveTextContent('次に動かすまで待つ')
+    expect(inspect).not.toHaveTextContent('変更元不明')
+  })
+
   it('lists occupant summaries on a station', () => {
     render(
       <GardenInspect

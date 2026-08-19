@@ -34,7 +34,47 @@ describe('readPlaceIntro', () => {
     expect(readPlaceIntro(root)).not.toContain('README.md')
   })
 
-  it('returns null when the README is English-only or missing', () => {
+  it('prefers README.ja.md over an English README.md', () => {
+    const root = createTemp()
+    writeFileSync(
+      join(root, 'README.md'),
+      [
+        '# Tsugite',
+        '',
+        'A local video-production workshop.',
+        '',
+      ].join('\n'),
+    )
+    writeFileSync(
+      join(root, 'README.ja.md'),
+      ['# 継', '', 'ローカルで動画を作る工房です。', ''].join('\n'),
+    )
+    expect(readPlaceIntro(root)).toBe('継。ローカルで動画を作る工房です。')
+    expect(readPlaceIntro(root)).not.toContain('README')
+    expect(readPlaceIntro(root)).not.toContain('video-production')
+  })
+
+  it('turns a readable English-only README into short everyday Japanese', () => {
+    const root = createTemp()
+    writeFileSync(
+      join(root, 'README.md'),
+      ['# Tsugite', '', 'A local video-production workshop.', ''].join('\n'),
+    )
+    expect(readPlaceIntro(root)).toBe('動画を作る場所')
+    expect(readPlaceIntro(root)).not.toContain('README.md')
+    expect(readPlaceIntro(root)).not.toContain('Tsugite')
+
+    const observe = createTemp()
+    writeFileSync(
+      join(observe, 'readme.md'),
+      ['# sikumi-local', '', 'An observer garden for local work.', ''].join(
+        '\n',
+      ),
+    )
+    expect(readPlaceIntro(observe)).toBe('観測する場所')
+  })
+
+  it('returns null when the README is missing or the English cannot be spoken', () => {
     const empty = createTemp()
     expect(readPlaceIntro(empty)).toBeNull()
 

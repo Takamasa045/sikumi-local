@@ -752,6 +752,108 @@ describe('collectGardenActors', () => {
     expect(actors[0]?.workSummary).not.toBe(ANOTHER_LIVE_WORK)
   })
 
+  it('makes a second walker when two live CLI processes share one place even if both say 作業中', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_tsugite', 'ws_tsugite', 'tsugite', [
+          session({
+            id: 'grok-248',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'active',
+            activity: 'editing',
+            lastObservedLabel: 'たった今',
+          }),
+          session({
+            id: 'grok-26794',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'active',
+            activity: 'editing',
+            lastObservedAt: '2026-08-19T00:09:00.000Z',
+            lastObservedLabel: 'たった今',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.every((actor) => actor.placeName === 'tsugite番')).toBe(true)
+    expect(actors.every((actor) => actor.tone === 'working')).toBe(true)
+    expect(new Set(actors.map((actor) => actor.key)).size).toBe(2)
+    expect(
+      Math.abs((actors[0]?.groundX ?? 0) - (actors[1]?.groundX ?? 0)),
+    ).toBeGreaterThanOrEqual(12)
+    const summaries = actors.map((actor) => actor.workSummary)
+    expect(summaries).toEqual(
+      expect.arrayContaining(['動いている', ANOTHER_LIVE_WORK]),
+    )
+    expect(actors.some((actor) => actor.placeName === 'tsugite番 2')).toBe(
+      false,
+    )
+    expect(JSON.stringify(actors)).not.toMatch(
+      /Grok Build|Claude Code|Codex|まだ分かっていません|変更元不明|fake-claude/,
+    )
+  })
+
+  it('keeps one walker when only one live CLI process is at the place', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_tsugite', 'ws_tsugite', 'tsugite', [
+          session({
+            id: 'grok-248',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'active',
+            activity: 'editing',
+            lastObservedLabel: 'たった今',
+          }),
+          session({
+            id: 'stale',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'active',
+            activity: 'editing',
+            lastObservedAt: '2026-08-18T20:00:00.000Z',
+          }),
+          session({
+            id: 'fake',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: 'Claude Codeがファイルを扱っています',
+            surface: 'unknown',
+            status: 'running',
+            activity: 'working',
+          }),
+          session({
+            id: 'git',
+            source: 'git',
+            displayName: '変更元不明',
+            title: '変更元不明の作業',
+            attributionConfidence: 'inferred',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]?.placeName).toBe('tsugite番')
+    expect(actors[0]?.streamIndex).toBe(0)
+    expect(actors[0]?.workSummary).toBe('動いている')
+    expect(actors[0]?.workSummary).not.toBe(ANOTHER_LIVE_WORK)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /Claude Code|変更元不明|まだ分かっていません/,
+    )
+  })
+
   it('names a second untitled live stream as another job, not an invented title', () => {
     const actors = collectGardenActors(
       overviewOf([

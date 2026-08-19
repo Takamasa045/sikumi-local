@@ -100,6 +100,20 @@ function firstBoundPlace(
   return null
 }
 
+export function liveProcessExternalSessionId(
+  source: LiveSighting['source'],
+  repositoryId: string,
+  pid: number,
+): string {
+  return `live:${source}:${repositoryId}:pid:${pid}`
+}
+
+export function isLiveProcessExternalSessionId(
+  value: string | null | undefined,
+): boolean {
+  return typeof value === 'string' && /:pid:\d+$/.test(value)
+}
+
 export function sightingFromLocatedProcess(input: {
   readonly process: LiveProcessRow
   readonly source: LiveSighting['source']
@@ -119,7 +133,11 @@ export function sightingFromLocatedProcess(input: {
     lastObservedAt: input.lastObservedAt,
     attributionConfidence: input.located.attributionConfidence,
     ingestionMethod: 'process-scan',
-    externalSessionId: `live:${input.source}:${input.located.root.repositoryId}`,
+    externalSessionId: liveProcessExternalSessionId(
+      input.source,
+      input.located.root.repositoryId,
+      input.process.pid,
+    ),
     pid: input.process.pid,
   }
 }

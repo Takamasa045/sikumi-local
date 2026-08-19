@@ -6,6 +6,7 @@ import {
   type NormalizedObserverEvent,
 } from '@sikumi-local/observer-core'
 import { matchLongestObservedRoot } from '@sikumi-local/observer-git'
+import { isLiveProcessExternalSessionId } from '@sikumi-local/observer-live'
 import type { CombinedStore } from '../storage/store.js'
 import type { RegisteredRepository } from '../storage/observer-store.js'
 import { createObserverId } from '../storage/observer-store.js'
@@ -142,17 +143,23 @@ export function upsertSessionFromEvent(
           externalSessionId: event.externalSessionId,
         })
       : undefined) ??
-    (repository
+    (repository && !isLiveProcessPresence(event)
       ? store.findExternalSession({
           source: event.source,
           repositoryId: repository.id,
           worktreePath: event.worktreePath,
         })
+      : undefined) ??
+    (repository && isLiveProcessPresence(event)
+      ? findAdoptableLiveSession(store, event, repository.id)
       : undefined)
 
   const session: ExternalSession = existing
     ? {
         ...existing,
+        ...(isLiveProcessPresence(event) && event.externalSessionId
+          ? { externalSessionId: event.externalSessionId }
+          : {}),
         surface: event.surface !== 'unknown' ? event.surface : existing.surface,
         cwd: event.cwd ?? existing.cwd,
         worktreePath: event.worktreePath ?? existing.worktreePath,
@@ -215,6 +222,24 @@ function isLiveProcessPresence(event: NormalizedObserverEvent): boolean {
     event.nativeEventType === 'live.process' ||
     event.ingestionMethod === 'process-scan'
   )
+}
+
+function findAdoptableLiveSession(
+  store: CombinedStore,
+  event: NormalizedObserverEvent,
+  repositoryId: string,
+): ExternalSession | undefined {
+  return store
+    .listExternalSessions({ repositoryId })
+    .filter((session) => session.source === event.source)
+    .filter((session) =>
+      event.worktreePath
+        ? session.worktreePath === event.worktreePath
+        : session.repositoryId === repositoryId,
+    )
+    .find(
+      (session) => !isLiveProcessExternalSessionId(session.externalSessionId),
+    )
 }
 
 export function markStaleSessions(

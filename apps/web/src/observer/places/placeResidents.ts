@@ -417,9 +417,6 @@ export function isParallelLiveWorkStream(
   if (isHookLeftoverTitle(title)) {
     return false
   }
-  if (isGenericWorkTitle(title) && !isConfirmedTool(session)) {
-    return false
-  }
   return true
 }
 

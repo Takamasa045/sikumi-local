@@ -276,16 +276,16 @@ describe('Shikumi Local garden', () => {
     expect(
       await screen.findByRole('heading', { name: '観測の庭' }),
     ).toBeVisible()
-    expect(await screen.findByText('my-project')).toBeVisible()
+    expect(await screen.findByText('my-project番')).toBeVisible()
     expect(screen.queryByTestId('garden-employee')).not.toBeInTheDocument()
     const residents = await screen.findByRole('list', {
       name: '庭の住人',
     })
-    expect(within(residents).getByText('my-project')).toBeVisible()
+    expect(within(residents).getByText('my-project番')).toBeVisible()
     expect(within(residents).getByText(/APIを直している/)).toBeVisible()
     expect(within(residents).getByRole('listitem')).toHaveAttribute(
-      'data-gesture',
-      'walking',
+      'data-status',
+      'working',
     )
     expect(within(residents).queryByText('Codex')).toBeNull()
     expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
@@ -759,13 +759,10 @@ describe('Shikumi Local garden', () => {
 
     try {
       render(<App />)
-      expect(
-        await screen.findByText(
-          'いま動いているエージェントはいません。リポの確認は今日の作業場からできます。',
-        ),
-      ).toBeVisible()
-      expect(screen.queryByRole('list', { name: '庭の住人' })).toBeNull()
-      expect(screen.queryByText('my-project番')).toBeNull()
+      expect(await screen.findByText('my-project番')).toBeVisible()
+      expect(screen.getByRole('list', { name: '庭の住人' })).toBeVisible()
+      expect(screen.queryByText('まだ分かっていません')).toBeNull()
+      expect(screen.queryByText('SSEで届いた作業')).toBeNull()
       expect(
         screen.queryByText(
           '登録した場所がまだありません。今日の作業場からフォルダを追加してください。',
@@ -799,7 +796,7 @@ describe('Shikumi Local garden', () => {
       )
 
       expect(
-        (await screen.findAllByText('SSEで届いた作業')).length,
+        (await screen.findAllByText(/SSEで届いた作業/)).length,
       ).toBeGreaterThan(0)
     } finally {
       vi.unstubAllGlobals()
@@ -864,13 +861,9 @@ describe('Shikumi Local garden', () => {
       '1 件の場所',
     )
     expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
-    expect(
-      await screen.findByText(
-        'いま動いているエージェントはいません。リポの確認は今日の作業場からできます。',
-      ),
-    ).toBeVisible()
-    expect(screen.queryByRole('list', { name: '庭の住人' })).toBeNull()
-    expect(screen.queryByText('kept-project番')).toBeNull()
+    expect(await screen.findByText('kept-project番')).toBeVisible()
+    expect(screen.getByRole('list', { name: '庭の住人' })).toBeVisible()
+    expect(screen.queryByText('まだ分かっていません')).toBeNull()
     expect(screen.queryByText('変更元不明の作業')).toBeNull()
     expect(
       screen.queryByRole('list', { name: '出どころ未確認の変更' }),

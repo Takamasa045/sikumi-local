@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
 import {
   GARDEN_ACTIVE_WINDOW_MS,
+  GARDEN_OVERVIEW_REFRESH_MS,
   UNKNOWN_GARDEN_WORK,
   describeGardenWork,
   isEverydayRecordTitle,
@@ -16,6 +17,13 @@ type SessionView = TodayOverview['repositories'][number]['sessions'][number]
 
 const NOW = '2026-08-19T00:10:00.000Z'
 const NOW_MS = Date.parse(NOW)
+
+describe('garden refresh', () => {
+  it('re-reads registered places on a short interval', () => {
+    expect(GARDEN_OVERVIEW_REFRESH_MS).toBe(5_000)
+    expect(GARDEN_OVERVIEW_REFRESH_MS).toBeLessThan(GARDEN_ACTIVE_WINDOW_MS)
+  })
+})
 
 describe('shouldShowGardenDog', () => {
   it('shows a recently observed running session', () => {

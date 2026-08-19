@@ -16,7 +16,10 @@ export function correlateRepository(
   event: NormalizedObserverEvent,
   repositories: readonly RegisteredRepository[],
   discoveredWorktrees: Readonly<Record<string, readonly string[]>> = {},
-): { repository: RegisteredRepository; confidence: NormalizedObserverEvent['attributionConfidence'] } | null {
+): {
+  repository: RegisteredRepository
+  confidence: NormalizedObserverEvent['attributionConfidence']
+} | null {
   if (event.repositoryId) {
     const exact = repositories.find((item) => item.id === event.repositoryId)
     if (exact) {
@@ -40,8 +43,9 @@ export function correlateRepository(
 
   for (const repository of repositories) {
     const worktreeRoots = discoveredWorktrees[repository.id] ?? []
-    const worktreeHit = matchLongestObservedRoot(candidates[0] ?? null, worktreeRoots)
-      ?? matchLongestObservedRoot(candidates[1] ?? null, worktreeRoots)
+    const worktreeHit =
+      matchLongestObservedRoot(candidates[0] ?? null, worktreeRoots) ??
+      matchLongestObservedRoot(candidates[1] ?? null, worktreeRoots)
     if (worktreeHit) {
       const next: Match = {
         repository,
@@ -55,7 +59,9 @@ export function correlateRepository(
     }
 
     const rootHit =
-      matchLongestObservedRoot(candidates[0] ?? null, [repository.absolutePath]) ??
+      matchLongestObservedRoot(candidates[0] ?? null, [
+        repository.absolutePath,
+      ]) ??
       matchLongestObservedRoot(candidates[1] ?? null, [repository.absolutePath])
     if (rootHit) {
       const next: Match = {
@@ -91,6 +97,9 @@ export function nextSessionStatus(
   event: NormalizedObserverEvent,
   current?: ExternalSessionStatus,
 ): ExternalSessionStatus {
+  if (isLiveProcessPresence(event)) {
+    return current === 'waiting-for-user' ? 'waiting-for-user' : 'active'
+  }
   switch (event.normalizedType) {
     case 'session.started':
       return 'active'
@@ -144,8 +153,7 @@ export function upsertSessionFromEvent(
   const session: ExternalSession = existing
     ? {
         ...existing,
-        surface:
-          event.surface !== 'unknown' ? event.surface : existing.surface,
+        surface: event.surface !== 'unknown' ? event.surface : existing.surface,
         cwd: event.cwd ?? existing.cwd,
         worktreePath: event.worktreePath ?? existing.worktreePath,
         branch: event.branch ?? existing.branch,
@@ -200,6 +208,13 @@ export function upsertSessionFromEvent(
     attributionConfidence: saved.attributionConfidence,
   }
   return { session: saved, event: boundEvent }
+}
+
+function isLiveProcessPresence(event: NormalizedObserverEvent): boolean {
+  return (
+    event.nativeEventType === 'live.process' ||
+    event.ingestionMethod === 'process-scan'
+  )
 }
 
 export function markStaleSessions(

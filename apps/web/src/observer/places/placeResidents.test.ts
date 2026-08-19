@@ -1590,6 +1590,116 @@ describe('describeVisibleFacts', () => {
       nextStep: '確認が必要',
     })
   })
+
+  it('replaces confirmation-wait copy when observation moves to live work', () => {
+    const waiting = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'wait',
+              source: 'grok-build',
+              displayName: 'Grok Build',
+              title: '承認が必要',
+              status: 'idle',
+              activity: 'waiting',
+            }),
+          ],
+          {
+            changedFileCount: 12,
+            areas: ['確認用の仕組み'],
+            conflictCount: 8,
+          },
+        ),
+      ]),
+    )
+    expect(waiting[0]?.nowText).toMatch(/確認待ち/)
+    expect(waiting[0]?.nextStep).toBe('確認が必要')
+
+    const working = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '働きの画面を直している',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          {
+            changedFileCount: 12,
+            areas: ['確認用の仕組み'],
+            conflictCount: 8,
+          },
+        ),
+      ]),
+    )
+    expect(working[0]?.tone).toBe('working')
+    expect(working[0]?.workSummary).toBe('働きの画面を直している')
+    expect(working[0]?.nowText).toContain('働きの画面を直している')
+    expect(working[0]?.nowText).not.toMatch(/確認待ち|確認が必要/)
+    expect(working[0]?.nextStep).not.toMatch(/確認待ち|確認が必要/)
+  })
+
+  it('treats a live grok --cwd hataraki session as working, not stale or waiting', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          { changedFileCount: 4, areas: ['確認用の仕組み'] },
+        ),
+      ]),
+    )
+    expect(resident?.working).toBe(true)
+    expect(resident?.waiting).toBe(false)
+    expect(placeActivityLabel(resident!)).toBe('動いている')
+    expect(describeVisibleFacts(resident!)).toBe('動いている')
+    expect(describeVisibleFacts(resident!)).not.toMatch(/確認待ち|確認が必要/)
+
+    const [stale] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [
+          session({
+            id: 'stale',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'stale',
+            activity: 'editing',
+            lastObservedLabel: 'たった今',
+          }),
+        ]),
+      ]),
+    )
+    expect(stale?.working).toBe(false)
+    expect(placeActivityLabel(stale!)).toBe('静か')
+  })
 })
 
 function overviewOf(

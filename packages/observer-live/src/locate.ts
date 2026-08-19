@@ -10,6 +10,19 @@ import type {
   RegisteredLiveRoot,
 } from './types.js'
 
+export function declaredWorkspaceCwd(
+  args: string | null | undefined,
+): string | null {
+  if (!args) {
+    return null
+  }
+  const match = args.match(
+    /(?:^|\s)(?:--cwd|--cd)(?:=|\s+)(?:"([^"]+)"|'([^']+)'|(\S+))/,
+  )
+  const value = (match?.[1] ?? match?.[2] ?? match?.[3] ?? '').trim()
+  return isBindableCwd(value) ? value : null
+}
+
 export function locateLiveProcess(input: {
   readonly process: LiveProcessRow
   readonly roots: readonly RegisteredLiveRoot[]
@@ -19,14 +32,10 @@ export function locateLiveProcess(input: {
   readonly cwd: string
   readonly attributionConfidence: AttributionConfidence
 } | null {
-  const own = matchRegisteredPlace(input.process.cwd, input.roots)
-  if (own && isBindableCwd(input.process.cwd)) {
-    return {
-      root: own.root,
-      cwd: input.process.cwd!,
-      attributionConfidence:
-        own.kind === 'contained' ? 'verified' : 'correlated',
-    }
+  const declared = declaredWorkspaceCwd(input.process.args)
+  const bound = firstBoundPlace([declared, input.process.cwd], input.roots)
+  if (bound) {
+    return bound
   }
 
   const fromChildren = uniqueMatchedPlace(
@@ -62,6 +71,32 @@ export function locateLiveProcess(input: {
     }
   }
 
+  return null
+}
+
+function firstBoundPlace(
+  candidates: readonly (string | null | undefined)[],
+  roots: readonly RegisteredLiveRoot[],
+): {
+  readonly root: RegisteredLiveRoot
+  readonly cwd: string
+  readonly attributionConfidence: AttributionConfidence
+} | null {
+  for (const candidate of candidates) {
+    if (!isBindableCwd(candidate)) {
+      continue
+    }
+    const matched = matchRegisteredPlace(candidate, roots)
+    if (!matched) {
+      continue
+    }
+    return {
+      root: matched.root,
+      cwd: candidate!,
+      attributionConfidence:
+        matched.kind === 'contained' ? 'verified' : 'correlated',
+    }
+  }
   return null
 }
 

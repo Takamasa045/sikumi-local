@@ -606,6 +606,80 @@ describe('ObserverGarden', () => {
     )
   })
 
+  it('walks hataraki when grok is live and swaps old confirmation-wait copy', async () => {
+    const first = renderGarden(
+      overviewOf([
+        repository('repo_hataraki', 'hataraki', [
+          session({
+            id: 'wait',
+            source: 'grok-build',
+            displayName: 'Grok Build',
+            title: '承認が必要',
+            status: 'idle',
+            activity: 'waiting',
+          }),
+        ]),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getByText('確認待ち')).toBeVisible()
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_hataraki')).getByRole(
+        'button',
+      ),
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認待ち')
+
+    first.rerender(
+      <ObserverGarden
+        overview={overviewOf([
+          repository(
+            'repo_hataraki',
+            'hataraki',
+            [
+              session({
+                id: 'grok',
+                source: 'grok-build',
+                surface: 'cli',
+                displayName: 'Grok Build',
+                title: '働きの画面を直している',
+                status: 'active',
+                activity: 'editing',
+                lastObservedLabel: 'たった今',
+              }),
+            ],
+            8,
+            ['確認用の仕組み'],
+            { conflictCount: 4 },
+          ),
+        ])}
+        workspaces={[]}
+        onOpenWorkshop={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByTestId('garden-place-repo_hataraki')).toHaveAttribute(
+      'data-status',
+      'working',
+    )
+    expect(
+      within(screen.getByRole('list', { name: '庭の住人' })).getByText(
+        '働きの画面を直している',
+      ),
+    ).toBeVisible()
+    expect(
+      within(screen.getByRole('list', { name: '庭の住人' })).queryByText(
+        '確認待ち',
+      ),
+    ).toBeNull()
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('働きの画面を直している')
+    expect(inspect).not.toHaveTextContent('確認待ち')
+    expect(inspect).not.toHaveTextContent('確認が必要')
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+  })
+
   it('walks a working character between the shelf, bench, and check place', async () => {
     vi.useFakeTimers()
     renderGarden(

@@ -125,6 +125,13 @@ export function ObserverGarden({
     return occupants
   }
 
+  const inspectSubject = liveInspectSubject(
+    inspect,
+    actors,
+    selectedKey,
+    stationOccupants,
+  )
+
   return (
     <div className="observer-garden-page">
       <section
@@ -244,8 +251,8 @@ export function ObserverGarden({
             </p>
           )}
 
-          {inspect ? (
-            <GardenInspect subject={inspect} onClose={closeInspect} />
+          {inspectSubject ? (
+            <GardenInspect subject={inspectSubject} onClose={closeInspect} />
           ) : null}
         </div>
       </section>
@@ -363,6 +370,46 @@ function ObserverGardenActor({
       </div>
     </article>
   )
+}
+
+function liveInspectSubject(
+  inspect: GardenInspectSubject | null,
+  actors: readonly GardenPlaceActor[],
+  selectedKey: string | null,
+  stationOccupants: (id: StationId) => readonly {
+    readonly name: string
+    readonly traveling: boolean
+    readonly summary?: string
+  }[],
+): GardenInspectSubject | null {
+  if (!inspect) {
+    return null
+  }
+  if (inspect.kind === 'station') {
+    return {
+      ...inspect,
+      occupants: stationOccupants(inspect.station),
+    }
+  }
+  const actor = actors.find((item) => item.key === selectedKey)
+  if (!actor) {
+    return inspect
+  }
+  return {
+    ...inspect,
+    name: actor.placeName,
+    station: inspect.traveling ? inspect.station : actor.station,
+    summary: actor.workSummary,
+    nowText: actor.nowText,
+    implementationLook: actor.implementationLook,
+    nextStep: actor.nextStep,
+    driverNote: actor.driverNote,
+    live: actor.tone === 'working' || inspect.traveling,
+    goal: actor.goal,
+    placeIntro: actor.placeIntro,
+    articleTitles: actor.articleTitles,
+    workTitles: actor.workTitles,
+  }
 }
 
 export default ObserverGarden

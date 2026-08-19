@@ -1,6 +1,10 @@
 import { useEffect } from 'react'
 import type { GardenStationId } from '@sikumi-local/core'
 import {
+  isSpokenJapaneseTitle,
+  softenRecordTitle,
+} from '../observer/garden/gardenState'
+import {
   describeStationOccupants,
   gardenStationLabels,
   gardenStationMeanings,
@@ -25,6 +29,7 @@ export type GardenInspectSubject =
         readonly title: string
         readonly date?: string | null
       }[]
+      readonly workTitles?: readonly string[]
     }
   | {
       readonly kind: 'station'
@@ -99,6 +104,7 @@ function CharacterBody({
     subject.nextStep !== undefined
   const live = subject.live !== false
   const articles = knownArticleTitles(subject.articleTitles)
+  const works = articles.length > 0 ? [] : knownWorkTitles(subject.workTitles)
   return (
     <dl className="garden-inspect__facts">
       {subject.role && !hasProgress ? (
@@ -204,6 +210,18 @@ function CharacterBody({
           </dd>
         </>
       ) : null}
+      {works.length > 0 ? (
+        <>
+          <dt>これまでの仕事</dt>
+          <dd>
+            <ul className="garden-inspect__articles">
+              {works.map((title) => (
+                <li key={title}>{title}</li>
+              ))}
+            </ul>
+          </dd>
+        </>
+      ) : null}
     </dl>
   )
 }
@@ -261,6 +279,27 @@ function knownArticleTitles(
     })
   }
   return articles
+}
+
+function knownWorkTitles(values: readonly string[] | undefined): string[] {
+  const seen = new Set<string>()
+  const titles: string[] = []
+  for (const item of values ?? []) {
+    const title = softenRecordTitle(item)
+    if (
+      !knownLine(title) ||
+      !isSpokenJapaneseTitle(title) ||
+      seen.has(title)
+    ) {
+      continue
+    }
+    seen.add(title)
+    titles.push(title)
+    if (titles.length >= 12) {
+      break
+    }
+  }
+  return titles
 }
 
 function knownLine(value: string | null | undefined): boolean {

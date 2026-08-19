@@ -54,6 +54,8 @@ export interface GitSyncCounts {
   readonly incomingCount: number | null
 }
 
+export const RAW_WORK_TITLE_LOOKBACK = 24
+
 export interface GitRepositorySnapshot {
   readonly available: boolean
   readonly reason: string | null
@@ -65,6 +67,7 @@ export interface GitRepositorySnapshot {
   readonly latestRecordTitle: string | null
   readonly workStory: string | null
   readonly articleTitles: readonly BlogArticleTitle[]
+  readonly workTitles: readonly string[]
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
   readonly worktrees: readonly GitWorktreeSnapshot[]
@@ -89,6 +92,7 @@ export function snapshotGitRepository(
     latestRecordTitle: null,
     workStory: null,
     articleTitles: [],
+    workTitles: [],
     outgoingCount: null,
     incomingCount: null,
     worktrees: [],
@@ -155,6 +159,7 @@ export function snapshotGitRepository(
       ),
     }),
     articleTitles: readBlogArticleTitles(root),
+    workTitles: readRecentRecordTitles(root),
     outgoingCount: sync.outgoingCount,
     incomingCount: sync.incomingCount,
     worktrees,
@@ -212,6 +217,31 @@ function toRecord(file: ChangedPath): ChangedFileRecord {
 
 export function readLatestRecordTitle(cwd: string): string | null {
   return emptyToNull(runGit(cwd, ['log', '-1', '--format=%s']))
+}
+
+export function readRecentRecordTitles(
+  cwd: string,
+  limit = RAW_WORK_TITLE_LOOKBACK,
+): string[] {
+  const take = Math.min(RAW_WORK_TITLE_LOOKBACK, Math.max(1, limit))
+  const output = runGit(cwd, ['log', `-${take}`, '--format=%s'])
+  if (!output) {
+    return []
+  }
+  const seen = new Set<string>()
+  const titles: string[] = []
+  for (const line of output.split(/\r?\n/)) {
+    const title = line.trim()
+    if (!title || seen.has(title)) {
+      continue
+    }
+    seen.add(title)
+    titles.push(title)
+    if (titles.length >= take) {
+      break
+    }
+  }
+  return titles
 }
 
 export function readSyncCounts(cwd: string): GitSyncCounts {

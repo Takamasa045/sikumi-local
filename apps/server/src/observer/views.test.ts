@@ -24,6 +24,7 @@ describe('observer views', () => {
         latestRecordTitle: 'ログイン画面の直し',
         workStory: null,
         articleTitles: [],
+        workTitles: ['ログイン画面の直し'],
         outgoingCount: 1,
         incomingCount: 0,
         worktrees: [],
@@ -60,6 +61,7 @@ describe('observer views', () => {
     })
     expect(activity.lastChangedAt).toBe('2026-08-18T00:10:00.000Z')
     expect(activity.latestRecordTitle).toBe('ログイン画面の直し')
+    expect(activity.workTitles).toEqual(['ログイン画面の直し'])
     expect(activity.workStory).toBeNull()
     expect(activity.outgoingCount).toBe(1)
     expect(activity.incomingCount).toBe(0)
@@ -98,6 +100,7 @@ describe('observer views', () => {
           },
           { title: '短い下書き', date: '2026-08-01' },
         ],
+        workTitles: ['docs'],
         outgoingCount: 0,
         incomingCount: 0,
         worktrees: [],
@@ -120,6 +123,7 @@ describe('observer views', () => {
       },
       { title: '短い下書き', date: '2026-08-01' },
     ])
+    expect(activity.workTitles).toEqual(['docs'])
     expect(activity.workStory).not.toContain('MEMORY.md')
     expect(activity.sessions[0]?.goal).toBeUndefined()
   })
@@ -145,6 +149,7 @@ describe('observer views', () => {
         latestRecordTitle: 'ログイン画面の直し',
         workStory: null,
         articleTitles: [],
+        workTitles: ['ログイン画面の直し'],
         outgoingCount: 0,
         incomingCount: 0,
         worktrees: [],
@@ -186,6 +191,7 @@ describe('observer views', () => {
         latestRecordTitle: null,
         workStory: null,
         articleTitles: [],
+        workTitles: [],
         outgoingCount: 0,
         incomingCount: 0,
         worktrees: [],

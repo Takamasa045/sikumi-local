@@ -94,6 +94,7 @@ export const repositoryActivitySchema = z.object({
       }),
     )
     .optional(),
+  workTitles: z.array(z.string()).optional(),
   outgoingCount: z.number().nullable().optional(),
   incomingCount: z.number().nullable().optional(),
   sessions: z.array(sessionViewSchema),

@@ -34,6 +34,7 @@ export interface RepositoryActivityView {
   readonly latestRecordTitle: string | null
   readonly workStory: string | null
   readonly articleTitles: readonly BlogArticleTitle[]
+  readonly workTitles: readonly string[]
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
   readonly sessions: readonly SessionView[]
@@ -197,6 +198,7 @@ export function buildRepositoryActivity(input: {
     latestRecordTitle: input.snapshot.latestRecordTitle,
     workStory: input.snapshot.workStory,
     articleTitles: input.snapshot.articleTitles ?? [],
+    workTitles: input.snapshot.workTitles ?? [],
     outgoingCount: input.snapshot.outgoingCount,
     incomingCount: input.snapshot.incomingCount,
     sessions: sessions.items,

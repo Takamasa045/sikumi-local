@@ -725,6 +725,121 @@ describe('ObserverGarden', () => {
     expect(inspect).not.toHaveTextContent('BLOG_WORKSPACE.md')
     expect(inspect).not.toHaveTextContent('STYLE.md')
     expect(inspect).not.toHaveTextContent('articles.log')
+    expect(inspect).not.toHaveTextContent('これまでの仕事')
+  })
+
+  it('shows spoken work titles on inspect for しくみローカル and hataraki', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_sikumi', 'sikumi-local', [], 0, [], {
+          workTitles: [
+            '庭の並列を直している',
+            'feat: launch HATARAKI office UI',
+            'ログイン画面の直し',
+          ],
+        }),
+        repository('repo_hataraki', 'hataraki', [], 0, [], {
+          workTitles: ['働きの画面を直している', 'a1b2c3d'],
+        }),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).queryByText('これまでの仕事')).toBeNull()
+    expect(within(residents).queryByText('これまでの記事')).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_sikumi')).getByRole('button'),
+    )
+    const sikumi = screen.getByTestId('garden-inspect')
+    expect(sikumi).toHaveTextContent('これまでの仕事')
+    expect(sikumi).toHaveTextContent('庭の並列を直している')
+    expect(sikumi).toHaveTextContent('ログイン画面の直し')
+    expect(sikumi).not.toHaveTextContent('feat:')
+    expect(sikumi).not.toHaveTextContent('これまでの記事')
+    expect(sikumi).not.toHaveTextContent('縁側')
+
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_hataraki')).getByRole(
+        'button',
+      ),
+    )
+    const hataraki = screen.getByTestId('garden-inspect')
+    expect(hataraki).toHaveTextContent('これまでの仕事')
+    expect(hataraki).toHaveTextContent('働きの画面を直している')
+    expect(hataraki).not.toHaveTextContent('a1b2c3d')
+    expect(hataraki).not.toHaveTextContent('これまでの記事')
+  })
+
+  it('uses a distinct full-body portrait per known place and atlas for others', () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_blog', 'blog-agent-kit', []),
+        repository('repo_sikumi', 'sikumi-local', []),
+        repository('repo_hataraki', 'hataraki', []),
+        repository('repo_notes', 'notes', []),
+        repository('repo_leaf', '*開発/hataraki', []),
+      ]),
+      [workspace('ws_repo_blog', 'ブログ番')],
+    )
+
+    const dogOffice = getWorldPack('dog-office')
+    expect(actorAtlasUrl('repo_blog')).toContain('blog-ban')
+    expect(actorSprite('repo_blog')).toHaveClass('is-portrait')
+    expect(screen.getByTestId('garden-place-repo_blog')).toHaveAttribute(
+      'data-resident',
+      'blog',
+    )
+    expect(actorAtlasUrl('repo_sikumi')).toContain('shikumi-local-ban')
+    expect(actorSprite('repo_sikumi')).toHaveClass('is-portrait')
+    expect(actorAtlasUrl('repo_hataraki')).toContain('hataraki')
+    expect(actorSprite('repo_hataraki')).toHaveClass('is-portrait')
+    expect(actorAtlasUrl('repo_notes')).toContain(dogOffice.character.atlasUrl)
+    expect(actorSprite('repo_notes')).not.toHaveClass('is-portrait')
+    expect(actorAtlasUrl('repo_leaf')).toContain(dogOffice.character.atlasUrl)
+    expect(actorSprite('repo_leaf')).not.toHaveClass('is-portrait')
+    expect(screen.getByTestId('garden-place-repo_hataraki')).toHaveAttribute(
+      'data-portrait',
+      'true',
+    )
+  })
+
+  it('keeps the same portrait for a parallel second walker', () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_hataraki', 'hataraki', [
+          session({
+            id: 'grok',
+            source: 'grok-build',
+            displayName: 'Grok Build',
+            title: '働きの画面を直している',
+            status: 'running',
+            activity: 'working',
+          }),
+          session({
+            id: 'codex',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '確認の仕組みを書いている',
+            status: 'running',
+            activity: 'working',
+            lastObservedAt: '2026-08-18T23:58:00.000Z',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(actorAtlasUrl('repo_hataraki')).toContain('hataraki')
+    expect(actorAtlasUrl('repo_hataraki-2')).toContain('hataraki')
+    expect(actorSprite('repo_hataraki')).toHaveClass('is-portrait')
+    expect(actorSprite('repo_hataraki-2')).toHaveClass('is-portrait')
+    const first = screen.getByTestId('garden-place-repo_hataraki')
+    const second = screen.getByTestId('garden-place-repo_hataraki-2')
+    expect(first.getAttribute('data-ground-x')).not.toBe(
+      second.getAttribute('data-ground-x'),
+    )
   })
 
   it('does not show leftover files when a still place has none', async () => {
@@ -834,12 +949,16 @@ function gardenLookButton(name: '里山' | '工房') {
   )
 }
 
-function actorAtlasUrl(repositoryId: string): string {
+function actorSprite(repositoryId: string): HTMLElement {
   const sprite = screen
     .getByTestId(`garden-place-${repositoryId}`)
     .querySelector('.observer-garden-actor-sprite')
   expect(sprite).toBeInstanceOf(HTMLElement)
-  return (sprite as HTMLElement).style.backgroundImage
+  return sprite as HTMLElement
+}
+
+function actorAtlasUrl(repositoryId: string): string {
+  return actorSprite(repositoryId).style.backgroundImage
 }
 
 function renderGarden(
@@ -878,6 +997,7 @@ function repository(
     readonly latestRecordTitle?: string | null
     readonly workStory?: string | null
     readonly articleTitles?: RepositoryView['articleTitles']
+    readonly workTitles?: RepositoryView['workTitles']
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
     readonly worktrees?: RepositoryView['worktrees']
@@ -895,6 +1015,7 @@ function repository(
     latestRecordTitle: extras.latestRecordTitle ?? null,
     workStory: extras.workStory ?? null,
     articleTitles: extras.articleTitles ?? [],
+    workTitles: extras.workTitles ?? [],
     outgoingCount: extras.outgoingCount ?? null,
     incomingCount: extras.incomingCount ?? null,
     sessions,

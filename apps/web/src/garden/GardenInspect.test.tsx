@@ -290,4 +290,60 @@ describe('GardenInspect', () => {
       'これまでの記事',
     )
   })
+
+  it('lists past work titles only when they were actually readable', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'しくみローカル番',
+          station: 'rest',
+          traveling: false,
+          summary: 'いちばん新しい記録：ログイン画面の直し',
+          nowText: 'いちばん新しい記録：ログイン画面の直し',
+          implementationLook: null,
+          nextStep: null,
+          live: false,
+          workTitles: [
+            'ログイン画面の直し',
+            '庭のクリック詳細を厚くする',
+            'feat: launch HATARAKI office UI',
+            'まだ分かっていません',
+          ],
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('これまでの仕事')
+    expect(inspect).toHaveTextContent('ログイン画面の直し')
+    expect(inspect).toHaveTextContent('庭のクリック詳細を厚くする')
+    expect(inspect).not.toHaveTextContent('feat:')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('これまでの記事')
+    expect(inspect).not.toHaveTextContent('縁側')
+  })
+
+  it('omits the work history when no title was read', () => {
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'hataraki番',
+          station: 'rest',
+          traveling: false,
+          summary: '',
+          nowText: null,
+          implementationLook: null,
+          nextStep: null,
+          live: false,
+          workTitles: [],
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
+      'これまでの仕事',
+    )
+  })
 })

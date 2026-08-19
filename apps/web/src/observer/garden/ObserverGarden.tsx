@@ -231,6 +231,7 @@ export function ObserverGarden({
                       live: actor.tone === 'working' || presence.traveling,
                       goal: actor.goal,
                       articleTitles: actor.articleTitles,
+                      workTitles: actor.workTitles,
                     })
                   }}
                 />
@@ -286,12 +287,17 @@ function ObserverGardenActor({
   const gesture = poseGesture(pose, traveling && !reducedMotion)
   const atlas = atlasPosition(actor.column, actor.row)
   const repoLabel = placeRepoLabel(actor.placeName, actor.repositoryName)
+  const portrait = Boolean(actor.portraitUrl)
   const spriteStyle = {
-    '--observer-atlas-x': atlas.x,
-    '--observer-atlas-y': atlas.y,
-    '--observer-atlas-columns': String(ATLAS_COLUMNS),
-    '--observer-atlas-rows': String(ATLAS_ROWS),
-    backgroundImage: `url("${world.character.atlasUrl}")`,
+    ...(portrait
+      ? {}
+      : {
+          '--observer-atlas-x': atlas.x,
+          '--observer-atlas-y': atlas.y,
+          '--observer-atlas-columns': String(ATLAS_COLUMNS),
+          '--observer-atlas-rows': String(ATLAS_ROWS),
+        }),
+    backgroundImage: `url("${actor.portraitUrl ?? world.character.atlasUrl}")`,
   } as CSSProperties
   const actorStyle = {
     left: `${travelPoint.x}%`,
@@ -338,6 +344,8 @@ function ObserverGardenActor({
       data-walk-y={String(Math.round(destination.y))}
       data-gesture={gesture}
       data-traveling={traveling ? 'true' : 'false'}
+      data-resident={actor.residentKind ?? 'atlas'}
+      data-portrait={portrait ? 'true' : 'false'}
       style={actorStyle}
     >
       <button
@@ -348,7 +356,15 @@ function ObserverGardenActor({
           onSelect({ traveling, station: walkStation })
         }}
       >
-        <div className="observer-garden-actor-sprite" style={spriteStyle} />
+        <div
+          className={[
+            'observer-garden-actor-sprite',
+            portrait ? 'is-portrait' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          style={spriteStyle}
+        />
       </button>
       <div className="observer-garden-bubble">
         <p className="observer-garden-bubble-source">{actor.placeName}</p>

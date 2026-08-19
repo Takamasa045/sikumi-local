@@ -12,7 +12,14 @@ import {
   sourceKey,
   UNKNOWN_GARDEN_WORK,
 } from '../garden/gardenState'
+import {
+  gardenResidentPortraitUrl,
+  resolveGardenResidentKind,
+  type GardenResidentKind,
+} from '../garden/residentPortraits'
 import { walkLaneOffset, WORKING_WALK_LANE_X } from '../garden/gardenWalk'
+
+const MAX_VISIBLE_WORK_TITLES = 12
 
 export const UNKNOWN_PLACE_WORK = 'まだ分かっていません'
 export const SHIKUMI_PLACE_NAME = 'しくみローカル番'
@@ -115,6 +122,7 @@ export type PlaceResident = {
     readonly title: string
     readonly date: string | null
   }[]
+  readonly workTitles: readonly string[]
   readonly goal: string | null
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
@@ -131,6 +139,7 @@ export type PlaceInspectCopy = {
     readonly title: string
     readonly date: string | null
   }[]
+  readonly workTitles: readonly string[]
 }
 
 type GardenActorSource = PlaceResident & {
@@ -153,6 +162,9 @@ export type GardenPlaceActor = {
     readonly title: string
     readonly date: string | null
   }[]
+  readonly workTitles: readonly string[]
+  readonly residentKind: GardenResidentKind | null
+  readonly portraitUrl: string | null
   readonly station: GardenPlaceStation
   readonly tone: GardenPlaceTone
   readonly groundX: number
@@ -245,6 +257,7 @@ export function collectPlaceResidents(
       latestRecordTitle: everydayRecordTitle(repository.latestRecordTitle),
       workStory: everydayWorkStory(repository.workStory),
       articleTitles: everydayArticleTitles(repository.articleTitles),
+      workTitles: collectSpokenWorkTitles(repository),
       goal: pickResidentGoal(observed, nowMs),
       outgoingCount: repository.outgoingCount ?? null,
       incomingCount: repository.incomingCount ?? null,
@@ -274,6 +287,7 @@ export function collectPlaceResidents(
       latestRecordTitle: null,
       workStory: null,
       articleTitles: [],
+      workTitles: [],
       goal: null,
       outgoingCount: null,
       incomingCount: null,
@@ -381,6 +395,7 @@ function residentForLiveStream(
     lastObservedAt: session.lastObservedAt,
     workStory: primary ? resident.workStory : null,
     articleTitles: primary ? resident.articleTitles : [],
+    workTitles: primary ? resident.workTitles : [],
     goal: sessionGoal(session) ?? (primary ? resident.goal : null),
     changedFileCount: primary ? resident.changedFileCount : 0,
     outgoingCount: primary ? resident.outgoingCount : null,
@@ -438,6 +453,10 @@ export function collectGardenActors(
           ? 'working'
           : 'observing'
       const inspect = describePlaceInspect(source)
+      const residentKind = resolveGardenResidentKind(
+        source.placeName,
+        source.repositoryName,
+      )
       const plot = plots.get(gardenPlotKey(source))
       const slot = plot?.slot ?? 0
       const lane =
@@ -459,6 +478,9 @@ export function collectGardenActors(
         driverNote: inspect.driverNote,
         goal: inspect.goal,
         articleTitles: inspect.articleTitles,
+        workTitles: inspect.workTitles,
+        residentKind,
+        portraitUrl: gardenResidentPortraitUrl(residentKind),
         station: plot?.station ?? stationForResident(source),
         tone,
         groundX: clamp(
@@ -796,7 +818,14 @@ export function describePlaceInspect(
     driverNote: resident.driverNote,
     goal: resident.working ? resident.goal : null,
     articleTitles: resident.articleTitles,
+    workTitles: isBlogKitResident(resident) ? [] : resident.workTitles,
   }
+}
+
+function isBlogKitResident(
+  resident: Pick<PlaceResident, 'articleTitles' | 'workStory'>,
+): boolean {
+  return resident.articleTitles.length > 0 || Boolean(resident.workStory)
 }
 
 function describePlaceWork(
@@ -1124,6 +1153,40 @@ function everydayRecordTitle(value: string | null | undefined): string | null {
     return null
   }
   return softened
+}
+
+function collectSpokenWorkTitles(repository: OverviewRepository): string[] {
+  if (
+    everydayArticleTitles(repository.articleTitles).length > 0 ||
+    Boolean(everydayWorkStory(repository.workStory))
+  ) {
+    return []
+  }
+  const fromField = everydayWorkTitles(repository.workTitles)
+  if (fromField.length > 0) {
+    return fromField
+  }
+  const latest = spokenRecordTitle(repository.latestRecordTitle)
+  return latest ? [latest] : []
+}
+
+function everydayWorkTitles(
+  values: readonly string[] | undefined,
+): string[] {
+  const titles: string[] = []
+  const seen = new Set<string>()
+  for (const item of values ?? []) {
+    const title = spokenRecordTitle(item)
+    if (!title || seen.has(title)) {
+      continue
+    }
+    seen.add(title)
+    titles.push(title)
+    if (titles.length >= MAX_VISIBLE_WORK_TITLES) {
+      break
+    }
+  }
+  return titles
 }
 
 function everydayArticleTitles(

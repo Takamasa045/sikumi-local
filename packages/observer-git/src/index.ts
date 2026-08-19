@@ -19,6 +19,7 @@ export {
 } from './paths.js'
 export {
   readLatestRecordTitle,
+  readRecentRecordTitles,
   readSyncCounts,
   snapshotGitRepository,
   type ChangedFileRecord,

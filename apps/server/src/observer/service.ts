@@ -51,6 +51,7 @@ import {
   readBlogArticleTitles,
   readBlogWorkStory,
   readLatestRecordTitle,
+  readRecentRecordTitles,
   readSyncCounts,
   snapshotGitRepository,
   type ChangedFileRecord,
@@ -970,6 +971,7 @@ function latestSnapshotView(
         })
       : null,
     articleTitles: root ? readBlogArticleTitles(root) : [],
+    workTitles: root ? readRecentRecordTitles(root) : [],
     outgoingCount: sync.outgoingCount,
     incomingCount: sync.incomingCount,
     worktrees: latest.map((item, index) => {

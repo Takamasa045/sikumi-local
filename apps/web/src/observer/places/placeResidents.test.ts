@@ -452,6 +452,16 @@ describe('collectGardenActors', () => {
     )
 
     const leftover = actors.find((actor) => actor.placeName === 'hataraki番')
+    const blog = actors.find((actor) => actor.placeName === 'ブログ番')
+    const shikumi = actors.find(
+      (actor) => actor.placeName === SHIKUMI_PLACE_NAME,
+    )
+    expect(blog?.residentKind).toBe('blog')
+    expect(blog?.portraitUrl).toContain('blog-ban')
+    expect(shikumi?.residentKind).toBe('shikumi')
+    expect(shikumi?.portraitUrl).toContain('shikumi-local-ban')
+    expect(leftover?.residentKind).toBe('hataraki')
+    expect(leftover?.portraitUrl).toContain('hataraki')
     expect(leftover?.tone).toBe('observing')
     expect(leftover?.station).not.toBe('delivery')
     expect(['rest', 'workbench']).toContain(leftover?.station)
@@ -811,6 +821,7 @@ describe('describePlaceInspect', () => {
       driverNote: null,
       goal: 'APIを直している',
       articleTitles: [],
+      workTitles: [],
     })
   })
 
@@ -949,6 +960,7 @@ describe('describePlaceInspect', () => {
       driverNote: null,
       goal: null,
       articleTitles: [],
+      workTitles: ['ログイン画面の直し'],
     })
     expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
       /SHA|commit|HEAD|origin|まだ分かっていません|Claude Code/,
@@ -1274,7 +1286,67 @@ describe('describeVisibleFacts', () => {
       { title: '春のメモ', date: '2026-08-15' },
       { title: '短い下書き', date: '2026-08-01' },
     ])
+    expect(describePlaceInspect(resident!).workTitles).toEqual([])
     expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain('縁側')
+  })
+
+  it('lists spoken recent work titles for a non-blog place', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [], {
+          latestRecordTitle: '庭のクリック詳細を厚くする',
+          workTitles: [
+            '庭のクリック詳細を厚くする',
+            'feat: launch HATARAKI office UI',
+            'a1b2c3d',
+            'ログイン画面の直し',
+            'Merge branch main',
+            'src/Office.tsx',
+          ],
+        }),
+      ]),
+    )
+
+    expect(resident?.workTitles).toEqual([
+      '庭のクリック詳細を厚くする',
+      'ログイン画面の直し',
+    ])
+    expect(describePlaceInspect(resident!).workTitles).toEqual([
+      '庭のクリック詳細を厚くする',
+      'ログイン画面の直し',
+    ])
+    expect(describePlaceInspect(resident!).articleTitles).toEqual([])
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
+      /feat:|a1b2c3d|Office\.tsx|Merge branch/,
+    )
+  })
+
+  it('omits the work history when no spoken title was read', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'hataraki', [], {
+          latestRecordTitle: 'feat: launch HATARAKI office UI',
+          workTitles: ['feat: launch HATARAKI office UI', 'a1b2c3d'],
+        }),
+      ]),
+    )
+
+    expect(resident?.workTitles).toEqual([])
+    expect(describePlaceInspect(resident!).workTitles).toEqual([])
+  })
+
+  it('does not put work titles on a blog kit place', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_blog', 'ws_blog', 'blog-agent-kit', [], {
+          workStory: '記事の続きがある',
+          workTitles: ['庭のクリック詳細を厚くする'],
+        }),
+      ]),
+    )
+
+    expect(resident?.workTitles).toEqual([])
+    expect(describePlaceInspect(resident!).workTitles).toEqual([])
   })
 
   it('does not treat hook leftovers or fake-claude as a goal', () => {
@@ -1328,6 +1400,7 @@ function repository(
     readonly latestRecordTitle?: string | null
     readonly workStory?: string | null
     readonly articleTitles?: RepositoryView['articleTitles']
+    readonly workTitles?: RepositoryView['workTitles']
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
     readonly worktrees?: RepositoryView['worktrees']
@@ -1347,6 +1420,7 @@ function repository(
     latestRecordTitle: extras.latestRecordTitle ?? null,
     workStory: extras.workStory ?? null,
     articleTitles: extras.articleTitles ?? [],
+    workTitles: extras.workTitles ?? [],
     outgoingCount: extras.outgoingCount ?? null,
     incomingCount: extras.incomingCount ?? null,
     sessions,

@@ -84,6 +84,7 @@ export const repositoryActivitySchema = z.object({
   lastChangedAt: z.string().nullable().optional(),
   lastChangedLabel: z.string().nullable(),
   latestRecordTitle: z.string().nullable().optional(),
+  workStory: z.string().nullable().optional(),
   outgoingCount: z.number().nullable().optional(),
   incomingCount: z.number().nullable().optional(),
   sessions: z.array(sessionViewSchema),

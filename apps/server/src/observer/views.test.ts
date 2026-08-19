@@ -22,6 +22,7 @@ describe('observer views', () => {
         headCommit: 'abc',
         baseCommit: null,
         latestRecordTitle: 'ログイン画面の直し',
+        workStory: null,
         outgoingCount: 1,
         incomingCount: 0,
         worktrees: [],
@@ -58,6 +59,7 @@ describe('observer views', () => {
     })
     expect(activity.lastChangedAt).toBe('2026-08-18T00:10:00.000Z')
     expect(activity.latestRecordTitle).toBe('ログイン画面の直し')
+    expect(activity.workStory).toBeNull()
     expect(activity.outgoingCount).toBe(1)
     expect(activity.incomingCount).toBe(0)
     expect(activity.sessions.map((item) => item.displayName)).toEqual([
@@ -65,6 +67,45 @@ describe('observer views', () => {
       'Cursor Tab',
     ])
     expect(activity.sessions[1]?.title).toContain('ほか 1 件')
+  })
+
+  it('passes a blog work story through to today overview', () => {
+    const activity = buildRepositoryActivity({
+      repository: {
+        id: 'repo-blog',
+        workspaceId: 'ws-blog',
+        absolutePath: '/tmp/blog',
+        displayName: 'blog-agent-kit',
+        currentBranch: 'main',
+        readable: true,
+      },
+      snapshot: {
+        available: true,
+        reason: null,
+        repositoryRoot: '/tmp/blog',
+        displayName: 'blog-agent-kit',
+        branch: 'main',
+        headCommit: 'abc',
+        baseCommit: null,
+        latestRecordTitle: 'docs',
+        workStory:
+          'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+        outgoingCount: 0,
+        incomingCount: 0,
+        worktrees: [],
+        changedFiles: [],
+        scannedAt: '2026-08-18T00:10:00.000Z',
+        truncated: false,
+      },
+      sessions: [],
+      labels: {},
+      conflicts: [],
+      claims: [],
+    })
+    expect(activity.workStory).toBe(
+      'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+    )
+    expect(activity.workStory).not.toContain('MEMORY.md')
   })
 })
 

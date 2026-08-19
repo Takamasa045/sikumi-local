@@ -301,15 +301,17 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       'my-project番',
     )
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('動いている')
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       'APIを直している',
     )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(' / ')
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      '途中の仕事が残っている',
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       '記録する前の、途中の仕事です',
     )
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       '途中の仕事が2',
     )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(

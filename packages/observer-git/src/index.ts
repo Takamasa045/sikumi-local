@@ -1,4 +1,5 @@
 export { createGitObserverAdapter } from './adapter.js'
+export { looksLikeBlogKit, readBlogWorkStory } from './blog-story.js'
 export { resolveGitExecutable, runGit } from './exec.js'
 export {
   resolveDefaultBranchRef,

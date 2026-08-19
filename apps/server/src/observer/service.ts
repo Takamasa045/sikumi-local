@@ -48,6 +48,7 @@ import {
 } from '@sikumi-local/observer-bridge'
 import {
   createGitObserverAdapter,
+  readBlogWorkStory,
   readLatestRecordTitle,
   readSyncCounts,
   snapshotGitRepository,
@@ -960,6 +961,13 @@ function latestSnapshotView(
     headCommit: latest[0]?.headCommit ?? null,
     baseCommit: latest[0]?.baseCommit ?? null,
     latestRecordTitle: root ? readLatestRecordTitle(root) : null,
+    workStory: root
+      ? readBlogWorkStory(root, {
+          changedPaths: latest.flatMap((item) =>
+            (item.changedFiles as ChangedFileRecord[]).map((file) => file.path),
+          ),
+        })
+      : null,
     outgoingCount: sync.outgoingCount,
     incomingCount: sync.incomingCount,
     worktrees: latest.map((item, index) => {

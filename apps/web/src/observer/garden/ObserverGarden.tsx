@@ -201,7 +201,6 @@ export function ObserverGarden({
                       summary: actor.workSummary,
                       nowText: actor.nowText,
                       implementationLook: actor.implementationLook,
-                      leftoverWork: actor.leftoverWork,
                       nextStep: actor.nextStep,
                       driverNote: actor.driverNote,
                       live: actor.tone === 'working' || presence.traveling,

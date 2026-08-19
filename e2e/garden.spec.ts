@@ -74,7 +74,9 @@ test('the garden shows registered places as characters, not a list', async ({
   const inspect = page.getByTestId('garden-inspect')
   await expect(inspect).toContainText('しくみローカル番')
   await expect(inspect).toContainText('どこまでやったか')
-  await expect(inspect).toContainText('しまっていない変更')
+  await expect(inspect).toContainText('記録する前の、途中の仕事です')
+  await expect(inspect).toContainText('途中の仕事')
+  await expect(inspect).not.toContainText('しまっていない変更')
   await expect(inspect).not.toContainText('まだ分かっていません')
   await expect(inspect).not.toContainText('次に動かすまで待つ')
   await expect(inspect).not.toContainText('次はこんな感じか')
@@ -92,7 +94,10 @@ test("a user can move between garden, today's workshop, and settings", async ({
   ).toBeVisible()
   await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
 
-  await page.getByRole('contentinfo').getByRole('link', { name: '設定' }).click()
+  await page
+    .getByRole('contentinfo')
+    .getByRole('link', { name: '設定' })
+    .click()
   await expect(
     page.getByRole('heading', { name: '工房の整え方' }),
   ).toBeVisible()
@@ -110,9 +115,9 @@ test('a user can click a garden station to see what is happening', async ({
   await expect(page.getByRole('region', { name: '○○番の一覧' })).toHaveCount(0)
   await expect(page.getByTestId('garden-employee')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
-  await expect(
-    page.getByRole('heading', { name: '登録した場所' }),
-  ).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '登録した場所' })).toHaveCount(
+    0,
+  )
 
   await page.getByRole('button', { name: '資料棚' }).click()
   await expect(page.getByTestId('garden-inspect')).toContainText('資料棚')

@@ -2653,6 +2653,30 @@ footer span {
   color: #6f6c5e;
   font-size: 12px;
 }
+.garden-inspect__leftover {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+.garden-inspect__leftover-group {
+  min-width: 0;
+}
+.garden-inspect__leftover-area {
+  margin: 0;
+  color: #6f6c5e;
+  font-size: 11px;
+}
+.garden-inspect__leftover-files {
+  margin: 2px 0 0;
+  padding-left: 1.15em;
+  font-size: 13px;
+}
+.garden-inspect__leftover-more {
+  margin: 0;
+  color: #6f6c5e;
+  font-size: 12px;
+}
 .garden-inspect__meaning,
 .garden-inspect__occupants,
 .garden-inspect__summary {

@@ -7,9 +7,11 @@ import {
   collectPlaceResidents,
   deriveEmployeeName,
   derivePlaceName,
+  describeLeftoverWork,
   describePlaceInspect,
   describeVisibleFacts,
   GARDEN_GROUND,
+  LEFTOVER_WORK_MEANING,
   placeActivityLabel,
   SHIKUMI_PLACE_NAME,
   sortPlaceResidents,
@@ -236,12 +238,9 @@ describe('sortPlaceResidents', () => {
       ]),
     )
 
-    expect(sortPlaceResidents(residents).map((item) => item.placeName)).toEqual([
-      'beta番',
-      'zeta番',
-      'new-notes番',
-      'old-notes番',
-    ])
+    expect(sortPlaceResidents(residents).map((item) => item.placeName)).toEqual(
+      ['beta番', 'zeta番', 'new-notes番', 'old-notes番'],
+    )
   })
 
   it('does not treat git inferred sessions as live work when sorting', () => {
@@ -451,12 +450,14 @@ describe('collectGardenActors', () => {
     expect(leftover?.tone).toBe('observing')
     expect(leftover?.station).not.toBe('delivery')
     expect(['rest', 'workbench']).toContain(leftover?.station)
-    expect(leftover?.workSummary).toBe('しまっていない変更が15')
+    expect(leftover?.workSummary).toBe('途中の仕事がある')
     expect(leftover?.workSummary).not.toContain(' / ')
     expect(leftover?.nowText).toBe(
       'いちばん新しい記録：launch HATARAKI office UI',
     )
-    expect(leftover?.implementationLook).toBe('しまっていない変更が15')
+    expect(leftover?.implementationLook).toBe(
+      `${LEFTOVER_WORK_MEANING}\n途中の仕事が15`,
+    )
     expect(JSON.stringify(leftover)).not.toMatch(
       /まだ分かっていません|変更元不明|feat:|作業中のファイル|Codexの作業が始まりました/,
     )
@@ -561,7 +562,8 @@ describe('describePlaceInspect', () => {
 
     expect(describePlaceInspect(resident!)).toEqual({
       nowText: '動いている\nAPIを直している\n最後に見えたのは1分前',
-      implementationLook: 'しまっていない変更が3\n画面やAPIあたり',
+      implementationLook: `${LEFTOVER_WORK_MEANING}\n途中の仕事が3\n画面やAPIあたり`,
+      leftoverWork: null,
       nextStep: null,
       driverNote: null,
     })
@@ -595,7 +597,7 @@ describe('describePlaceInspect', () => {
     const inspect = describePlaceInspect(resident!)
     expect(inspect.nowText).toBeNull()
     expect(inspect.implementationLook).toBe(
-      'しまっていない変更が1\nログイン状態あたり',
+      `${LEFTOVER_WORK_MEANING}\n途中の仕事が1\nログイン状態あたり`,
     )
     expect(inspect.nextStep).toBeNull()
     expect(inspect.driverNote).toBeNull()
@@ -623,6 +625,7 @@ describe('describePlaceInspect', () => {
     expect(describePlaceInspect(resident!)).toMatchObject({
       nowText: '確認待ち\n承認が必要',
       implementationLook: null,
+      leftoverWork: null,
       nextStep: '確認が必要',
       driverNote: null,
     })
@@ -697,8 +700,8 @@ describe('describePlaceInspect', () => {
     expect(resident?.lastObservedWork).toBe('ログイン画面の直し')
     expect(describePlaceInspect(resident!)).toEqual({
       nowText: 'いちばん新しい記録：ログイン画面の直し',
-      implementationLook:
-        'しまっていない変更が2\n画面あたり\n送っていない\n取り込み待ち',
+      implementationLook: `${LEFTOVER_WORK_MEANING}\n途中の仕事が2\n画面あたり\n送っていない\n取り込み待ち`,
+      leftoverWork: null,
       nextStep: null,
       driverNote: null,
     })
@@ -828,15 +831,111 @@ describe('describeVisibleFacts', () => {
       ]),
     )
     expect(leftover?.working).toBe(false)
-    expect(describeVisibleFacts(leftover!)).toBe('しまっていない変更が15')
+    expect(describeVisibleFacts(leftover!)).toBe('途中の仕事がある')
     expect(describeVisibleFacts(leftover!)).not.toContain('feat:')
     expect(describeVisibleFacts(leftover!)).not.toContain(' / ')
+    expect(describeVisibleFacts(leftover!)).not.toContain('しまっていない変更')
     expect(describePlaceInspect(leftover!).nowText).toBe(
       'いちばん新しい記録：launch HATARAKI office UI',
     )
     expect(JSON.stringify(describePlaceInspect(leftover!))).not.toMatch(
       /まだ分かっていません|変更元不明|feat:|作業中のファイル| \/ /,
     )
+  })
+
+  it('names leftover work from real files grouped by area', () => {
+    const files = hatarakiLeftoverFiles()
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [], {
+          changedFileCount: files.length,
+          worktrees: [worktreeOf(files)],
+        }),
+      ]),
+    )
+
+    expect(resident?.leftoverItems).toHaveLength(18)
+    expect(resident?.leftoverTruncated).toBe(false)
+    expect(describeVisibleFacts(resident!)).toBe(
+      '画面や確認まわりに、途中の仕事がある',
+    )
+    expect(describeVisibleFacts(resident!)).not.toContain('しまっていない変更')
+    const inspect = describePlaceInspect(resident!)
+    expect(inspect.implementationLook).toBe(
+      `${LEFTOVER_WORK_MEANING}\n途中の仕事が18`,
+    )
+    expect(inspect.implementationLook).not.toContain('しまっていない変更')
+    expect(inspect.leftoverWork).toEqual({
+      groups: [
+        { areaLabel: '画面', names: ['App.tsx', 'Office.tsx', 'styles.css'] },
+        {
+          areaLabel: '確認用の仕組み',
+          names: ['garden.spec.ts', 'observer.spec.ts', 'visual-qa.spec.ts'],
+        },
+        { areaLabel: '道具の一覧', names: ['package.json'] },
+        { areaLabel: 'API', names: ['api-fixture-entry.ts'] },
+        { areaLabel: '設定', names: ['playwright.config.ts'] },
+        { areaLabel: 'そのほか', names: ['README.md', 'server', 'live'] },
+      ],
+      more: true,
+    })
+    expect(
+      inspect.leftoverWork?.groups.flatMap((group) => group.names),
+    ).toEqual(expect.arrayContaining(['Office.tsx', 'api-fixture-entry.ts']))
+    expect(JSON.stringify(inspect)).not.toMatch(
+      /しまっていない変更|commit|uncommitted|staged|SHA|HEAD|origin|まだ分かっていません|変更元不明/,
+    )
+  })
+
+  it('keeps leftover work off the inspect when nothing is left', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([repository('repo_a', 'ws_a', 'notes', [])]),
+    )
+
+    expect(resident?.leftoverItems).toEqual([])
+    expect(describeLeftoverWork(resident!)).toBeNull()
+    expect(describePlaceInspect(resident!).leftoverWork).toBeNull()
+    expect(describePlaceInspect(resident!).implementationLook).toBeNull()
+    expect(describeVisibleFacts(resident!)).toBe('')
+  })
+
+  it('shows a handful and ほかにもある when leftover files are truncated', () => {
+    const files = Array.from({ length: 8 }, (_, index) =>
+      leftoverFile(`src/screen/File${index}.tsx`, '画面'),
+    )
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'hataraki', [], {
+          changedFileCount: 40,
+          worktrees: [
+            worktreeOf(files, {
+              changedFileCount: 40,
+              filesTruncated: true,
+            }),
+          ],
+        }),
+      ]),
+    )
+
+    expect(resident?.leftoverItems).toHaveLength(8)
+    expect(resident?.leftoverTruncated).toBe(true)
+    expect(describeVisibleFacts(resident!)).toBe(
+      '画面まわりに、途中の仕事がある',
+    )
+    const leftover = describeLeftoverWork(resident!)
+    expect(leftover).toEqual({
+      groups: [
+        {
+          areaLabel: '画面',
+          names: ['File0.tsx', 'File1.tsx', 'File2.tsx'],
+        },
+      ],
+      more: true,
+    })
+    expect(describePlaceInspect(resident!).implementationLook).toBe(
+      `${LEFTOVER_WORK_MEANING}\n途中の仕事が40`,
+    )
+    expect(JSON.stringify(leftover)).not.toContain('しまっていない変更')
   })
 })
 
@@ -866,6 +965,8 @@ function repository(
     readonly latestRecordTitle?: string | null
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
+    readonly worktrees?: RepositoryView['worktrees']
+    readonly truncated?: boolean
   } = {},
 ): RepositoryView {
   return {
@@ -882,7 +983,8 @@ function repository(
     outgoingCount: extras.outgoingCount ?? null,
     incomingCount: extras.incomingCount ?? null,
     sessions,
-    worktrees: [],
+    worktrees: extras.worktrees ?? [],
+    ...(extras.truncated === undefined ? {} : { truncated: extras.truncated }),
     conflicts: Array.from(
       { length: extras.conflictCount ?? 0 },
       (_, index) => ({
@@ -910,6 +1012,63 @@ function session(
     lastObservedLabel: null,
     ...partial,
   }
+}
+
+type WorktreeFile = RepositoryView['worktrees'][number]['files'][number]
+
+function leftoverFile(
+  path: string,
+  areaLabel: string,
+  changeLabel = '変更',
+): WorktreeFile {
+  return {
+    path,
+    changeLabel,
+    areaLabel,
+    addedLines: null,
+    deletedLines: null,
+  }
+}
+
+function worktreeOf(
+  files: readonly WorktreeFile[],
+  extras: {
+    readonly changedFileCount?: number
+    readonly filesTruncated?: boolean
+  } = {},
+): RepositoryView['worktrees'][number] {
+  return {
+    path: 'primary',
+    isPrimary: true,
+    branch: null,
+    changedFileCount: extras.changedFileCount ?? files.length,
+    returnedFileCount: files.length,
+    filesTruncated: extras.filesTruncated ?? false,
+    files: [...files],
+  }
+}
+
+function hatarakiLeftoverFiles(): WorktreeFile[] {
+  return [
+    leftoverFile('README.md', '作業中のファイル'),
+    leftoverFile('src/App.tsx', '画面'),
+    leftoverFile('src/office/Office.tsx', '画面'),
+    leftoverFile('src/styles.css', '画面'),
+    leftoverFile('e2e/garden.spec.ts', '確認用の仕組み'),
+    leftoverFile('e2e/observer.spec.ts', '確認用の仕組み'),
+    leftoverFile('e2e/visual-qa.spec.ts', '確認用の仕組み'),
+    leftoverFile('e2e/workshop.spec.ts', '確認用の仕組み'),
+    leftoverFile('e2e/api.spec.ts', '確認用の仕組み'),
+    leftoverFile('package.json', '道具の一覧'),
+    leftoverFile('e2e/api-fixture-entry.ts', 'API', 'まだ記録していない変更'),
+    leftoverFile('e2e/fixtures/', '確認用の仕組み'),
+    leftoverFile('server/', '作業中のファイル'),
+    leftoverFile('src/live/', '作業中のファイル'),
+    leftoverFile('src/office/Desk.tsx', '画面'),
+    leftoverFile('playwright.config.ts', '設定'),
+    leftoverFile('src/main.tsx', '画面'),
+    leftoverFile('server/index.ts', '作業中のファイル'),
+  ]
 }
 
 function workspace(id: string, employeeName?: string): Workspace {

@@ -113,7 +113,8 @@ describe('ObserverGarden', () => {
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
     expect(within(residents).getByText('alpha番')).toBeVisible()
-    expect(within(residents).getByText('しまっていない変更が4')).toBeVisible()
+    expect(within(residents).getByText('途中の仕事がある')).toBeVisible()
+    expect(within(residents).queryByText(/しまっていない変更/)).toBeNull()
     expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
     expect(within(residents).queryByText('Git作業')).toBeNull()
@@ -186,8 +187,10 @@ describe('ObserverGarden', () => {
     expect(inspect).toHaveTextContent('APIを直している')
     expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).toHaveTextContent('実装の様子')
-    expect(inspect).toHaveTextContent('しまっていない変更が2')
+    expect(inspect).toHaveTextContent('記録する前の、途中の仕事です')
+    expect(inspect).toHaveTextContent('途中の仕事が2')
     expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent('作業中のファイル')
     expect(inspect).not.toHaveTextContent('これから')
     expect(inspect).not.toHaveTextContent('いまの作業の続き')
@@ -199,9 +202,7 @@ describe('ObserverGarden', () => {
     )
     expect(inspect).not.toHaveTextContent('望遠鏡')
     expect(screen.queryByTestId('garden-employee')).toBeNull()
-    expect(
-      screen.queryByRole('heading', { name: '登録した場所' }),
-    ).toBeNull()
+    expect(screen.queryByRole('heading', { name: '登録した場所' })).toBeNull()
   })
 
   it('hides idle sessions and does not put residents on the observatory', () => {
@@ -396,11 +397,14 @@ describe('ObserverGarden', () => {
     )
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
-    expect(within(residents).getByText('しまっていない変更が2')).toBeVisible()
+    expect(
+      within(residents).getByText('画面まわりに、途中の仕事がある'),
+    ).toBeVisible()
     expect(within(residents).queryByText('働きの直し')).toBeNull()
     expect(within(residents).queryByText(/送っていない/)).toBeNull()
     expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(within(residents).queryByText(/Claude Code/)).toBeNull()
+    expect(within(residents).queryByText(/しまっていない変更/)).toBeNull()
     expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
 
     await userEvent.click(
@@ -408,8 +412,10 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('いちばん新しい記録：働きの直し')
-    expect(inspect).toHaveTextContent('しまっていない変更が2')
+    expect(inspect).toHaveTextContent('記録する前の、途中の仕事です')
+    expect(inspect).toHaveTextContent('途中の仕事が2')
     expect(inspect).toHaveTextContent('送っていない')
+    expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).not.toHaveTextContent('commit')
@@ -424,8 +430,10 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('しまっていない変更が1')
+    expect(inspect).toHaveTextContent('記録する前の、途中の仕事です')
+    expect(inspect).toHaveTextContent('途中の仕事が1')
     expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).not.toHaveTextContent('次に動かすまで待つ')
     expect(inspect).not.toHaveTextContent('次はこんな感じか')
@@ -435,6 +443,56 @@ describe('ObserverGarden', () => {
     expect(labels).not.toContain('いま')
     expect(labels).not.toContain('これから')
     expect(inspect).not.toHaveTextContent('変更元不明')
+  })
+
+  it('shows leftover files grouped by area when a place is clicked', async () => {
+    const files = hatarakiLeftoverFiles()
+    renderGarden(
+      overviewOf([
+        repository('repo_hataraki', 'hataraki', [], files.length, [], {
+          worktrees: [worktreeOf(files)],
+        }),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(
+      within(residents).getByText('画面や確認まわりに、途中の仕事がある'),
+    ).toBeVisible()
+    expect(within(residents).queryByText(/しまっていない変更/)).toBeNull()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_hataraki')).getByRole(
+        'button',
+      ),
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('どこまでやったか')
+    expect(inspect).toHaveTextContent('記録する前の、途中の仕事です')
+    expect(inspect).toHaveTextContent('途中の仕事が18')
+    expect(inspect).toHaveTextContent('Office.tsx')
+    expect(inspect).toHaveTextContent('garden.spec.ts')
+    expect(inspect).toHaveTextContent('api-fixture-entry.ts')
+    expect(inspect).toHaveTextContent('README.md')
+    expect(inspect).toHaveTextContent('ほかにもある')
+    expect(inspect).not.toHaveTextContent(' / ')
+    expect(inspect).not.toHaveTextContent('しまっていない変更')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('変更元不明')
+  })
+
+  it('does not show leftover files when a still place has none', async () => {
+    renderGarden(overviewOf([repository('repo_a', 'notes', [])]))
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).not.toHaveTextContent('記録する前の、途中の仕事です')
+    expect(inspect).not.toHaveTextContent('途中の仕事')
+    expect(inspect).not.toHaveTextContent('ほかにもある')
+    expect(inspect.querySelector('.garden-inspect__leftover')).toBeNull()
   })
 })
 
@@ -474,6 +532,7 @@ function repository(
     readonly latestRecordTitle?: string | null
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
+    readonly worktrees?: RepositoryView['worktrees']
   } = {},
 ): RepositoryView {
   return {
@@ -489,10 +548,63 @@ function repository(
     outgoingCount: extras.outgoingCount ?? null,
     incomingCount: extras.incomingCount ?? null,
     sessions,
-    worktrees: [],
+    worktrees: extras.worktrees ?? [],
     conflicts: [],
     areas: [...areas],
   }
+}
+
+type WorktreeFile = RepositoryView['worktrees'][number]['files'][number]
+
+function leftoverFile(
+  path: string,
+  areaLabel: string,
+  changeLabel = '変更',
+): WorktreeFile {
+  return {
+    path,
+    changeLabel,
+    areaLabel,
+    addedLines: null,
+    deletedLines: null,
+  }
+}
+
+function worktreeOf(
+  files: readonly WorktreeFile[],
+): RepositoryView['worktrees'][number] {
+  return {
+    path: 'primary',
+    isPrimary: true,
+    branch: null,
+    changedFileCount: files.length,
+    returnedFileCount: files.length,
+    filesTruncated: false,
+    files: [...files],
+  }
+}
+
+function hatarakiLeftoverFiles(): WorktreeFile[] {
+  return [
+    leftoverFile('README.md', '作業中のファイル'),
+    leftoverFile('src/App.tsx', '画面'),
+    leftoverFile('src/office/Office.tsx', '画面'),
+    leftoverFile('src/styles.css', '画面'),
+    leftoverFile('e2e/garden.spec.ts', '確認用の仕組み'),
+    leftoverFile('e2e/observer.spec.ts', '確認用の仕組み'),
+    leftoverFile('e2e/visual-qa.spec.ts', '確認用の仕組み'),
+    leftoverFile('e2e/workshop.spec.ts', '確認用の仕組み'),
+    leftoverFile('e2e/api.spec.ts', '確認用の仕組み'),
+    leftoverFile('package.json', '道具の一覧'),
+    leftoverFile('e2e/api-fixture-entry.ts', 'API', 'まだ記録していない変更'),
+    leftoverFile('e2e/fixtures/', '確認用の仕組み'),
+    leftoverFile('server/', '作業中のファイル'),
+    leftoverFile('src/live/', '作業中のファイル'),
+    leftoverFile('src/office/Desk.tsx', '画面'),
+    leftoverFile('playwright.config.ts', '設定'),
+    leftoverFile('src/main.tsx', '画面'),
+    leftoverFile('server/index.ts', '作業中のファイル'),
+  ]
 }
 
 function session(

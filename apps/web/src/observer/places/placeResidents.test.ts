@@ -1647,14 +1647,13 @@ function repository(
     sessions,
     worktrees: extras.worktrees ?? [],
     ...(extras.truncated === undefined ? {} : { truncated: extras.truncated }),
-    conflicts: extras.conflicts ?? inferredGitConflicts(extras.conflictCount ?? 0),
+    conflicts:
+      extras.conflicts ?? inferredGitConflicts(extras.conflictCount ?? 0),
     areas: [...(extras.areas ?? [])],
   }
 }
 
-function inferredGitConflicts(
-  count: number,
-): RepositoryView['conflicts'] {
+function inferredGitConflicts(count: number): RepositoryView['conflicts'] {
   return Array.from({ length: count }, (_, index) => ({
     id: `conflict_${index}`,
     level: 'yellow',

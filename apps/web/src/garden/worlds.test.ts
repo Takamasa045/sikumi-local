@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   describeStationOccupants,
+  gardenStationLabels,
   gardenStationMeanings,
   getWorldPack,
   worldPacks,
@@ -42,6 +43,16 @@ describe('world packs', () => {
       describeStationOccupants('waiting', [
         { name: 'サグル', traveling: true },
       ]),
-    ).toBe('サグルが確認札へ向かっています')
+    ).toBe('サグルが確認の場所へ向かっています')
+  })
+
+  it('keeps the dog-office observatory on the pictured ground', () => {
+    const dogOffice = getWorldPack('dog-office')
+    expect(dogOffice.stations.observatory.y).toBeGreaterThanOrEqual(75)
+    expect(dogOffice.stations.observatory.y).toBeLessThanOrEqual(90)
+    expect(dogOffice.stations.observatory.x).toBeLessThan(40)
+    expect(gardenStationLabels.observatory).toBe('縁側')
+    expect(gardenStationLabels.waiting).toBe('確認の場所')
+    expect(gardenStationLabels.workbench).toBe('作業台')
   })
 })

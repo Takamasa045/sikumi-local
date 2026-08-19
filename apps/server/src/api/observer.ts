@@ -11,6 +11,7 @@ import {
   listConflictsQuerySchema,
   OBSERVER_API_DEFAULT_LIST_LIMIT,
   OBSERVER_API_MAX_LIST_LIMIT,
+  OBSERVER_MAX_PATH_CHARS,
   observerAdapterActionRequestSchema,
   observerInstallResultSchema,
   realUserHome,
@@ -18,6 +19,7 @@ import {
   updateSessionLabelRequestSchema,
   type ConflictFinding,
   type ObserverAdapterActionRequest,
+  type ObserverInstallFilePlan,
   type ObserverInstallOptions,
   type ObserverInstallResult,
 } from '@sikumi-local/observer-core'
@@ -99,7 +101,7 @@ export async function applyObserverAdapterRequest(
       ? await observer.installAdapter(source, previewOptions)
       : await observer.uninstallAdapter(source, previewOptions)
   if (input.confirm !== true) {
-    return presentAdapterInstallCopy(source, action, preview)
+    return presentAdapterInstallCopy(source, action, preview, 'preview')
   }
   if (
     !shouldGrantRealUserApply(
@@ -126,16 +128,24 @@ export async function applyObserverAdapterRequest(
     action === 'install'
       ? await observer.installAdapter(source, granted)
       : await observer.uninstallAdapter(source, granted)
-  return presentAdapterInstallCopy(source, action, applied)
+  return presentAdapterInstallCopy(source, action, applied, 'apply')
 }
 
 export function presentAdapterInstallCopy(
   source: string,
   action: 'install' | 'uninstall',
   result: ObserverInstallResult,
+  mode: 'preview' | 'apply' = 'preview',
 ): ObserverInstallResult {
   if (source === 'claude-desktop' || !result.ok) {
     return result
+  }
+  if (mode === 'apply' && result.requiresConfirm !== true) {
+    return {
+      ...result,
+      applied: true,
+      message: action === 'install' ? 'つながりました' : 'はずしました',
+    }
   }
   if (result.applied === true) {
     return {
@@ -153,6 +163,113 @@ export function presentAdapterInstallCopy(
         ? 'つなぐ準備ができました'
         : 'はずす準備ができました',
   }
+}
+
+const INSTALL_PREVIEW_MAX = 20_000
+const INSTALL_MESSAGE_MAX = 500
+const INSTALL_EVIDENCE_MAX = 280
+const INSTALL_TOKEN_MAX = 128
+
+export function presentObserverInstallApiResult(
+  result: ObserverInstallResult,
+): ObserverInstallResult {
+  const sanitized = sanitizeInstallResultForApi(result)
+  if (observerInstallResultSchema.safeParse(sanitized).success) {
+    return sanitized
+  }
+  return fallbackInstallResult(result)
+}
+
+function sanitizeInstallResultForApi(
+  result: ObserverInstallResult,
+): ObserverInstallResult {
+  const files = publicInstallFiles(result.files)
+  const preview = files
+    .map((file) => `${file.action} ${file.path}`)
+    .join('\n')
+    .slice(0, INSTALL_PREVIEW_MAX)
+  const evidence = (result.evidence ?? [])
+    .slice(0, 20)
+    .map((item) => clipInstallText(item, INSTALL_EVIDENCE_MAX))
+    .filter((item) => item.length > 0)
+  return {
+    ok: result.ok,
+    changed: result.changed,
+    message: publicInstallMessage(result),
+    ...(preview.length > 0 ? { preview } : {}),
+    ...(result.requiresConfirm === undefined
+      ? {}
+      : { requiresConfirm: result.requiresConfirm }),
+    ...(result.applied === undefined ? {} : { applied: result.applied }),
+    ...(files.length > 0 ? { files } : {}),
+    ...(evidence.length > 0 ? { evidence } : {}),
+    ...(result.confirmationToken
+      ? {
+          confirmationToken: clipInstallText(
+            result.confirmationToken,
+            INSTALL_TOKEN_MAX,
+          ),
+        }
+      : {}),
+    ...(result.planDigest
+      ? { planDigest: clipInstallText(result.planDigest, INSTALL_TOKEN_MAX) }
+      : {}),
+    ...(result.targetRoot
+      ? {
+          targetRoot: clipInstallText(
+            result.targetRoot,
+            OBSERVER_MAX_PATH_CHARS,
+          ),
+        }
+      : {}),
+  }
+}
+
+function publicInstallFiles(
+  files: ObserverInstallResult['files'],
+): ObserverInstallFilePlan[] {
+  return (files ?? []).slice(0, 20).flatMap((file) => {
+    const path = clipInstallText(file.path, OBSERVER_MAX_PATH_CHARS)
+    if (path.length === 0) {
+      return []
+    }
+    return [
+      {
+        path,
+        action: file.action,
+        preview: '',
+      },
+    ]
+  })
+}
+
+function publicInstallMessage(result: ObserverInstallResult): string {
+  const clipped = clipInstallText(result.message, INSTALL_MESSAGE_MAX)
+  if (clipped.length > 0) {
+    return clipped
+  }
+  if (result.ok) {
+    return result.applied === true ? 'つながりました' : 'つなぐ準備ができました'
+  }
+  return 'つなぎ直せませんでした'
+}
+
+function fallbackInstallResult(
+  result: ObserverInstallResult,
+): ObserverInstallResult {
+  return {
+    ok: result.ok,
+    changed: result.changed,
+    applied: result.applied === true,
+    ...(result.requiresConfirm === undefined
+      ? {}
+      : { requiresConfirm: result.requiresConfirm }),
+    message: publicInstallMessage(result),
+  }
+}
+
+function clipInstallText(value: string, max: number): string {
+  return value.trim().slice(0, max)
 }
 
 function looksLikeTechnicalInstallCopy(message: string): boolean {
@@ -246,7 +363,7 @@ export function registerObserverRoutes(
         'install',
         parsed.data,
       )
-      return { result: observerInstallResultSchema.parse(result) }
+      return { result: presentObserverInstallApiResult(result) }
     },
   )
 
@@ -266,7 +383,7 @@ export function registerObserverRoutes(
         'uninstall',
         parsed.data,
       )
-      return { result: observerInstallResultSchema.parse(result) }
+      return { result: presentObserverInstallApiResult(result) }
     },
   )
 

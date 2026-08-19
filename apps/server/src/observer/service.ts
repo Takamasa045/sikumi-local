@@ -514,7 +514,11 @@ export function createObserverService(
         ? await adapter.install(withDataDirectory)
         : await adapter.uninstall(withDataDirectory)
     if (result.applied) {
-      await refreshAdapter(adapter)
+      try {
+        await refreshAdapter(adapter)
+      } catch {
+        // A successful write must not become Unexpected server error.
+      }
     }
     return result
   }

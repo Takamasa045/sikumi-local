@@ -7,6 +7,7 @@ import {
   listObserverAdapters,
   runObserverAdapterAction,
   type ObserverAdapterView,
+  type ObserverInstallView,
 } from '../../api/observer'
 
 type AdapterOutcome = {
@@ -84,7 +85,7 @@ export function AdapterSettings() {
       await checkObserverAdapter(source)
       await refresh()
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '確認できませんでした')
+      setError(friendlyCaughtError(cause, '確認できませんでした'))
     } finally {
       setBusySource(null)
     }
@@ -112,8 +113,8 @@ export function AdapterSettings() {
     })
     try {
       const result = await runObserverAdapterAction(source, action, target)
-      if (!result.ok) {
-        setError(friendlyInstallError(result.message))
+      if (!isConnectSuccess(source, result)) {
+        setError(friendlyInstallError(connectFailureMessage(result)))
         return
       }
       setOutcomes((current) => ({
@@ -122,9 +123,7 @@ export function AdapterSettings() {
       }))
       await refresh()
     } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : 'つなぎ直せませんでした',
-      )
+      setError(friendlyCaughtError(cause))
     } finally {
       setBusySource(null)
     }
@@ -359,9 +358,50 @@ function outcomeCopy(source: string, action: 'install' | 'uninstall'): string {
   return action === 'install' ? 'つながりました' : 'はずしました'
 }
 
+function isConnectSuccess(
+  source: string,
+  result: ObserverInstallView,
+): boolean {
+  if (!result.ok) {
+    return false
+  }
+  if (source === 'claude-desktop') {
+    return true
+  }
+  return result.applied === true
+}
+
+function connectFailureMessage(result: ObserverInstallView): string {
+  if (!result.ok) {
+    return result.message
+  }
+  if (
+    result.message.includes('つなぐ準備') ||
+    result.message.includes('はずす準備')
+  ) {
+    return 'つなぎ直せませんでした'
+  }
+  return result.message || 'つなぎ直せませんでした'
+}
+
 function friendlyInstallError(message: string): string {
   if (message.includes('Hookコマンドの絶対pathが安全ではありません')) {
     return UNSAFE_HOOK_COMMAND_MESSAGE
   }
   return message
+}
+
+function friendlyCaughtError(
+  cause: unknown,
+  fallback = 'つなぎ直せませんでした',
+): string {
+  const message = cause instanceof Error ? cause.message : ''
+  if (
+    !message ||
+    message.includes('Unexpected server error') ||
+    message.includes('INTERNAL_ERROR')
+  ) {
+    return fallback
+  }
+  return friendlyInstallError(message)
 }

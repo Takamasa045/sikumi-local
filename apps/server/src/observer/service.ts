@@ -741,7 +741,7 @@ export function createObserverService(
       branch,
       baseCommit: null,
       headCommit: null,
-      title: '',
+      title: null,
       status: 'detected',
       activity: 'unknown',
       attributionConfidence: 'inferred',

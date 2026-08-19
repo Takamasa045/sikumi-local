@@ -340,8 +340,7 @@ function residentForLiveStream(
     key: `${resident.repositoryId}:${session.id}`,
     working: tone === 'working',
     waiting: tone === 'waiting',
-    lastObservedWork:
-      spoken ?? (primary ? '' : ANOTHER_LIVE_WORK),
+    lastObservedWork: spoken ?? (primary ? '' : ANOTHER_LIVE_WORK),
     lastObservedLabel: session.lastObservedLabel,
     lastObservedWorkLabel: session.lastObservedLabel,
     lastObservedAt: session.lastObservedAt,
@@ -373,7 +372,10 @@ function streamSpokenTitle(session: OverviewSession): string | null {
   return null
 }
 
-function disambiguatedPlaceName(placeName: string, streamIndex: number): string {
+function disambiguatedPlaceName(
+  placeName: string,
+  streamIndex: number,
+): string {
   if (streamIndex === 0) {
     return placeName
   }
@@ -770,7 +772,9 @@ function inspectLastStateLines(resident: PlaceResident): string[] {
   return lines
 }
 
-function describeAreaWork(resident: Pick<PlaceResident, 'areas'>): string | null {
+function describeAreaWork(
+  resident: Pick<PlaceResident, 'areas'>,
+): string | null {
   const named = everydayInspectAreas(resident.areas)
   const shown = named.slice(0, 2)
   if (shown.length === 2) {
@@ -791,7 +795,9 @@ function lastSeenLabel(resident: PlaceResident): string | null {
 }
 
 function storyImpliesLeftover(story: string | null): boolean {
-  return Boolean(story && (story.includes('続き') || story.includes('書いています')))
+  return Boolean(
+    story && (story.includes('続き') || story.includes('書いています')),
+  )
 }
 
 function describeLatestRecord(

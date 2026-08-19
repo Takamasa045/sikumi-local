@@ -513,9 +513,11 @@ describe('collectGardenActors', () => {
     expect(other?.nowText).not.toContain('働きの画面を直している')
     expect(other?.nowText).not.toContain('途中の仕事')
     expect(
-      actors.every((actor) =>
-        JSON.stringify(actor).match(/まだ分かっていません|SHA|\.tsx|\.css/) ===
-        null,
+      actors.every(
+        (actor) =>
+          JSON.stringify(actor).match(
+            /まだ分かっていません|SHA|\.tsx|\.css/,
+          ) === null,
       ),
     ).toBe(true)
   })
@@ -636,11 +638,16 @@ describe('collectGardenActors', () => {
     )
 
     expect(actors).toHaveLength(2)
-    const summaries = actors.map((actor) => actor.workSummary).sort()
-    expect(summaries).toEqual(['動いている', ANOTHER_LIVE_WORK])
+    const summaries = actors.map((actor) => actor.workSummary)
+    expect(summaries).toEqual(
+      expect.arrayContaining(['動いている', ANOTHER_LIVE_WORK]),
+    )
+    expect(new Set(summaries).size).toBe(2)
     expect(actors.some((actor) => actor.placeName === 'hataraki 2')).toBe(false)
     expect(
-      actors.every((actor) => actor.nowText && !actor.nowText.includes('feat:')),
+      actors.every(
+        (actor) => actor.nowText && !actor.nowText.includes('feat:'),
+      ),
     ).toBe(true)
     expect(JSON.stringify(actors)).not.toMatch(
       /まだ分かっていません|SHA|article|働きの直し/,
@@ -745,8 +752,7 @@ describe('describePlaceInspect', () => {
     )
 
     expect(describePlaceInspect(resident!)).toEqual({
-      nowText:
-        'APIを直している\n途中の仕事が残っている\n最後に見えたのは1分前',
+      nowText: 'APIを直している\n途中の仕事が残っている\n最後に見えたのは1分前',
       implementationLook: null,
       nextStep: null,
       driverNote: null,
@@ -1019,7 +1025,9 @@ describe('describeVisibleFacts', () => {
     expect(describeVisibleFacts(leftover!)).not.toContain('feat:')
     expect(describeVisibleFacts(leftover!)).not.toContain(' / ')
     expect(describeVisibleFacts(leftover!)).not.toContain('しまっていない変更')
-    expect(describePlaceInspect(leftover!).nowText).toBe(LEFTOVER_WORK_REMAINING)
+    expect(describePlaceInspect(leftover!).nowText).toBe(
+      LEFTOVER_WORK_REMAINING,
+    )
     expect(JSON.stringify(describePlaceInspect(leftover!))).not.toMatch(
       /まだ分かっていません|変更元不明|feat:|作業中のファイル| \/ /,
     )
@@ -1134,7 +1142,9 @@ describe('describeVisibleFacts', () => {
     expect(describePlaceInspect(resident!).nowText).not.toContain('observer.ts')
     expect(describePlaceInspect(resident!).nowText).not.toContain('schema.ts')
     expect(describePlaceInspect(resident!).nowText).not.toContain('データの形')
-    expect(describePlaceInspect(resident!).nowText).not.toContain('途中の仕事が227')
+    expect(describePlaceInspect(resident!).nowText).not.toContain(
+      '途中の仕事が227',
+    )
   })
 
   it('uses a blog work story as the last-state article, never an invented title', () => {
@@ -1154,7 +1164,9 @@ describe('describeVisibleFacts', () => {
       'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です\n途中の仕事が残っている',
     )
     expect(describePlaceInspect(named!).nowText).not.toContain('MEMORY.md')
-    expect(describePlaceInspect(named!).nowText).not.toContain('BLOG_WORKSPACE.md')
+    expect(describePlaceInspect(named!).nowText).not.toContain(
+      'BLOG_WORKSPACE.md',
+    )
 
     const [untitled] = collectPlaceResidents(
       overviewOf([

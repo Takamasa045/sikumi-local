@@ -92,7 +92,9 @@ describe('ObserverGarden', () => {
     expect(within(residents).getAllByRole('listitem')).toHaveLength(2)
     expect(within(residents).getAllByText('hataraki番')).toHaveLength(2)
     expect(within(residents).getByText('働きの画面を直している')).toBeVisible()
-    expect(within(residents).getByText('確認の仕組みを書いている')).toBeVisible()
+    expect(
+      within(residents).getByText('確認の仕組みを書いている'),
+    ).toBeVisible()
 
     await userEvent.click(
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),

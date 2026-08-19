@@ -5,17 +5,17 @@ import {
   useState,
   type CSSProperties,
 } from 'react'
+import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
-import { GardenEmployee } from '../../garden/GardenEmployee'
 import {
   GardenInspect,
   type GardenInspectSubject,
 } from '../../garden/GardenInspect'
 import { poseGesture } from '../../garden/motion'
-import type { GardenPresence } from '../../garden/presence'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
 import { useStationTravel } from '../../garden/useStationTravel'
 import { gardenStationLabels, getWorldPack } from '../../garden/worlds'
+import { PlaceResidentList } from '../places/PlaceResidentList'
 import { collectGardenState, type GardenActor } from './gardenState'
 
 const WORLD_ID = 'dog-office' as const
@@ -46,12 +46,11 @@ type ActorTone = GardenActor['tone']
 
 type ObserverGardenProps = {
   overview: TodayOverview | null
-  employeeName?: string | undefined
-  employeeRole?: string | undefined
-  employeeId?: string | undefined
-  presence?: GardenPresence | undefined
+  workspaces?: readonly Workspace[]
+  selectedRepositoryId?: string | null
   onOpenWorkshop: () => void
   onOpenSettings: () => void
+  onSelectPlace: (repositoryId: string) => void
 }
 
 const TONE_LABELS: Record<ActorTone, string> = {
@@ -108,31 +107,19 @@ function actorOffset(actor: GardenActor): { x: number; y: number } {
   }
 }
 
-const IDLE_PRESENCE: GardenPresence = {
-  station: 'rest',
-  pose: 'idle',
-  summary: 'まだ仕事は始まっていません',
-  stateName: 'idle',
-}
-
 export function ObserverGarden({
   overview,
-  employeeName,
-  employeeRole,
-  employeeId,
-  presence,
+  workspaces = [],
+  selectedRepositoryId = null,
   onOpenWorkshop,
   onOpenSettings,
+  onSelectPlace,
 }: ObserverGardenProps) {
   const world = getWorldPack(WORLD_ID)
   const { actors, bulletin } = collectGardenState(overview)
   const reducedMotion = usePrefersReducedMotion()
   const [inspect, setInspect] = useState<GardenInspectSubject | null>(null)
-  const [employeeTraveling, setEmployeeTraveling] = useState(false)
   const [actorTravel, setActorTravel] = useState<Record<string, boolean>>({})
-  const resolvedPresence = presence ?? IDLE_PRESENCE
-  const resolvedName = employeeName ?? world.character.name
-  const resolvedRole = employeeRole ?? world.character.role
   const closeInspect = useCallback(() => {
     setInspect(null)
   }, [])
@@ -152,13 +139,6 @@ export function ObserverGarden({
       traveling: boolean
       summary?: string
     }[] = []
-    if (resolvedPresence.station === id) {
-      occupants.push({
-        name: resolvedName,
-        traveling: employeeTraveling,
-        summary: resolvedPresence.summary,
-      })
-    }
     for (const actor of actors) {
       if (actor.station !== id) {
         continue
@@ -173,161 +153,143 @@ export function ObserverGarden({
   }
 
   return (
-    <section
-      className="observer-garden observer-garden--satoyama"
-      role="region"
-      aria-label="観測の庭"
-      style={gardenStyle}
-    >
-      <div className="observer-garden-mist" aria-hidden="true" />
+    <div className="observer-garden-page">
+      <PlaceResidentList
+        overview={overview}
+        workspaces={workspaces}
+        selectedRepositoryId={selectedRepositoryId}
+        variant="garden"
+        onSelect={onSelectPlace}
+      />
+      <section
+        className="observer-garden observer-garden--satoyama"
+        role="region"
+        aria-label="観測の庭"
+        style={gardenStyle}
+      >
+        <div className="observer-garden-mist" aria-hidden="true" />
 
-      <header className="observer-garden-nav">
-        <div className="observer-garden-heading-group">
-          <h2 className="observer-garden-heading">観測の庭</h2>
-          <p className="observer-garden-sign">犬たちの里山アトリエ</p>
-        </div>
-        <div className="observer-garden-nav-actions">
-          <button
-            type="button"
-            className="observer-garden-nav-button observer-garden-nav-workshop"
-            onClick={onOpenWorkshop}
-          >
-            今日の作業場
-          </button>
-          <button
-            type="button"
-            className="observer-garden-nav-button observer-garden-nav-settings"
-            onClick={onOpenSettings}
-          >
-            設定
-          </button>
-        </div>
-      </header>
-
-      <div className="observer-garden-ground">
-        {STATION_IDS.map((id) => {
-          const point = stationPoint(world.stations, id)
-          const label = gardenStationLabels[id]
-          const occupants = stationOccupants(id)
-          return (
+        <header className="observer-garden-nav">
+          <div className="observer-garden-heading-group">
+            <h2 className="observer-garden-heading">観測の庭</h2>
+            <p className="observer-garden-sign">犬たちの里山アトリエ</p>
+          </div>
+          <div className="observer-garden-nav-actions">
             <button
-              key={id}
               type="button"
-              className={`observer-garden-station observer-garden-station--${id}${
-                resolvedPresence.station === id ? ' is-active' : ''
-              }`}
-              style={{ left: `${point.x}%`, top: `${point.y}%` }}
-              aria-expanded={
-                inspect?.kind === 'station' && inspect.station === id
-              }
-              onClick={() => {
-                setInspect({
-                  kind: 'station',
-                  station: id,
-                  occupants,
-                })
-              }}
+              className="observer-garden-nav-button observer-garden-nav-workshop"
+              onClick={onOpenWorkshop}
             >
-              <span className="observer-garden-station-pill">{label}</span>
+              今日の作業場
             </button>
-          )
-        })}
-
-        <GardenEmployee
-          world={world}
-          name={resolvedName}
-          role={resolvedRole}
-          employeeId={employeeId}
-          station={resolvedPresence.station}
-          pose={resolvedPresence.pose}
-          summary={resolvedPresence.summary}
-          reducedMotion={reducedMotion}
-          selected={
-            inspect?.kind === 'character' && inspect.name === resolvedName
-          }
-          onTravelingChange={setEmployeeTraveling}
-          onSelect={() => {
-            setInspect({
-              kind: 'character',
-              name: resolvedName,
-              role: resolvedRole,
-              station: resolvedPresence.station,
-              traveling: employeeTraveling,
-              summary: resolvedPresence.summary,
-            })
-          }}
-        />
-
-        {bulletin.length > 0 ? (
-          <aside className="observer-garden-bulletin">
-            <h3 className="observer-garden-bulletin-title">
-              出どころ未確認の変更
-            </h3>
-            <ul
-              className="observer-garden-bulletin-list"
-              role="list"
-              aria-label="出どころ未確認の変更"
+            <button
+              type="button"
+              className="observer-garden-nav-button observer-garden-nav-settings"
+              onClick={onOpenSettings}
             >
-              {bulletin.map((item) => (
-                <li key={item.key} className="observer-garden-bulletin-item">
-                  <span className="observer-garden-bulletin-repo">
-                    {item.repository.displayName}
-                  </span>
-                  <span className="observer-garden-bulletin-label">
-                    出どころ未確認の変更
-                  </span>
-                  <span className="observer-garden-bulletin-count">
-                    {item.repository.changedFileCount} 件
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </aside>
-        ) : null}
+              設定
+            </button>
+          </div>
+        </header>
 
-        {actors.length > 0 ? (
-          <div
-            className="observer-garden-actors"
-            role="list"
-            aria-label="観測中のエージェント"
-          >
-            {actors.map((actor) => (
-              <ObserverGardenActor
-                key={actor.key}
-                actor={actor}
-                world={world}
-                reducedMotion={reducedMotion}
-                selected={
-                  inspect?.kind === 'character' &&
-                  inspect.name === actor.sourceDisplayName
+        <div className="observer-garden-ground">
+          {STATION_IDS.map((id) => {
+            const point = stationPoint(world.stations, id)
+            const label = gardenStationLabels[id]
+            const occupants = stationOccupants(id)
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`observer-garden-station observer-garden-station--${id}`}
+                style={{ left: `${point.x}%`, top: `${point.y}%` }}
+                aria-expanded={
+                  inspect?.kind === 'station' && inspect.station === id
                 }
-                onTravelingChange={(next) => {
-                  handleActorTravel(actor.key, next)
-                }}
-                onSelect={() => {
+                onClick={() => {
                   setInspect({
-                    kind: 'character',
-                    name: actor.sourceDisplayName,
-                    station: actor.station,
-                    traveling: actorTravel[actor.key] === true,
-                    summary: actor.workSummary,
-                    jobTitle: TONE_LABELS[actor.tone],
+                    kind: 'station',
+                    station: id,
+                    occupants,
                   })
                 }}
-              />
-            ))}
-          </div>
-        ) : (
-          <p className="observer-garden-guide">
-            各AIアプリで作業を始めると、観測できたエージェントがここに現れます
-          </p>
-        )}
+              >
+                <span className="observer-garden-station-pill">{label}</span>
+              </button>
+            )
+          })}
 
-        {inspect ? (
-          <GardenInspect subject={inspect} onClose={closeInspect} />
-        ) : null}
-      </div>
-    </section>
+          {bulletin.length > 0 ? (
+            <aside className="observer-garden-bulletin">
+              <h3 className="observer-garden-bulletin-title">
+                出どころ未確認の変更
+              </h3>
+              <ul
+                className="observer-garden-bulletin-list"
+                role="list"
+                aria-label="出どころ未確認の変更"
+              >
+                {bulletin.map((item) => (
+                  <li key={item.key} className="observer-garden-bulletin-item">
+                    <span className="observer-garden-bulletin-repo">
+                      {item.repository.displayName}
+                    </span>
+                    <span className="observer-garden-bulletin-label">
+                      出どころ未確認の変更
+                    </span>
+                    <span className="observer-garden-bulletin-count">
+                      {item.repository.changedFileCount} 件
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </aside>
+          ) : null}
+
+          {actors.length > 0 ? (
+            <div
+              className="observer-garden-actors"
+              role="list"
+              aria-label="観測中のエージェント"
+            >
+              {actors.map((actor) => (
+                <ObserverGardenActor
+                  key={actor.key}
+                  actor={actor}
+                  world={world}
+                  reducedMotion={reducedMotion}
+                  selected={
+                    inspect?.kind === 'character' &&
+                    inspect.name === actor.sourceDisplayName
+                  }
+                  onTravelingChange={(next) => {
+                    handleActorTravel(actor.key, next)
+                  }}
+                  onSelect={() => {
+                    setInspect({
+                      kind: 'character',
+                      name: actor.sourceDisplayName,
+                      station: actor.station,
+                      traveling: actorTravel[actor.key] === true,
+                      summary: actor.workSummary,
+                      jobTitle: TONE_LABELS[actor.tone],
+                    })
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="observer-garden-guide">
+              各AIアプリで作業を始めると、観測できたエージェントがここに現れます
+            </p>
+          )}
+
+          {inspect ? (
+            <GardenInspect subject={inspect} onClose={closeInspect} />
+          ) : null}
+        </div>
+      </section>
+    </div>
   )
 }
 

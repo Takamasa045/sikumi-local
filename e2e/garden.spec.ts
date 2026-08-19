@@ -22,6 +22,8 @@ test('the garden is the default home screen', async ({ page }) => {
   await expect(page.getByRole('form', { name: '仕事を頼む' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '仕事を頼む' })).toHaveCount(0)
   await expect(page.getByTestId('world-stage')).toHaveCount(0)
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
+  await expect(page.getByTestId('garden-employee')).toHaveCount(0)
 })
 
 test('the garden shows real current Git-only data', async ({ page }) => {
@@ -36,6 +38,12 @@ test('the garden shows real current Git-only data', async ({ page }) => {
   ).toBeVisible()
 
   await page.getByRole('link', { name: '庭' }).click()
+
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
+  await expect(
+    page.getByText(`${basename(repositoryPath)}番`, { exact: false }).first(),
+  ).toBeVisible()
+  await expect(page.getByTestId('garden-employee')).toHaveCount(0)
 
   await expect(
     page.getByRole('heading', { name: '出どころ未確認の変更' }),
@@ -72,24 +80,17 @@ test("a user can move between garden, today's workshop, and settings", async ({
   await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
 })
 
-test('a user can click the garden character and a station to see what is happening', async ({
+test('a user can click a garden station to see what is happening', async ({
   page,
 }) => {
   await page.goto('/#garden')
 
-  await page.getByTestId('garden-employee').click()
-  const inspect = page.getByTestId('garden-inspect')
-  await expect(inspect).toBeVisible()
-  await expect(inspect).toContainText('調査担当')
-  await expect(inspect).toContainText('縁側')
-  await expect(inspect).toContainText('まだ仕事は始まっていません')
+  await expect(page.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
+  await expect(page.getByTestId('garden-employee')).toHaveCount(0)
   await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
   await expect(
     page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),
   ).toHaveCount(0)
-
-  await page.getByRole('button', { name: '閉じる' }).click()
-  await expect(inspect).toHaveCount(0)
 
   await page.getByRole('button', { name: '資料棚' }).click()
   await expect(page.getByTestId('garden-inspect')).toContainText('資料棚')

@@ -50,31 +50,32 @@ describe('Shikumi Local garden', () => {
   it('opens the garden as the home screen', async () => {
     render(<App />)
 
+    expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
     expect(
-      screen.getByRole('heading', { name: '観測の庭' }),
-    ).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Shikumi Local ホーム' })).toHaveAttribute(
-      'href',
-      '#garden',
-    )
+      screen.getByRole('link', { name: 'Shikumi Local ホーム' }),
+    ).toHaveAttribute('href', '#garden')
     const nav = screen.getByRole('navigation', { name: '主要画面' })
     expect(within(nav).getByRole('link', { name: '庭' })).toHaveAttribute(
       'aria-current',
       'page',
     )
-    expect(within(nav).getByRole('link', { name: '今日の作業場' })).toBeVisible()
+    expect(
+      within(nav).getByRole('link', { name: '今日の作業場' }),
+    ).toBeVisible()
     expect(within(nav).getByRole('link', { name: '設定' })).toBeVisible()
     expect(screen.queryByText('以前の実行画面')).not.toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: 'Legacy Executionを開く' }),
     ).not.toBeInTheDocument()
     expect(await screen.findByText('Repository未登録')).toBeVisible()
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
+    expect(screen.queryByTestId('garden-employee')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
     expect(screen.queryByTestId('world-stage')).not.toBeInTheDocument()
     expect(screen.queryByTestId('first-run-guide')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('form', { name: /仕事/ }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByRole('form', { name: /仕事/ })).not.toBeInTheDocument()
     await waitFor(() => {
       expect(screen.getByTestId('connection-badge')).toHaveTextContent(
         'ローカル観測',
@@ -110,7 +111,7 @@ describe('Shikumi Local garden', () => {
     ).toHaveAttribute('aria-current', 'page')
   })
 
-  it('shows today\'s workshop without pretending work is running', async () => {
+  it("shows today's workshop without pretending work is running", async () => {
     render(<App />)
     await openTodayWorkshop()
 
@@ -136,7 +137,7 @@ describe('Shikumi Local garden', () => {
     expect(await screen.findByTestId('observer-stats')).toBeVisible()
   })
 
-  it('navigates garden, today\'s workshop, and settings as first-class destinations', async () => {
+  it("navigates garden, today's workshop, and settings as first-class destinations", async () => {
     render(<App />)
 
     expect(
@@ -144,7 +145,9 @@ describe('Shikumi Local garden', () => {
     ).toBeVisible()
     await userEvent.click(screen.getByRole('link', { name: '今日の作業場' }))
     expect(
-      await screen.findByRole('heading', { name: 'いま何が、どこで起きているか' }),
+      await screen.findByRole('heading', {
+        name: 'いま何が、どこで起きているか',
+      }),
     ).toBeVisible()
     expect(await screen.findByTestId('connection-badge')).toHaveTextContent(
       'ローカル観測',
@@ -177,7 +180,9 @@ describe('Shikumi Local garden', () => {
     expect(screen.getByTestId('connection-badge')).not.toHaveTextContent(
       '実行エンジン未接続',
     )
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
   })
 
   it('renders the mocked overview on the observation garden', async () => {
@@ -263,14 +268,32 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: '観測の庭' })).toBeVisible()
-    const agents = await screen.findByRole('list', { name: '観測中のエージェント' })
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
+    expect(await screen.findByText('my-project番')).toBeVisible()
+    expect(screen.queryByTestId('garden-employee')).not.toBeInTheDocument()
+    const agents = await screen.findByRole('list', {
+      name: '観測中のエージェント',
+    })
     expect(within(agents).getByText('APIを直している')).toBeVisible()
     expect(within(agents).getAllByText('Codex').length).toBeGreaterThan(0)
-    const unverified = screen.getByRole('list', { name: '出どころ未確認の変更' })
+    const unverified = screen.getByRole('list', {
+      name: '出どころ未確認の変更',
+    })
     expect(within(unverified).getByText('my-project')).toBeVisible()
     expect(within(unverified).getByText('2 件')).toBeVisible()
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByTestId('observer-place-repo_1'))
+    expect(
+      await screen.findByRole('region', { name: 'my-projectの様子' }),
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
   })
 
   it('registers a repository through the local server without leaving the garden', async () => {
@@ -345,7 +368,7 @@ describe('Shikumi Local garden', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('workspace-line')).toHaveTextContent(
-        'my-project',
+        '1 件の場所',
       )
     })
     expect(
@@ -358,7 +381,9 @@ describe('Shikumi Local garden', () => {
     expect(
       await screen.findByRole('heading', { name: '観測の庭' }),
     ).toBeVisible()
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
     expect(screen.getByTestId('connection-badge')).toHaveTextContent(
       'ローカル観測',
     )
@@ -398,14 +423,15 @@ describe('Shikumi Local garden', () => {
     render(<App />)
     await openTodayWorkshop()
 
+    expect(await screen.findByText('my-project番')).toBeVisible()
     expect(
-      await screen.findByText((content) =>
-        content.includes('変更元不明の作業があります'),
-      ),
+      screen.getByText((content) => content === 'my-project'),
     ).toBeVisible()
-    expect(screen.getAllByText('変更元不明').length).toBeGreaterThan(0)
-    expect(screen.getByText('AIによる作業だと決めてはいません')).toBeVisible()
+    expect(screen.getByText('まだ分かっていません')).toBeVisible()
     expect(screen.queryByText('Codexが変更中')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
   })
 
   it('never renders job submission or legacy garden chrome even when providers report connected', async () => {
@@ -566,7 +592,9 @@ describe('Shikumi Local garden', () => {
         }),
       )
 
-      expect(await screen.findByText('SSEで届いた作業')).toBeVisible()
+      expect(
+        (await screen.findAllByText('SSEで届いた作業')).length,
+      ).toBeGreaterThan(0)
     } finally {
       vi.unstubAllGlobals()
     }
@@ -627,17 +655,16 @@ describe('Shikumi Local garden', () => {
     render(<App />)
 
     expect(await screen.findByTestId('workspace-line')).toHaveTextContent(
-      'kept-project',
+      '1 件の場所',
     )
-    expect(
-      screen.getByRole('heading', { name: '観測の庭' }),
-    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
     expect(
       await screen.findByRole('list', { name: '出どころ未確認の変更' }),
     ).toBeVisible()
     await openTodayWorkshop()
-    expect(await screen.findByTestId('observer-repo-repo_1')).toBeVisible()
-    expect(screen.getByText('変更元不明の作業')).toBeVisible()
+    expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
+    expect(screen.getByText('kept-project番')).toBeVisible()
+    expect(screen.getByText('まだ分かっていません')).toBeVisible()
     expect(
       screen.getByRole('button', { name: '観測するRepositoryを追加' }),
     ).toBeVisible()
@@ -726,7 +753,7 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
     await openTodayWorkshop()
-    expect(await screen.findByTestId('observer-repo-repo_1')).toBeVisible()
+    expect(await screen.findByTestId('observer-place-repo_1')).toBeVisible()
     expect(
       screen.getByRole('button', { name: '観測するRepositoryを追加' }),
     ).toBeVisible()
@@ -737,9 +764,11 @@ describe('Shikumi Local garden', () => {
     await userEvent.click(
       screen.getByRole('button', { name: '観測するRepositoryを追加' }),
     )
-    expect(await screen.findByTestId('observer-repo-repo_2')).toBeVisible()
-    expect(screen.getByTestId('observer-repo-repo_1')).toBeVisible()
-    expect(screen.getByTestId('workspace-line')).toHaveTextContent('my-project')
+    expect(await screen.findByTestId('observer-place-repo_2')).toBeVisible()
+    expect(screen.getByTestId('observer-place-repo_1')).toBeVisible()
+    expect(screen.getByText('my-project番')).toBeVisible()
+    expect(screen.getByText('second-project番')).toBeVisible()
+    expect(screen.getByTestId('workspace-line')).toHaveTextContent('2 件の場所')
     expect(screen.getByTestId('workspace-line')).not.toHaveTextContent(
       'second-project',
     )
@@ -825,7 +854,9 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(await screen.findByRole('heading', { name: '観測の庭' })).toBeVisible()
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
     await waitFor(() => {
       expect(
         fetchMock.mock.calls.some((call) =>
@@ -833,7 +864,9 @@ describe('Shikumi Local garden', () => {
         ),
       ).toBe(true)
     })
-    expect(screen.queryByRole('button', { name: '仕事を頼む' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: '仕事を頼む' }),
+    ).not.toBeInTheDocument()
   })
 
   it('keeps the current job employee and station when another employee is selected to ask next', async () => {
@@ -939,9 +972,7 @@ describe('Shikumi Local garden', () => {
     render(<App />)
 
     expect(await screen.findByText('Repository未登録')).toBeVisible()
-    expect(
-      screen.getByRole('heading', { name: '観測の庭' }),
-    ).toBeVisible()
+    expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
   })
 
   it('shows a registration error from the local server', async () => {
@@ -996,15 +1027,6 @@ describe('Shikumi Local garden', () => {
     )
     expect(screen.getByText('Repository未登録')).toBeVisible()
   })
-
-
-
-
-
-
-
-
-
 
   it('rechecks a provider and refreshes the catalog', async () => {
     let listed = 0

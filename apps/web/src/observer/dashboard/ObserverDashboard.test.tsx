@@ -58,7 +58,9 @@ describe('ObserverDashboard', () => {
     )
 
     expect(screen.getByTestId('observer-add-repository')).toBeVisible()
-    expect(screen.getByText('first')).toBeVisible()
+    expect(screen.getByText('first番')).toBeVisible()
+    expect(screen.getByText((content) => content === 'first')).toBeVisible()
+    expect(screen.getByRole('region', { name: '○○番の一覧' })).toBeVisible()
     await userEvent.type(
       screen.getByLabelText('観測するRepositoryの場所'),
       '/tmp/second',

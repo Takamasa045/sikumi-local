@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type {
   ApprovalRequest,
   Artifact,
@@ -50,7 +50,6 @@ import {
 import { ApprovalPanel } from '../approvals/ApprovalPanel'
 import { ArtifactShelf } from '../artifacts/ArtifactShelf'
 import { EmployeeDrawer } from '../employees/EmployeeDrawer'
-import { resolveGardenPresence } from '../garden/presence'
 import { ObserverGarden } from '../observer/garden/ObserverGarden'
 import {
   acknowledgeConflict,
@@ -87,7 +86,8 @@ type Screen =
 
 export function App() {
   const [screen, setScreen] = useState<Screen>(readScreen())
-  const [workspace, setWorkspace] = useState<Workspace | null>(null)
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
+  const workspace = workspaces[0] ?? null
   const [fakeHarness, setFakeHarness] = useState(false)
   const [providers, setProviders] = useState<ProviderAvailability[]>([])
   const [providerLoadState, setProviderLoadState] =
@@ -115,7 +115,7 @@ export function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [job, setJob] = useState<Job | null>(null)
-  const [events, setEvents] = useState<PersistedEvent[]>([])
+  const [, setEvents] = useState<PersistedEvent[]>([])
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([])
   const [artifacts, setArtifacts] = useState<Artifact[]>([])
   const [growth, setGrowth] = useState<{
@@ -161,15 +161,7 @@ export function App() {
     files: string[]
     patch: string
   } | null>(null)
-  const employeeList = useMemo(
-    () =>
-      employees.map((employee, index) =>
-        index === 0 && workspace?.employeeName
-          ? { ...employee, name: workspace.employeeName }
-          : employee,
-      ),
-    [employees, workspace?.employeeName],
-  )
+  const employeeList = employees
   const selectedEmployee =
     employeeList.find((employee) => employee.id === selectedEmployeeId) ??
     employeeList[0] ??
@@ -193,10 +185,7 @@ export function App() {
       })
   const gardenEmployeeName =
     displayEmployee?.name ?? selectedEmployee?.name ?? '担当'
-  const gardenPresence = useMemo(
-    () => resolveGardenPresence({ job, events }),
-    [events, job],
-  )
+  const placeCount = Math.max(overview?.repositoryCount ?? 0, workspaces.length)
 
   useEffect(() => {
     const onHash = () => {
@@ -391,14 +380,14 @@ export function App() {
     let cancelled = false
 
     void listWorkspaces()
-      .then((workspaces) => {
+      .then((listed) => {
         if (!cancelled) {
-          setWorkspace(workspaces[0] ?? null)
+          setWorkspaces(listed)
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setWorkspace(null)
+          setWorkspaces([])
         }
       })
     void getHealth()
@@ -637,9 +626,14 @@ export function App() {
     setError(null)
     try {
       const created = await registerWorkspace(path, employeeName || undefined)
-      if (!workspace) {
-        setWorkspace(created)
-      }
+      setWorkspaces((current) => {
+        if (current.some((item) => item.id === created.id)) {
+          return current.map((item) =>
+            item.id === created.id ? created : item,
+          )
+        }
+        return [...current, created]
+      })
       try {
         setOverview(await getTodayOverview())
       } catch {
@@ -688,8 +682,12 @@ export function App() {
     setBusy(true)
     setError(null)
     try {
-      setWorkspace(
-        await updateWorkspaceEmployeeName(workspace.id, employeeName),
+      const updated = await updateWorkspaceEmployeeName(
+        workspace.id,
+        employeeName,
+      )
+      setWorkspaces((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
       )
     } catch (caught) {
       setError(
@@ -886,9 +884,7 @@ export function App() {
             <div>
               <span className="eyebrow">観測している場所</span>
               <strong>
-                {workspace
-                  ? workspace.repository.displayName
-                  : 'Repository未登録'}
+                {placeCount > 0 ? `${placeCount} 件の場所` : 'Repository未登録'}
               </strong>
             </div>
             <div>
@@ -901,6 +897,7 @@ export function App() {
             <ObserverDashboard
               overview={overview}
               workspace={workspace}
+              workspaces={workspaces}
               selectedRepositoryId={selectedRepositoryId}
               busy={busy}
               error={error}
@@ -993,17 +990,20 @@ export function App() {
           {screen === 'garden' ? (
             <ObserverGarden
               overview={overview}
-              employeeName={gardenEmployeeName}
-              employeeRole={
-                displayEmployee?.role ?? selectedEmployee?.role ?? '調査担当'
-              }
-              employeeId={displayEmployee?.id ?? selectedEmployee?.id}
-              presence={gardenPresence}
+              workspaces={workspaces}
+              selectedRepositoryId={selectedRepositoryId}
               onOpenWorkshop={() => {
                 window.location.hash = 'observer'
               }}
               onOpenSettings={() => {
                 window.location.hash = 'settings'
+              }}
+              onSelectPlace={(id) => {
+                setSelectedRepositoryId(id)
+                window.location.hash = `repository/${id}`
+                void getRepositoryActivity(id)
+                  .then(setRepositoryActivity)
+                  .catch(() => setRepositoryActivity(null))
               }}
             />
           ) : null}
@@ -1072,7 +1072,13 @@ export function App() {
                     return
                   }
                   void updateWorkspace(workspace.id, providerId).then(
-                    setWorkspace,
+                    (updated) => {
+                      setWorkspaces((current) =>
+                        current.map((item) =>
+                          item.id === updated.id ? updated : item,
+                        ),
+                      )
+                    },
                   )
                 }}
                 packs={packs}

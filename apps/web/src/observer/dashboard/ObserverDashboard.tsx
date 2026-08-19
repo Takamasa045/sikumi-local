@@ -1,10 +1,12 @@
 import type { FormEvent } from 'react'
 import type { Workspace } from '@sikumi-local/core'
-import type { RepositoryActivity, TodayOverview } from '../../api/observer'
+import type { TodayOverview } from '../../api/observer'
+import { PlaceResidentList } from '../places/PlaceResidentList'
 
 interface ObserverDashboardProps {
   readonly overview: TodayOverview | null
   readonly workspace: Workspace | null
+  readonly workspaces?: readonly Workspace[]
   readonly selectedRepositoryId: string | null
   readonly busy: boolean
   readonly error: string | null
@@ -16,12 +18,12 @@ interface ObserverDashboardProps {
 
 export function ObserverDashboard({
   overview,
+  workspaces = [],
   selectedRepositoryId,
   busy,
   error,
   onRegister,
   onSelectRepository,
-  onRescan,
   onOpenConflicts,
 }: ObserverDashboardProps) {
   return (
@@ -53,95 +55,19 @@ export function ObserverDashboard({
         </p>
       ) : null}
 
+      <PlaceResidentList
+        overview={overview}
+        workspaces={workspaces}
+        selectedRepositoryId={selectedRepositoryId}
+        onSelect={onSelectRepository}
+      />
+
       <ObserverRepositoryAdd
         busy={busy}
         error={error}
         onRegister={onRegister}
       />
-
-      {overview && overview.repositories.length === 0 ? (
-        <p>登録した場所がまだありません。上の欄からフォルダを追加してください。</p>
-      ) : null}
-
-      <ul className="observer-repo-list">
-        {(overview?.repositories ?? []).map((repository) => (
-          <li key={repository.repositoryId}>
-            <RepositoryActivityCard
-              activity={repository}
-              selected={repository.repositoryId === selectedRepositoryId}
-              busy={busy}
-              onOpen={() => onSelectRepository(repository.repositoryId)}
-              onRescan={() => onRescan(repository.repositoryId)}
-            />
-          </li>
-        ))}
-      </ul>
     </section>
-  )
-}
-
-function RepositoryActivityCard({
-  activity,
-  selected,
-  busy,
-  onOpen,
-  onRescan,
-}: {
-  readonly activity: RepositoryActivity
-  readonly selected: boolean
-  readonly busy: boolean
-  readonly onOpen: () => void
-  readonly onRescan: () => void
-}) {
-  return (
-    <article
-      className={selected ? 'observer-card is-selected' : 'observer-card'}
-      data-testid={`observer-repo-${activity.repositoryId}`}
-    >
-      <header>
-        <strong>{activity.displayName}</strong>
-        <span>{toneFor(activity)}</span>
-      </header>
-      <p>{activity.summary}</p>
-      {activity.sessions.length > 0 ? (
-        <ul className="observer-session-list">
-          {activity.sessions.map((session) => (
-            <li key={session.id}>
-              <strong>{session.displayName}</strong>
-              <span>{session.title}</span>
-              {session.lastObservedLabel ? (
-                <small>最終確認: {session.lastObservedLabel}</small>
-              ) : null}
-              {session.attributionConfidence === 'inferred' ? (
-                <small>AIによる作業だと決めてはいません</small>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="observer-empty">
-          {activity.changedFileCount > 0
-            ? `まだ記録していない変更が ${activity.changedFileCount} 件あります`
-            : '現在観測中の作業はありません'}
-        </p>
-      )}
-      {activity.areas.length > 0 ? (
-        <p>関係しそうなところ: {activity.areas.join('、')}</p>
-      ) : null}
-      <div className="observer-card__actions">
-        <button type="button" className="washi-tab" onClick={onOpen}>
-          この場所を見る
-        </button>
-        <button
-          type="button"
-          className="washi-tab"
-          disabled={busy}
-          onClick={onRescan}
-        >
-          いまの状態を確認
-        </button>
-      </div>
-    </article>
   )
 }
 
@@ -205,23 +131,4 @@ function ObserverRepositoryAdd({
       </button>
     </form>
   )
-}
-
-function toneFor(activity: RepositoryActivity): string {
-  if (activity.conflicts.some((item) => item.status === 'open')) {
-    return activity.conflicts.some(
-      (item) => item.level === 'high' || item.level === 'critical',
-    )
-      ? '🔴 注意'
-      : activity.conflicts.some((item) => item.level === 'caution')
-        ? '🟠 注意'
-        : '🟡 注意'
-  }
-  if (activity.sessions.some((session) => session.status === 'waiting-for-user')) {
-    return '確認待ち'
-  }
-  if (activity.changedFileCount > 0) {
-    return '動きあり'
-  }
-  return '静か'
 }

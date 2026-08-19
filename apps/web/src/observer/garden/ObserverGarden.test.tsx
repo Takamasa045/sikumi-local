@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { TodayOverview } from '../../api/observer'
@@ -81,6 +81,8 @@ describe('ObserverGarden', () => {
     expect(within(agents).getAllByText('Cursor')).toHaveLength(4)
     expect(within(agents).getByText('alpha')).toBeVisible()
     expect(within(agents).getByText('beta')).toBeVisible()
+    expect(screen.getByText('alpha番')).toBeVisible()
+    expect(screen.getByText('beta番')).toBeVisible()
   })
 
   it('separates git and inferred sessions from observed agents', () => {
@@ -192,7 +194,8 @@ describe('ObserverGarden', () => {
       ]),
     )
 
-    const agent = screen.getByRole('listitem')
+    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
+    const agent = within(agents).getByRole('listitem')
     expect(within(agent).getByText('確認待ち')).toBeVisible()
     expect(agent).toHaveAttribute('data-status', 'waiting')
     expect(within(agent).getAllByText('Claudeアプリ')).toHaveLength(2)
@@ -224,19 +227,28 @@ describe('ObserverGarden', () => {
     expect(within(agents).queryByText('Claudeアプリ')).toBeNull()
   })
 
-  it('lets a user open what Saguru is doing without leaving the garden', async () => {
-    renderGarden(null)
+  it('lists registered places as ○○番 and does not keep a workshop master dog', () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'agent-workflow-kits', []),
+        repository('repo_b', 'notes', []),
+      ]),
+    )
 
-    await userEvent.click(screen.getByTestId('garden-employee'))
-    const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('サグル')
-    expect(inspect).toHaveTextContent('調査担当')
-    expect(inspect).toHaveTextContent('縁側にいます')
-    expect(inspect).toHaveTextContent('まだ仕事は始まっていません')
+    const places = screen.getByRole('region', { name: '○○番の一覧' })
+    expect(within(places).getByText('agent-workflow-kits番')).toBeVisible()
+    expect(within(places).getByText('notes番')).toBeVisible()
+    expect(screen.queryByTestId('garden-employee')).toBeNull()
+    expect(screen.queryByText('サグル')).toBeNull()
     expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
-    expect(
-      screen.queryByRole('heading', { name: 'いま何が、どこで起きているか' }),
-    ).toBeNull()
+  })
+
+  it('opens a place from the garden list', async () => {
+    const onSelectPlace = vi.fn()
+    renderGarden(overviewOf([repository('repo_a', 'alpha', [])]), onSelectPlace)
+
+    await userEvent.click(screen.getByTestId('observer-place-repo_a'))
+    expect(onSelectPlace).toHaveBeenCalledWith('repo_a')
   })
 
   it('explains a station in place when it is clicked', async () => {
@@ -249,55 +261,6 @@ describe('ObserverGarden', () => {
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       '資料棚に、いまは誰もいません',
     )
-  })
-
-  it('walks Saguru to the next job station', async () => {
-    vi.useFakeTimers()
-    const { rerender } = render(
-      <ObserverGarden
-        overview={null}
-        employeeName="サグル"
-        employeeRole="調査担当"
-        presence={{
-          station: 'rest',
-          pose: 'idle',
-          summary: 'まだ仕事は始まっていません',
-          stateName: 'idle',
-        }}
-        onOpenWorkshop={vi.fn()}
-        onOpenSettings={vi.fn()}
-      />,
-    )
-    const employee = screen.getByTestId('garden-employee')
-    expect(employee).toHaveAttribute('data-station', 'rest')
-    expect(employee).toHaveAttribute('data-traveling', 'false')
-
-    rerender(
-      <ObserverGarden
-        overview={null}
-        employeeName="サグル"
-        employeeRole="調査担当"
-        presence={{
-          station: 'archive',
-          pose: 'reading',
-          summary: 'この工房の資料を読んでいます',
-          stateName: 'reading_repository',
-        }}
-        onOpenWorkshop={vi.fn()}
-        onOpenSettings={vi.fn()}
-      />,
-    )
-    expect(employee).toHaveAttribute('data-station', 'archive')
-    expect(employee).toHaveAttribute('data-traveling', 'true')
-    expect(employee).toHaveAttribute('data-gesture', 'walking')
-    expect(employee).toHaveStyle({ left: '13%', top: '22%' })
-
-    await act(async () => {
-      vi.advanceTimersByTime(2000)
-    })
-    expect(employee).toHaveAttribute('data-traveling', 'false')
-    expect(employee).toHaveAttribute('data-gesture', 'working')
-    vi.useRealTimers()
   })
 
   it('opens observed work in place without turning a tool into an employee', async () => {
@@ -324,7 +287,7 @@ describe('ObserverGarden', () => {
     expect(inspect).toHaveTextContent('APIを直している')
     expect(inspect).toHaveTextContent('作業台')
     expect(inspect).not.toHaveTextContent('望遠鏡')
-    expect(screen.getByTestId('garden-employee')).toHaveTextContent('サグル')
+    expect(screen.queryByTestId('garden-employee')).toBeNull()
     expect(
       screen.queryByRole('heading', { name: 'いま何が、どこで起きているか' }),
     ).toBeNull()
@@ -360,11 +323,13 @@ describe('ObserverGarden', () => {
     ).toBeNull()
     expect(within(agents).getByText('alphaが対象です')).toBeVisible()
     expect(within(agents).queryByText('Codexの作業が始まりました')).toBeNull()
-    expect(screen.getByRole('listitem')).toHaveAttribute(
+    expect(within(agents).getByRole('listitem')).toHaveAttribute(
       'data-station',
       'workbench',
     )
-    expect(screen.queryByRole('listitem', { name: /望遠鏡/ })).toBeNull()
+    expect(
+      within(agents).queryByRole('listitem', { name: /望遠鏡/ }),
+    ).toBeNull()
   })
 
   it('says the work is unknown when no real title or repository remains', async () => {
@@ -412,66 +377,25 @@ describe('ObserverGarden', () => {
     )
 
     await userEvent.click(
-      within(screen.getByRole('listitem')).getByRole('button'),
+      within(
+        within(
+          screen.getByRole('list', { name: '観測中のエージェント' }),
+        ).getByRole('listitem'),
+      ).getByRole('button'),
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認の場所')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('確認札')
   })
-
-  it('keeps Saguru put when the station does not change', async () => {
-    vi.useFakeTimers()
-    const { rerender } = render(
-      <ObserverGarden
-        overview={null}
-        employeeName="サグル"
-        employeeRole="調査担当"
-        presence={{
-          station: 'rest',
-          pose: 'idle',
-          summary: 'まだ仕事は始まっていません',
-          stateName: 'idle',
-        }}
-        onOpenWorkshop={vi.fn()}
-        onOpenSettings={vi.fn()}
-      />,
-    )
-    rerender(
-      <ObserverGarden
-        overview={null}
-        employeeName="サグル"
-        employeeRole="調査担当"
-        presence={{
-          station: 'rest',
-          pose: 'idle',
-          summary: '仕事の準備をしています',
-          stateName: 'idle',
-        }}
-        onOpenWorkshop={vi.fn()}
-        onOpenSettings={vi.fn()}
-      />,
-    )
-    expect(screen.getByTestId('garden-employee')).toHaveAttribute(
-      'data-traveling',
-      'false',
-    )
-    await act(async () => {
-      vi.advanceTimersByTime(2000)
-    })
-    expect(screen.getByTestId('garden-employee')).toHaveAttribute(
-      'data-traveling',
-      'false',
-    )
-    vi.useRealTimers()
-  })
 })
 
-function renderGarden(overview: TodayOverview | null) {
+function renderGarden(overview: TodayOverview | null, onSelectPlace = vi.fn()) {
   return render(
     <ObserverGarden
       overview={overview}
       onOpenWorkshop={vi.fn()}
       onOpenSettings={vi.fn()}
+      onSelectPlace={onSelectPlace}
     />,
   )
 }

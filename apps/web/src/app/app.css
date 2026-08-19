@@ -1339,6 +1339,66 @@ footer span {
   padding: 0;
   list-style: none;
 }
+.observer-garden-page {
+  display: grid;
+  gap: 16px;
+}
+.observer-place-list {
+  display: grid;
+  gap: 12px;
+}
+.observer-place-list__heading h3 {
+  margin: 0;
+}
+.observer-place-list__heading p {
+  margin: 0;
+  color: var(--ink-soft);
+  max-width: 42rem;
+}
+.observer-place-list__empty {
+  margin: 0;
+  color: var(--ink-soft);
+}
+.observer-place-list__rows {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.observer-place-row {
+  appearance: none;
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  text-align: left;
+  background: #f7f3e6;
+  border: 1px solid #cfc6b0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.observer-place-row.is-selected {
+  border-color: var(--copper);
+}
+.observer-place-row__name {
+  font-size: 16px;
+}
+.observer-place-row__repo,
+.observer-place-row__status,
+.observer-place-row__observed {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+.observer-place-row__work {
+  font-size: 14px;
+}
+.observer-place-list--garden {
+  padding: 16px 18px;
+  background: var(--washi);
+  border: 1px solid #c6beaa;
+}
 .observer-card,
 .observer-worktree {
   display: grid;

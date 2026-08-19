@@ -1775,19 +1775,21 @@ describe('describeVisibleFacts', () => {
       overviewOf([
         repository('repo_sikumi', 'ws_sikumi', 'sikumi-local', [], {
           placeIntro:
-            '仕事の依頼は各 AI アプリ側で行い、Shikumi Local は観測と整理を担当します。',
+            '登録した場所の様子を、観測の庭で見るローカルアプリです。仕事の依頼は各 AI 側で行い、庭は様子を見ます。',
           changedFileCount: 8,
           areas: ['確認用の仕組み', '設定'],
         }),
       ]),
     )
     expect(resident?.placeName).toBe(SHIKUMI_PLACE_NAME)
-    expect(describeVisibleFacts(resident!)).toBe('観測の途中が残っている')
+    expect(describeVisibleFacts(resident!)).toBe('観測の庭の途中が残っている')
     expect(describePlaceInspect(resident!).nowText).toBe(
-      '観測の途中が残っています。',
+      '観測の庭の途中が残っています。',
     )
-    expect(describePlaceInspect(resident!).nextStep).toBe('観測の途中を続ける')
-    expect(describePlaceInspect(resident!).nowText).not.toContain('観測の庭')
+    expect(describePlaceInspect(resident!).nextStep).toBe(
+      '観測の庭の途中を続ける',
+    )
+    expect(describePlaceInspect(resident!).nowText).toContain('観測の庭')
     expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
       /確認用の仕組み|作業中のファイル|仕組みと途中/,
     )

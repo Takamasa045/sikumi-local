@@ -12,6 +12,7 @@ import {
   sourceKey,
   UNKNOWN_GARDEN_WORK,
 } from '../garden/gardenState'
+import { walkLaneOffset, WORKING_WALK_LANE_X } from '../garden/gardenWalk'
 
 export const UNKNOWN_PLACE_WORK = 'まだ分かっていません'
 export const SHIKUMI_PLACE_NAME = 'しくみローカル番'
@@ -392,8 +393,8 @@ export function collectGardenActors(
     overview,
   )
   const plots = assignGardenGroundPlots(sources)
-  return sources
-    .map((source) => {
+  return separateSharedPlaceActors(
+    sources.map((source) => {
       const hash = stableHash(source.key)
       const tone: GardenPlaceTone = source.waiting
         ? 'waiting'
@@ -402,6 +403,11 @@ export function collectGardenActors(
           : 'observing'
       const inspect = describePlaceInspect(source)
       const plot = plots.get(gardenPlotKey(source))
+      const slot = plot?.slot ?? 0
+      const lane = walkLaneOffset({
+        streamIndex: source.streamIndex,
+        slot,
+      })
       return {
         key: source.key,
         repositoryId: source.repositoryId,
@@ -414,17 +420,73 @@ export function collectGardenActors(
         driverNote: inspect.driverNote,
         station: plot?.station ?? stationForResident(source),
         tone,
-        groundX: plot?.x ?? REST_POINT.x,
-        groundY: plot?.y ?? REST_POINT.y,
+        groundX: clamp(
+          (plot?.x ?? REST_POINT.x) + lane.x,
+          GARDEN_GROUND.minX,
+          GARDEN_GROUND.maxX,
+        ),
+        groundY: clamp(
+          (plot?.y ?? REST_POINT.y) + lane.y,
+          GARDEN_GROUND.minY,
+          GARDEN_GROUND.maxY,
+        ),
         column: hash % ATLAS_COLUMNS,
         row: (hash >>> 3) % ATLAS_ROWS,
-        slot: plot?.slot ?? 0,
+        slot,
         jitterX: ((hash % 7) - 3) * 0.18,
         jitterY: (((hash >>> 4) % 5) - 2) * 0.14,
         streamIndex: source.streamIndex,
       }
-    })
-    .sort((left, right) => left.key.localeCompare(right.key))
+    }),
+  ).sort((left, right) => left.key.localeCompare(right.key))
+}
+
+function separateSharedPlaceActors(
+  actors: readonly GardenPlaceActor[],
+): GardenPlaceActor[] {
+  const next = [...actors]
+  const indexesByPlace = new Map<string, number[]>()
+  next.forEach((actor, index) => {
+    const indexes = indexesByPlace.get(actor.repositoryId) ?? []
+    indexes.push(index)
+    indexesByPlace.set(actor.repositoryId, indexes)
+  })
+  for (const indexes of indexesByPlace.values()) {
+    if (indexes.length < 2) {
+      continue
+    }
+    indexes.sort(
+      (left, right) => next[left]!.streamIndex - next[right]!.streamIndex,
+    )
+    for (let index = 1; index < indexes.length; index += 1) {
+      const previous = next[indexes[index - 1]!]!
+      const current = next[indexes[index]!]!
+      const gap = current.groundX - previous.groundX
+      if (Math.abs(gap) >= WORKING_WALK_LANE_X) {
+        continue
+      }
+      const direction = gap >= 0 ? 1 : -1
+      const pushed = clamp(
+        previous.groundX + direction * WORKING_WALK_LANE_X,
+        GARDEN_GROUND.minX,
+        GARDEN_GROUND.maxX,
+      )
+      next[indexes[index]!] = { ...current, groundX: pushed }
+      const still = next[indexes[index]!]!
+      if (Math.abs(still.groundX - previous.groundX) >= WORKING_WALK_LANE_X) {
+        continue
+      }
+      next[indexes[index - 1]!] = {
+        ...previous,
+        groundX: clamp(
+          still.groundX - direction * WORKING_WALK_LANE_X,
+          GARDEN_GROUND.minX,
+          GARDEN_GROUND.maxX,
+        ),
+      }
+    }
+  }
+  return next
 }
 
 export function hasUnfinishedGardenWork(

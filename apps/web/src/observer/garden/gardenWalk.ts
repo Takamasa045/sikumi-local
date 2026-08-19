@@ -22,6 +22,24 @@ export const WORKING_WALK_POINTS: Record<
 
 export const WORKING_WALK_FIRST_STEP_MS = 280
 export const WORKING_WALK_DWELL_MS = 2400
+export const WORKING_WALK_LANE_X = 12
+export const WORKING_WALK_LANE_Y = 4
+
+export function walkLaneOffset(
+  actor: Partial<Pick<GardenPlaceActor, 'slot' | 'streamIndex'>>,
+): { readonly x: number; readonly y: number } {
+  const order = actor.streamIndex ?? 0
+  if (order <= 0) {
+    return { x: 0, y: 0 }
+  }
+  const sign = order % 2 === 1 ? 1 : -1
+  const rank = Math.ceil(order / 2)
+  const slotTilt = (actor.slot ?? 0) % 2 === 0 ? 1 : -1
+  return {
+    x: sign * rank * WORKING_WALK_LANE_X,
+    y: slotTilt * WORKING_WALK_LANE_Y,
+  }
+}
 
 export function initialWalkIndex(key: string): number {
   let hash = 2166136261
@@ -42,12 +60,14 @@ export function walkStopAt(index: number): WorkingWalkStop {
 
 export function workingWalkPoint(
   stop: WorkingWalkStop,
-  actor: Pick<GardenPlaceActor, 'jitterX' | 'jitterY'>,
+  actor: Pick<GardenPlaceActor, 'jitterX' | 'jitterY'> &
+    Partial<Pick<GardenPlaceActor, 'slot' | 'streamIndex'>>,
 ): { readonly x: number; readonly y: number } {
   const point = WORKING_WALK_POINTS[stop]
+  const lane = walkLaneOffset(actor)
   return {
-    x: point.x + actor.jitterX,
-    y: point.y + actor.jitterY,
+    x: point.x + lane.x + actor.jitterX,
+    y: point.y + lane.y + actor.jitterY,
   }
 }
 

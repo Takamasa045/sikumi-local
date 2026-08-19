@@ -500,6 +500,9 @@ describe('collectGardenActors', () => {
     expect(new Set(actors.map((actor) => actor.groundX.toFixed(1))).size).toBe(
       2,
     )
+    expect(
+      Math.abs((actors[0]?.groundX ?? 0) - (actors[1]?.groundX ?? 0)),
+    ).toBeGreaterThanOrEqual(12)
     expect(actors.every((actor) => actor.tone === 'working')).toBe(true)
     const grok = actors.find(
       (actor) => actor.workSummary === '働きの画面を直している',

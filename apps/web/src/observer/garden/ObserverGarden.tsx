@@ -248,6 +248,7 @@ function ObserverGardenActor({
     traveling,
     durationMs,
     walkStation,
+    destination,
   } = useWorkingWalk(actor, home, reducedMotion)
   const pose =
     actor.tone === 'waiting'
@@ -306,6 +307,8 @@ function ObserverGardenActor({
       data-walk-stop={walkStation}
       data-ground-x={String(Math.round(actor.groundX))}
       data-ground-y={String(Math.round(actor.groundY))}
+      data-walk-x={String(Math.round(destination.x))}
+      data-walk-y={String(Math.round(destination.y))}
       data-gesture={gesture}
       data-traveling={traveling ? 'true' : 'false'}
       style={actorStyle}

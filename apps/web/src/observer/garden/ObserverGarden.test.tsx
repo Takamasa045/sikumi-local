@@ -1,7 +1,11 @@
 import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { WORKING_WALK_FIRST_STEP_MS, WORKING_WALK_STOPS } from './gardenWalk'
+import {
+  WORKING_WALK_FIRST_STEP_MS,
+  WORKING_WALK_LANE_X,
+  WORKING_WALK_STOPS,
+} from './gardenWalk'
 import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
 import { ObserverGarden } from './ObserverGarden'
@@ -89,12 +93,26 @@ describe('ObserverGarden', () => {
     )
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
-    expect(within(residents).getAllByRole('listitem')).toHaveLength(2)
+    const walkers = within(residents).getAllByRole('listitem')
+    expect(walkers).toHaveLength(2)
     expect(within(residents).getAllByText('hataraki番')).toHaveLength(2)
     expect(within(residents).getByText('働きの画面を直している')).toBeVisible()
     expect(
       within(residents).getByText('確認の仕組みを書いている'),
     ).toBeVisible()
+    const groundXs = walkers.map((item) =>
+      Number(item.getAttribute('data-ground-x')),
+    )
+    const walkXs = walkers.map((item) =>
+      Number(item.getAttribute('data-walk-x')),
+    )
+    expect(Math.abs(groundXs[0]! - groundXs[1]!)).toBeGreaterThanOrEqual(
+      WORKING_WALK_LANE_X,
+    )
+    expect(Math.abs(walkXs[0]! - walkXs[1]!)).toBeGreaterThanOrEqual(
+      WORKING_WALK_LANE_X - 1,
+    )
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
 
     await userEvent.click(
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),

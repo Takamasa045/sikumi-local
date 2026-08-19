@@ -1,5 +1,8 @@
-import type { CSSProperties } from 'react'
+import { useCallback, useId, useState, type CSSProperties } from 'react'
 import type { GardenStationId } from '@sikumi-local/core'
+import { GardenEmployee } from './GardenEmployee'
+import { GardenInspect, type GardenInspectSubject } from './GardenInspect'
+import { usePrefersReducedMotion } from './usePrefersReducedMotion'
 import { gardenStationLabels, type WorldPack } from './worlds'
 
 interface WorldStageProps {
@@ -16,13 +19,6 @@ interface WorldStageProps {
 
 type StageStyle = CSSProperties & {
   '--world-background': string
-  '--character-atlas': string
-  '--atlas-columns': number
-  '--atlas-rows': number
-  '--atlas-x': string
-  '--atlas-y': string
-  '--character-x': string
-  '--character-y': string
 }
 
 type StationStyle = CSSProperties & {
@@ -49,29 +45,17 @@ export function WorldStage({
   level = 1,
   unlocks = [],
 }: WorldStageProps) {
-  const grownRow = Math.min(
-    world.character.atlasRows - 1,
-    world.character.atlasRow + Math.max(0, level - 1),
-  )
-  const columnPosition =
-    world.character.atlasColumns === 1
-      ? 0
-      : (world.character.atlasColumn / (world.character.atlasColumns - 1)) * 100
-  const rowPosition =
-    world.character.atlasRows === 1
-      ? 0
-      : (grownRow / (world.character.atlasRows - 1)) * 100
-  const position = world.stations[station] ?? world.character.position
+  const inspectId = useId()
+  const reducedMotion = usePrefersReducedMotion()
+  const [inspect, setInspect] = useState<GardenInspectSubject | null>(null)
+  const [traveling, setTraveling] = useState(false)
   const style: StageStyle = {
     '--world-background': `url(${world.backgroundUrl})`,
-    '--character-atlas': `url(${world.character.atlasUrl})`,
-    '--atlas-columns': world.character.atlasColumns,
-    '--atlas-rows': world.character.atlasRows,
-    '--atlas-x': `${columnPosition}%`,
-    '--atlas-y': `${rowPosition}%`,
-    '--character-x': `${position.x}%`,
-    '--character-y': `${position.y}%`,
   }
+
+  const closeInspect = useCallback(() => {
+    setInspect(null)
+  }, [])
 
   return (
     <section
@@ -83,6 +67,7 @@ export function WorldStage({
       data-pose={pose}
       data-level={String(level)}
       data-unlocks={unlocks.join(',')}
+      data-traveling={traveling ? 'true' : 'false'}
       aria-labelledby="garden-heading"
       style={style}
     >
@@ -102,35 +87,73 @@ export function WorldStage({
             '--station-x': `${world.stations[id].x}%`,
             '--station-y': `${world.stations[id].y}%`,
           }
+          const related = station === id
           return (
-            <div
+            <button
               key={id}
+              type="button"
               className={
-                id === station ? 'garden-station is-active' : 'garden-station'
+                related ? 'garden-station is-active' : 'garden-station'
               }
               style={stationStyle}
               data-station={id}
+              aria-expanded={
+                inspect?.kind === 'station' && inspect.station === id
+              }
+              aria-controls={inspect ? inspectId : undefined}
+              onClick={() => {
+                setInspect({
+                  kind: 'station',
+                  station: id,
+                  occupants: related
+                    ? [
+                        {
+                          name: employeeName,
+                          traveling,
+                          summary: activitySummary,
+                        },
+                      ]
+                    : [],
+                })
+              }}
             >
               <span className="garden-station__label">
                 {gardenStationLabels[id]}
               </span>
-            </div>
+            </button>
           )
         })}
       </div>
 
-      <div
-        className={station === 'rest' ? 'employee is-idle' : 'employee'}
-        aria-label={`${employeeName}、${employeeRole}、${gardenStationLabels[station]}`}
-      >
-        <div className="employee__note" role="status">
-          <strong>{employeeName}</strong>
-          <span>{employeeRole}</span>
-          <small>{activitySummary}</small>
+      <GardenEmployee
+        world={world}
+        name={employeeName}
+        role={employeeRole}
+        employeeId={employeeId ?? ''}
+        station={station}
+        pose={pose}
+        summary={activitySummary}
+        reducedMotion={reducedMotion}
+        selected={inspect?.kind === 'character'}
+        level={level}
+        onTravelingChange={setTraveling}
+        onSelect={() => {
+          setInspect({
+            kind: 'character',
+            name: employeeName,
+            role: employeeRole,
+            station,
+            traveling,
+            summary: activitySummary,
+          })
+        }}
+      />
+
+      {inspect ? (
+        <div id={inspectId}>
+          <GardenInspect subject={inspect} onClose={closeInspect} />
         </div>
-        <div className="employee__sprite" aria-hidden="true" />
-        <div className="employee__shadow" aria-hidden="true" />
-      </div>
+      ) : null}
 
       {unlocks.length > 0 ? (
         <ul className="world-stage__unlocks" data-testid="world-unlocks">

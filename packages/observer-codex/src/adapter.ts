@@ -1,7 +1,7 @@
-import { existsSync } from 'node:fs'
 import {
   DIRECT_HOOK_CAPABILITIES,
   displayNameForSource,
+  installedHookCommandExists,
   rememberAdapterObservation,
   realUserHome,
   unavailableHealth,
@@ -10,6 +10,7 @@ import {
   type ObserverInstallOptions,
 } from '@sikumi-local/observer-core'
 import { discoverCodexHooks, missingCodexEvents } from './discovery.js'
+import { CODEX_HOOK_COMMAND_NAME } from './events.js'
 import {
   applyCodexHookMutation,
   resolveCodexHookCommandPath,
@@ -57,7 +58,7 @@ export function inspectCodexHealth(
     )
   }
   const missing = missingCodexEvents(discovery)
-  if (!existsSync(command)) {
+  if (!installedHookCommandExists(options, CODEX_HOOK_COMMAND_NAME, command)) {
     return rememberAdapterObservation(
       {
         ok: false,

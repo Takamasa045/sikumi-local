@@ -120,7 +120,11 @@ export function assertConfigPathWritable(
   for (const segment of relativeSegments) {
     current = join(current, segment)
     if (!isInsideRoot(current, root)) {
-      throw new AppError('PATH_TRAVERSAL', 'Config path escaped the sandbox', 400)
+      throw new AppError(
+        'PATH_TRAVERSAL',
+        'Config path escaped the sandbox',
+        400,
+      )
     }
     if (!existsSync(current)) {
       continue
@@ -146,7 +150,10 @@ export function assertConfigPathWritable(
 }
 
 export function toSafeHookCommand(absolutePath: string): string | null {
-  if ((!isAbsolute(absolutePath) && !looksWindowsAbsolutePath(absolutePath)) || absolutePath.includes('\0')) {
+  if (
+    (!isAbsolute(absolutePath) && !looksWindowsAbsolutePath(absolutePath)) ||
+    absolutePath.includes('\0')
+  ) {
     return null
   }
   if (containsParentTraversal(absolutePath)) {
@@ -173,6 +180,17 @@ export function unquoteHookCommand(value: string): string {
   return trimmed
 }
 
+export const ALLOWED_HOOK_COMMAND_NAMES = new Set([
+  'sikumi-observer-codex.mjs',
+  'sikumi-observer-cursor.mjs',
+  'sikumi-observer-claude-code.mjs',
+  'sikumi-observer-grok.mjs',
+])
+
+export function hookCommandFilename(path: string): string {
+  return path.replaceAll('\\', '/').split('/').pop() ?? ''
+}
+
 export function hookCommandMatches(
   command: unknown,
   expectedAbsolutePath: string,
@@ -185,6 +203,27 @@ export function hookCommandMatches(
     return unquoteHookCommand(command[0]).replaceAll('\\', '/') === expected
   }
   return false
+}
+
+export function isOurHookCommandPath(
+  command: unknown,
+  expectedAbsolutePath: string,
+): boolean {
+  if (hookCommandMatches(command, expectedAbsolutePath)) {
+    return true
+  }
+  const actual =
+    typeof command === 'string'
+      ? unquoteHookCommand(command).replaceAll('\\', '/')
+      : commandFromHookEntry(command)?.replaceAll('\\', '/')
+  if (!actual) {
+    return false
+  }
+  const filename = hookCommandFilename(expectedAbsolutePath)
+  if (!ALLOWED_HOOK_COMMAND_NAMES.has(filename)) {
+    return false
+  }
+  return actual === filename || actual.endsWith(`/${filename}`)
 }
 
 export function commandFromHookEntry(value: unknown): string | null {
@@ -211,7 +250,11 @@ export function readJsonObject(path: string): {
       return { ok: true, value: {}, raw }
     }
     const parsed = JSON.parse(raw) as unknown
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      Array.isArray(parsed)
+    ) {
       return { ok: false, value: {}, raw }
     }
     return { ok: true, value: parsed as Record<string, unknown>, raw }
@@ -246,9 +289,10 @@ export function restoreFile(path: string, previous: string | undefined): void {
   }
 }
 
-export function applyFilePlans(
-  files: readonly ObserverInstallFilePlan[],
-): { readonly ok: boolean; readonly changed: boolean } {
+export function applyFilePlans(files: readonly ObserverInstallFilePlan[]): {
+  readonly ok: boolean
+  readonly changed: boolean
+} {
   const applied: ObserverInstallFilePlan[] = []
   try {
     for (const file of files) {
@@ -275,7 +319,9 @@ export function applyFilePlans(
   }
 }
 
-export function previewForFiles(files: readonly ObserverInstallFilePlan[]): string {
+export function previewForFiles(
+  files: readonly ObserverInstallFilePlan[],
+): string {
   return files
     .map((file) => `${file.action} ${file.path}\n${file.preview}`)
     .join('\n---\n')
@@ -288,11 +334,13 @@ export function isHookEntryOurs(
   if (!isPlainObject(entry)) {
     return false
   }
-  if (hookCommandMatches(entry.command, expectedCommandPath)) {
+  if (isOurHookCommandPath(entry.command, expectedCommandPath)) {
     return true
   }
   if (Array.isArray(entry.hooks)) {
-    return entry.hooks.some((hook) => isHookEntryOurs(hook, expectedCommandPath))
+    return entry.hooks.some((hook) =>
+      isHookEntryOurs(hook, expectedCommandPath),
+    )
   }
   return false
 }
@@ -301,7 +349,9 @@ export function cloneJson<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(
+  value: unknown,
+): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 

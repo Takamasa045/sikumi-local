@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Workspace } from '@sikumi-local/core'
+import { UNSAFE_HOOK_COMMAND_MESSAGE } from '@sikumi-local/observer-core'
 import { listWorkspaces } from '../../api/workspaces'
 import {
   applyObserverAdapterAction,
@@ -108,6 +109,15 @@ export function AdapterSettings() {
     setError(null)
     try {
       const result = await previewObserverAdapterAction(source, action, target)
+      if (!result.ok) {
+        setError(friendlyInstallError(result.message))
+        setPlans((current) => {
+          const next = { ...current }
+          delete next[source]
+          return next
+        })
+        return
+      }
       setPlans((current) => ({
         ...current,
         [source]: {
@@ -147,6 +157,10 @@ export function AdapterSettings() {
           : {}),
         ...(plan.planDigest ? { planDigest: plan.planDigest } : {}),
       })
+      if (!result.ok) {
+        setError(friendlyInstallError(result.message))
+        return
+      }
       setPlans((current) => ({
         ...current,
         [source]: {
@@ -448,6 +462,13 @@ function planConfirmation(
   return plan.applied && plan.ok
     ? `${place}で、${adapter.displayName} から庭への知らせをやめました。`
     : `${place}で、${adapter.displayName} から庭への知らせをやめます。`
+}
+
+function friendlyInstallError(message: string): string {
+  if (message.includes('Hookコマンドの絶対pathが安全ではありません')) {
+    return UNSAFE_HOOK_COMMAND_MESSAGE
+  }
+  return message
 }
 
 function applyLabel(source: string, action: 'install' | 'uninstall'): string {

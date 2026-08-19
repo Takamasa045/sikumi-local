@@ -1,7 +1,7 @@
-import { existsSync } from 'node:fs'
 import {
   DIRECT_HOOK_CAPABILITIES,
   displayNameForSource,
+  installedHookCommandExists,
   rememberAdapterObservation,
   realUserHome,
   unavailableHealth,
@@ -9,7 +9,11 @@ import {
   type ObserverHealth,
   type ObserverInstallOptions,
 } from '@sikumi-local/observer-core'
-import { discoverClaudeCodeHooks, missingClaudeCodeEvents } from './discovery.js'
+import {
+  discoverClaudeCodeHooks,
+  missingClaudeCodeEvents,
+} from './discovery.js'
+import { CLAUDE_CODE_HOOK_COMMAND_NAME } from './events.js'
 import {
   applyClaudeCodeHookMutation,
   resolveClaudeCodeHookCommandPath,
@@ -56,7 +60,9 @@ export function inspectClaudeCodeHealth(
       options.lastEventAt,
     )
   }
-  if (!existsSync(command)) {
+  if (
+    !installedHookCommandExists(options, CLAUDE_CODE_HOOK_COMMAND_NAME, command)
+  ) {
     return rememberAdapterObservation(
       {
         ok: false,

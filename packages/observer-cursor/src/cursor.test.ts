@@ -54,48 +54,67 @@ describe('normalizeCursorHook', () => {
     const shell = normalizeCursorHook(readFixture('shell.json'))
     expect(shell?.normalizedType).toBe('command.started')
     expect(shell?.payload.commandCategory).toBe('test')
-    expect(JSON.stringify(shell)).not.toContain('pnpm test --filter observer-cursor')
+    expect(JSON.stringify(shell)).not.toContain(
+      'pnpm test --filter observer-cursor',
+    )
     expect(JSON.stringify(shell)).not.toContain('must not store command output')
 
-    expect(normalizeCursorHook({ hook_event_name: 'sessionEnd' })?.normalizedType).toBe(
-      'session.ended',
-    )
-    expect(normalizeCursorHook({ hook_event_name: 'preToolUse', tool_name: 'Read' })?.normalizedType).toBe(
-      'file.read',
-    )
-    expect(normalizeCursorHook({ hook_event_name: 'postToolUse', tool_name: 'Write' })?.normalizedType).toBe(
-      'file.changed',
-    )
-    expect(normalizeCursorHook({ hook_event_name: 'postToolUseFailure' })?.activity).toBe(
-      'failed',
-    )
-    expect(normalizeCursorHook({ hook_event_name: 'afterShellExecution' })?.normalizedType).toBe(
-      'command.completed',
-    )
-    expect(normalizeCursorHook({ hook_event_name: 'beforeReadFile', file_path: 'a.ts' })?.normalizedType).toBe(
-      'file.read',
-    )
-    expect(normalizeCursorHook({ hook_event_name: 'beforeSubmitPrompt' })?.normalizedType).toBe(
-      'prompt.submitted',
-    )
-    expect(normalizeCursorHook({ hook_event_name: 'afterAgentResponse', text: 'hidden answer' })?.normalizedType).toBe(
-      'activity.changed',
-    )
+    expect(
+      normalizeCursorHook({ hook_event_name: 'sessionEnd' })?.normalizedType,
+    ).toBe('session.ended')
+    expect(
+      normalizeCursorHook({ hook_event_name: 'preToolUse', tool_name: 'Read' })
+        ?.normalizedType,
+    ).toBe('file.read')
+    expect(
+      normalizeCursorHook({
+        hook_event_name: 'postToolUse',
+        tool_name: 'Write',
+      })?.normalizedType,
+    ).toBe('file.changed')
+    expect(
+      normalizeCursorHook({ hook_event_name: 'postToolUseFailure' })?.activity,
+    ).toBe('failed')
+    expect(
+      normalizeCursorHook({ hook_event_name: 'afterShellExecution' })
+        ?.normalizedType,
+    ).toBe('command.completed')
+    expect(
+      normalizeCursorHook({
+        hook_event_name: 'beforeReadFile',
+        file_path: 'a.ts',
+      })?.normalizedType,
+    ).toBe('file.read')
+    expect(
+      normalizeCursorHook({ hook_event_name: 'beforeSubmitPrompt' })
+        ?.normalizedType,
+    ).toBe('prompt.submitted')
+    expect(
+      normalizeCursorHook({
+        hook_event_name: 'afterAgentResponse',
+        text: 'hidden answer',
+      })?.normalizedType,
+    ).toBe('activity.changed')
     expect(
       JSON.stringify(
-        normalizeCursorHook({ hook_event_name: 'afterAgentResponse', text: 'hidden answer' }),
+        normalizeCursorHook({
+          hook_event_name: 'afterAgentResponse',
+          text: 'hidden answer',
+        }),
       ),
     ).not.toContain('hidden answer')
-    expect(normalizeCursorHook({ hook_event_name: 'stop' })?.activity).toBe('completed')
-    expect(normalizeCursorHook({ hook_event_name: 'subagentStart' })?.normalizedType).toBe(
-      'subagent.started',
+    expect(normalizeCursorHook({ hook_event_name: 'stop' })?.activity).toBe(
+      'completed',
     )
-    expect(normalizeCursorHook({ hook_event_name: 'subagentStop' })?.normalizedType).toBe(
-      'subagent.stopped',
-    )
-    expect(normalizeCursorHook({ hook_event_name: 'beforeTabFileRead' })?.surface).toBe(
-      'cursor-tab',
-    )
+    expect(
+      normalizeCursorHook({ hook_event_name: 'subagentStart' })?.normalizedType,
+    ).toBe('subagent.started')
+    expect(
+      normalizeCursorHook({ hook_event_name: 'subagentStop' })?.normalizedType,
+    ).toBe('subagent.stopped')
+    expect(
+      normalizeCursorHook({ hook_event_name: 'beforeTabFileRead' })?.surface,
+    ).toBe('cursor-tab')
     expect(
       normalizeCursorHook({
         hook_event_name: 'sessionStart',
@@ -163,7 +182,8 @@ describe('normalizeCursorHook', () => {
       normalizeCursorHook({ hook_event_name: 'workspaceOpen' })?.normalizedType,
     ).toBe('session.started')
     expect(
-      normalizeCursorHook({ hook_event_name: 'BrandNewCursorEvent' })?.normalizedType,
+      normalizeCursorHook({ hook_event_name: 'BrandNewCursorEvent' })
+        ?.normalizedType,
     ).toBe('activity.changed')
   })
 
@@ -224,9 +244,9 @@ describe('cursor hook install', () => {
     expect(preview.confirmationToken).toBeTruthy()
     expect(preview.preview).toContain('experimentalFlag')
     expect(preview.preview).toContain('/tmp/user-hook')
-    expect(readFileSync(join(home, '.cursor', 'hooks.json'), 'utf8')).not.toContain(
-      'sikumi-observer-cursor',
-    )
+    expect(
+      readFileSync(join(home, '.cursor', 'hooks.json'), 'utf8'),
+    ).not.toContain('sikumi-observer-cursor')
 
     const rejected = await adapter.install({
       homeDir: home,
@@ -255,7 +275,9 @@ describe('cursor hook install', () => {
     for (const eventName of CURSOR_REQUIRED_HOOK_EVENTS) {
       expect(written.hooks[eventName]?.length).toBeGreaterThan(0)
     }
-    expect(JSON.stringify(written.hooks.sessionStart)).toContain('/tmp/user-hook')
+    expect(JSON.stringify(written.hooks.sessionStart)).toContain(
+      '/tmp/user-hook',
+    )
     expect(written.hooks.beforeMCPExecution).toBeUndefined()
 
     const health = await adapter.healthCheck({ homeDir: home })
@@ -270,11 +292,13 @@ describe('cursor hook install', () => {
     const repoPreview = await adapter.install({
       scope: 'repo',
       repoDir: repo,
+      homeDir: home,
     })
     expect(repoPreview.requiresConfirm).toBe(true)
     const repoApplied = await adapter.install({
       scope: 'repo',
       repoDir: repo,
+      homeDir: home,
       confirm: true,
       confirmationToken: repoPreview.confirmationToken!,
       planDigest: repoPreview.planDigest!,

@@ -1,6 +1,7 @@
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readFileSync,
   rmSync,
@@ -35,6 +36,7 @@ import {
   pickAllowlistedPayload,
   projectInboundEvent,
   relativeTimeLabel,
+  resolveSafeInstallHookCommand,
   rememberAdapterObservation,
   sanitizeObserverSummary,
   conflictHeadline,
@@ -63,10 +65,12 @@ describe('observer-core types', () => {
     expect(scoreToConflictLevel(85)).toBe('high')
     expect(scoreToConflictLevel(92)).toBe('critical')
     expect(conflictHeadline('high')).toBe('🔴 同じ仕組みを変更しています')
-    expect(classifyChangedPath('src/auth/session.ts').label).toBe('ログイン状態')
-    expect(relativeTimeLabel(new Date(Date.now() - 2 * 60_000).toISOString())).toBe(
-      '2分前',
+    expect(classifyChangedPath('src/auth/session.ts').label).toBe(
+      'ログイン状態',
     )
+    expect(
+      relativeTimeLabel(new Date(Date.now() - 2 * 60_000).toISOString()),
+    ).toBe('2分前')
   })
 })
 
@@ -189,10 +193,12 @@ describe('observer datetime', () => {
     expect(normalizeObserverDateTime('2026-08-18 00:00:00')).toBeNull()
     expect(normalizeObserverDateTime('not-a-date')).toBeNull()
     expect(normalizeObserverDateTime('2026-13-40T99:99:99Z')).toBeNull()
-    expect(inboundObserverEventSchema.safeParse({
-      source: 'codex',
-      occurredAt: 'not-a-date-value',
-    }).success).toBe(false)
+    expect(
+      inboundObserverEventSchema.safeParse({
+        source: 'codex',
+        occurredAt: 'not-a-date-value',
+      }).success,
+    ).toBe(false)
     expect(() =>
       projectInboundEvent({
         source: 'codex',
@@ -268,20 +274,24 @@ function createTemp(): string {
 describe('install confirmation and observed health', () => {
   it('rejects public homeDir, repoDir, allowRealUserApply, and env fields', () => {
     expect(
-      observerAdapterActionRequestSchema.safeParse({ homeDir: '/tmp/x' }).success,
+      observerAdapterActionRequestSchema.safeParse({ homeDir: '/tmp/x' })
+        .success,
     ).toBe(false)
     expect(
-      observerAdapterActionRequestSchema.safeParse({ repoDir: '/tmp/x' }).success,
+      observerAdapterActionRequestSchema.safeParse({ repoDir: '/tmp/x' })
+        .success,
     ).toBe(false)
     expect(
-      observerAdapterActionRequestSchema.safeParse({ allowRealUserApply: true }).success,
+      observerAdapterActionRequestSchema.safeParse({ allowRealUserApply: true })
+        .success,
     ).toBe(false)
     expect(
-      observerAdapterActionRequestSchema.safeParse({ env: { HOME: '/tmp/x' } }).success,
+      observerAdapterActionRequestSchema.safeParse({ env: { HOME: '/tmp/x' } })
+        .success,
     ).toBe(false)
-    expect(observerAdapterActionRequestSchema.safeParse({ confirm: false }).success).toBe(
-      true,
-    )
+    expect(
+      observerAdapterActionRequestSchema.safeParse({ confirm: false }).success,
+    ).toBe(true)
   })
 
   it('grants real-user apply only after confirm and a matching plan digest', () => {
@@ -387,20 +397,30 @@ describe('install confirmation and observed health', () => {
     const pending = unavailableHealth({
       status: 'needs_review',
       errors: [],
-      warnings: ['設定は見つかりましたが、Sikumiがhook eventを受信した記録はありません'],
+      warnings: [
+        '設定は見つかりましたが、Sikumiがhook eventを受信した記録はありません',
+      ],
     })
     expect(rememberAdapterObservation(pending).status).toBe('needs_review')
-    const ready = rememberAdapterObservation(pending, '2026-08-18T00:00:00.000Z')
+    const ready = rememberAdapterObservation(
+      pending,
+      '2026-08-18T00:00:00.000Z',
+    )
     expect(ready.status).toBe('ready')
     expect(ready.lastEventAt).toBe('2026-08-18T00:00:00.000Z')
-    expect(rememberAdapterObservation(unavailableHealth(), '2026-08-18T00:00:00.000Z').status).toBe(
-      'not_installed',
-    )
+    expect(
+      rememberAdapterObservation(
+        unavailableHealth(),
+        '2026-08-18T00:00:00.000Z',
+      ).status,
+    ).toBe('not_installed')
     const cooperative = rememberAdapterObservation(
       unavailableHealth({
         status: 'needs_review',
         errors: [],
-        warnings: ['パッケージはありますが、Sikumiが協調報告を受信した記録はありません'],
+        warnings: [
+          'パッケージはありますが、Sikumiが協調報告を受信した記録はありません',
+        ],
       }),
       '2026-08-18T00:00:00.000Z',
     )
@@ -581,5 +601,64 @@ describe('cursor tab aggregation', () => {
     expect(result.groups).toHaveLength(2)
     expect(result.summarySession?.title).toContain('ほか 1 件')
     expect(result.summarySession?.surface).toBe('cursor-tab')
+  })
+})
+
+describe('safe hook command staging', () => {
+  const directories: string[] = []
+
+  afterEach(() => {
+    for (const directory of directories.splice(0)) {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('stages a launcher under a metacharacter-free data dir when the source path contains *', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'observer-star-'))
+    directories.push(parent)
+    const sourceDir = join(parent, '*開発', 'bin')
+    mkdirSync(sourceDir, { recursive: true })
+    const sourcePath = join(sourceDir, 'sikumi-observer-codex.mjs')
+    writeFileSync(sourcePath, '#!/usr/bin/env node\nconsole.log("ok")\n')
+    const home = mkdtempSync(join(tmpdir(), 'observer-home-'))
+    directories.push(home)
+
+    expect(toSafeHookCommand(sourcePath)).toBeNull()
+    const staged = resolveSafeInstallHookCommand({
+      sourcePath,
+      filename: 'sikumi-observer-codex.mjs',
+      options: { homeDir: home },
+    })
+    expect(staged.ok).toBe(true)
+    if (!staged.ok) {
+      return
+    }
+    expect(staged.command.includes('*')).toBe(false)
+    expect(staged.command).toBe(
+      join(
+        home,
+        '.shikumi-local',
+        'observer',
+        'bin',
+        'sikumi-observer-codex.mjs',
+      ),
+    )
+    expect(toSafeHookCommand(staged.command)).toBe(staged.command)
+    expect(staged.file.preview).toContain('*開発')
+    expect(staged.file.preview).toContain(JSON.stringify(sourcePath))
+  })
+
+  it('explains the failure in everyday language when no safe staging root exists', () => {
+    const staged = resolveSafeInstallHookCommand({
+      sourcePath: '/tmp/sikumi-observer-codex.mjs',
+      filename: 'sikumi-observer-codex.mjs',
+      options: {},
+    })
+    expect(staged.ok).toBe(false)
+    if (staged.ok) {
+      return
+    }
+    expect(staged.message).toContain('安全な場所')
+    expect(staged.message).not.toContain('絶対path')
   })
 })

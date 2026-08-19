@@ -341,6 +341,51 @@ describe('AdapterSettings', () => {
       await screen.findByText(/Codex から庭への知らせをやめました/),
     ).toBeVisible()
   })
+
+  it('shows a plain-language error when connect preview fails', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return json({ token: 't' })
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return json({ workspaces: [] })
+      }
+      if (url.endsWith('/api/observer/adapters')) {
+        return json({
+          adapters: [
+            {
+              id: 'codex',
+              source: 'codex',
+              displayName: 'Codex',
+              enabled: false,
+              installationStatus: 'not_installed',
+              lastEventAt: null,
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/install')) {
+        return json({
+          result: {
+            ok: false,
+            changed: false,
+            message: 'Hookコマンドの絶対pathが安全ではありません',
+          },
+        })
+      }
+      return json({ error: { message: 'not found' } }, 404)
+    })
+    render(<AdapterSettings />)
+    await userEvent.click(await screen.findByRole('button', { name: 'つなぐ' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('安全な場所')
+    expect(
+      screen.queryByText('Hookコマンドの絶対pathが安全ではありません'),
+    ).toBeNull()
+    expect(
+      screen.queryByRole('button', { name: 'この場所につなぐ' }),
+    ).toBeNull()
+  })
 })
 
 function json(body: unknown, status = 200): Response {

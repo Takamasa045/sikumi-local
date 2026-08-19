@@ -32,6 +32,7 @@ export const CLAUDE_CODE_REQUIRED_HOOK_EVENTS = [
 
 export const CLAUDE_CODE_HOOK_EVENTS = CLAUDE_CODE_REQUIRED_HOOK_EVENTS
 export type ClaudeCodeHookEvent = (typeof CLAUDE_CODE_HOOK_EVENTS)[number]
+export const CLAUDE_CODE_HOOK_COMMAND_NAME = 'sikumi-observer-claude-code.mjs'
 
 export const CLAUDE_CODE_TOOL_EVENTS = [
   'PreToolUse',
@@ -52,7 +53,10 @@ export function matcherForEvent(eventName: string): string | undefined {
   return undefined
 }
 
-export function matcherAllows(matcher: string | null | undefined, toolName: string | null): boolean {
+export function matcherAllows(
+  matcher: string | null | undefined,
+  toolName: string | null,
+): boolean {
   if (!matcher || matcher === '*') {
     return true
   }

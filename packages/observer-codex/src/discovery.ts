@@ -147,7 +147,10 @@ function readHooksToml(
       events.add(match[1])
     }
   }
-  const ours = text.includes(hookCommandPath)
+  const filename = hookCommandPath.replaceAll('\\', '/').split('/').pop() ?? ''
+  const ours =
+    text.includes(hookCommandPath) ||
+    (filename.length > 0 && text.includes(filename))
   if (ours) {
     const names = events.size > 0 ? [...events] : ['unknown']
     for (const eventName of names) {

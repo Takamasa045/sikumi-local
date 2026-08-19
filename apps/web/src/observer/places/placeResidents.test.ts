@@ -1549,9 +1549,7 @@ describe('describeVisibleFacts', () => {
     expect(describePlaceInspect(leftover!).nowText).toBe(
       '動画の途中が残っています。',
     )
-    expect(describePlaceInspect(leftover!).nextStep).toBe(
-      '動画の途中を続ける',
-    )
+    expect(describePlaceInspect(leftover!).nextStep).toBe('動画の途中を続ける')
     expect(JSON.stringify(describePlaceInspect(leftover!))).not.toMatch(
       /仕組みと途中|確認用の仕組み|作業中のファイル|設定や確認|README/,
     )
@@ -1639,6 +1637,193 @@ describe('describeVisibleFacts', () => {
     expect(describePlaceInspect(resident!).nowText).not.toContain(
       '確認用の仕組み',
     )
+  })
+
+  it('speaks leftover from a read intro even when no keyword look matched', () => {
+    const leftoverAreas = ['確認用の仕組み', '作業中のファイル']
+    const [leftover] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_seminar', 'ws_seminar', 'seminar-place', [], {
+          placeIntro: 'セミナーの運営をする場所です。',
+          changedFileCount: 6,
+          areas: leftoverAreas,
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(leftover!).placeIntro).toBe(
+      'セミナーの運営をする場所です。',
+    )
+    expect(describeVisibleFacts(leftover!)).toContain('セミナー')
+    expect(describeVisibleFacts(leftover!)).toBe(
+      'セミナーの運営の途中が残っている',
+    )
+    expect(describeVisibleFacts(leftover!)).not.toBe('途中の仕事がある')
+    expect(describePlaceInspect(leftover!).nowText).toBe(
+      'セミナーの運営の途中が残っています。',
+    )
+    expect(describePlaceInspect(leftover!).nextStep).toBe(
+      'セミナーの運営の途中を続ける',
+    )
+    expect(JSON.stringify(describePlaceInspect(leftover!))).not.toMatch(
+      /確認用の仕組み|作業中のファイル|仕組みと途中|README|seminar-place/,
+    )
+
+    const [working] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_seminar_live',
+          'ws_seminar_live',
+          'seminar-place',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'running',
+              activity: 'working',
+            }),
+          ],
+          {
+            placeIntro: 'セミナーの運営をする場所です。',
+            changedFileCount: 6,
+            areas: leftoverAreas,
+          },
+        ),
+      ]),
+    )
+    expect(describeVisibleFacts(working!)).toBe('セミナーの運営している')
+    expect(describePlaceInspect(working!).nowText).toContain(
+      'セミナーの運営している',
+    )
+    expect(describePlaceInspect(working!).nextStep).toBe(
+      'セミナーの運営の途中を続ける',
+    )
+    expect(describePlaceInspect(working!).nowText).not.toMatch(
+      /確認用の仕組み|作業中のファイル|途中の仕事がある/,
+    )
+  })
+
+  it('keeps leftover generic when no intro was read', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_plain', 'ws_plain', 'notes', [], {
+          changedFileCount: 3,
+          areas: ['確認用の仕組み', '作業中のファイル'],
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(resident!).placeIntro).toBeNull()
+    expect(describeVisibleFacts(resident!)).toBe('途中の仕事がある')
+    expect(describePlaceInspect(resident!).nowText).toBe(
+      LEFTOVER_WORK_REMAINING,
+    )
+    expect(describePlaceInspect(resident!).nextStep).toBe('途中の仕事を続ける')
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
+      /確認用の仕組み|作業中のファイル|セミナー/,
+    )
+  })
+
+  it('does not speak leftover from confirmation tools, English-only intros, or 縁側', () => {
+    const leftoverAreas = ['確認用の仕組み', '作業中のファイル']
+    const [fromTools] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_tools', 'ws_tools', 'notes', [], {
+          placeIntro: '確認用の仕組み',
+          changedFileCount: 4,
+          areas: leftoverAreas,
+        }),
+      ]),
+    )
+    expect(describeVisibleFacts(fromTools!)).toBe('途中の仕事がある')
+    expect(describeVisibleFacts(fromTools!)).not.toContain('確認用の仕組み')
+    expect(describePlaceInspect(fromTools!).nowText).not.toContain(
+      '確認用の仕組み',
+    )
+
+    const [english] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_en', 'ws_en', 'notes', [], {
+          placeIntro: 'A local video-production workshop.',
+          changedFileCount: 4,
+          areas: leftoverAreas,
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(english!).placeIntro).toBeNull()
+    expect(describeVisibleFacts(english!)).toBe('途中の仕事がある')
+    expect(JSON.stringify(describePlaceInspect(english!))).not.toMatch(
+      /video-production|workshop/,
+    )
+
+    const [engawa] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_engawa', 'ws_engawa', 'notes', [], {
+          placeIntro: '縁側にいます',
+          changedFileCount: 4,
+          areas: leftoverAreas,
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(engawa!).placeIntro).toBeNull()
+    expect(describeVisibleFacts(engawa!)).toBe('途中の仕事がある')
+    expect(JSON.stringify(describePlaceInspect(engawa!))).not.toContain('縁側')
+  })
+
+  it('speaks しくみローカル leftover as observation from the live README sentence', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_sikumi', 'ws_sikumi', 'sikumi-local', [], {
+          placeIntro:
+            '仕事の依頼は各 AI アプリ側で行い、Shikumi Local は観測と整理を担当します。',
+          changedFileCount: 8,
+          areas: ['確認用の仕組み', '設定'],
+        }),
+      ]),
+    )
+    expect(resident?.placeName).toBe(SHIKUMI_PLACE_NAME)
+    expect(describeVisibleFacts(resident!)).toBe('観測の途中が残っている')
+    expect(describePlaceInspect(resident!).nowText).toBe(
+      '観測の途中が残っています。',
+    )
+    expect(describePlaceInspect(resident!).nextStep).toBe('観測の途中を続ける')
+    expect(describePlaceInspect(resident!).nowText).not.toContain('観測の庭')
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
+      /確認用の仕組み|作業中のファイル|仕組みと途中/,
+    )
+  })
+
+  it('keeps a blog kit article title and list when the intro is 記事を書く場所', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_blog', 'ws_blog', 'blog-agent-kit', [], {
+          placeIntro: '記事を書く場所',
+          workStory:
+            'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+          articleTitles: [
+            {
+              title: 'AIチームは多いほど強い、ではなかった',
+              date: '2026-08-15',
+            },
+            { title: '春のメモ', date: '2026-08-01' },
+          ],
+          changedFileCount: 2,
+        }),
+      ]),
+    )
+    expect(describeVisibleFacts(resident!)).toBe(
+      'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+    )
+    expect(describePlaceInspect(resident!).placeIntro).toBe('記事を書く場所')
+    expect(describePlaceInspect(resident!).nowText).toContain(
+      'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+    )
+    expect(describePlaceInspect(resident!).nextStep).toBe('記事の途中を続ける')
+    expect(describePlaceInspect(resident!).articleTitles).toEqual([
+      { title: 'AIチームは多いほど強い、ではなかった', date: '2026-08-15' },
+      { title: '春のメモ', date: '2026-08-01' },
+    ])
+    expect(describePlaceInspect(resident!).workTitles).toEqual([])
   })
 
   it('does not treat hook leftovers or fake-claude as a goal', () => {

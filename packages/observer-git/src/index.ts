@@ -5,6 +5,7 @@ export {
   readBlogWorkStory,
   type BlogArticleTitle,
 } from './blog-story.js'
+export { readPlaceIntro } from './place-intro.js'
 export { resolveGitExecutable, runGit } from './exec.js'
 export {
   resolveDefaultBranchRef,
@@ -19,6 +20,7 @@ export {
 } from './paths.js'
 export {
   readLatestRecordTitle,
+  readRecentRecordTitles,
   readSyncCounts,
   snapshotGitRepository,
   type ChangedFileRecord,

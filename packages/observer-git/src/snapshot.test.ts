@@ -81,6 +81,7 @@ describe('snapshotGitRepository', () => {
     expect(snapshot.baseCommit).toBeNull()
     expect(snapshot.worktrees[0]?.baseCommit).toBeNull()
     expect(snapshot.latestRecordTitle).toBe('init')
+    expect(snapshot.workTitles).toEqual(['init'])
     expect(snapshot.outgoingCount).toBeNull()
     expect(snapshot.incomingCount).toBeNull()
   })
@@ -98,10 +99,53 @@ describe('snapshotGitRepository', () => {
     const snapshot = snapshotGitRepository(repo)
     expect(snapshot.latestRecordTitle).toBe('ログイン画面の直し')
     expect(snapshot.workStory).toBeNull()
+    expect(snapshot.placeIntro).toBeNull()
     expect(snapshot.articleTitles).toEqual([])
+    expect(snapshot.workTitles).toEqual(['ログイン画面の直し', 'init'])
     expect(snapshot.outgoingCount).toBe(1)
     expect(snapshot.incomingCount).toBe(0)
     expect(snapshot.headCommit).not.toBe('ログイン画面の直し')
+  })
+
+  it('lists recent record titles newest first without inventing one', () => {
+    const repo = createGitRepo()
+    writeFileSync(join(repo, 'src/auth.ts'), 'export const a = 3\n')
+    execFileSync('git', ['add', 'src/auth.ts'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'feat: launch HATARAKI office UI'], {
+      cwd: repo,
+    })
+    writeFileSync(join(repo, 'src/auth.ts'), 'export const a = 4\n')
+    execFileSync('git', ['add', 'src/auth.ts'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'ログイン画面の直し'], { cwd: repo })
+    writeFileSync(join(repo, 'src/auth.ts'), 'export const a = 5\n')
+    execFileSync('git', ['add', 'src/auth.ts'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', '庭のクリック詳細を厚くする'], {
+      cwd: repo,
+    })
+
+    const snapshot = snapshotGitRepository(repo)
+    expect(snapshot.latestRecordTitle).toBe('庭のクリック詳細を厚くする')
+    expect(snapshot.workTitles).toEqual([
+      '庭のクリック詳細を厚くする',
+      'ログイン画面の直し',
+      'feat: launch HATARAKI office UI',
+      'init',
+    ])
+    expect(snapshot.articleTitles).toEqual([])
+    expect(snapshot.placeIntro).toBeNull()
+  })
+
+  it('reads a Japanese README as the place intro without paths', () => {
+    const repo = createGitRepo()
+    writeFileSync(
+      join(repo, 'README.md'),
+      ['# はたらき', '', '働きの画面を整えるための場所です。', ''].join('\n'),
+    )
+    const snapshot = snapshotGitRepository(repo)
+    expect(snapshot.placeIntro).toBe(
+      'はたらき。働きの画面を整えるための場所です。',
+    )
+    expect(snapshot.placeIntro).not.toContain('README.md')
   })
 
   it('extracts a blog article title from articles.log when the place is a kit', () => {
@@ -125,6 +169,7 @@ describe('snapshotGitRepository', () => {
         date: '2026-08-15',
       },
     ])
+    expect(snapshot.workTitles[0]).toBe('init')
     expect(snapshot.workStory).not.toContain('MEMORY.md')
     expect(snapshot.workStory).not.toContain('BLOG_WORKSPACE.md')
   })

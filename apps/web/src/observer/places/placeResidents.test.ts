@@ -807,10 +807,12 @@ describe('describePlaceInspect', () => {
       nowText:
         'APIを直している\n画面の途中が残っています。\n最後に見えたのは1分前',
       implementationLook: null,
-      nextStep: null,
+      nextStep: '画面の途中を続ける',
       driverNote: null,
       goal: 'APIを直している',
+      placeIntro: null,
       articleTitles: [],
+      workTitles: [],
     })
   })
 
@@ -842,7 +844,7 @@ describe('describePlaceInspect', () => {
     const inspect = describePlaceInspect(resident!)
     expect(inspect.nowText).toBe('ログインの途中が残っています。')
     expect(inspect.implementationLook).toBeNull()
-    expect(inspect.nextStep).toBeNull()
+    expect(inspect.nextStep).toBe('ログインの途中を続ける')
     expect(inspect.driverNote).toBeNull()
     expect(inspect.nowText).not.toContain('変更元不明')
     expect(inspect.nowText).not.toContain('まだ分かっていません')
@@ -942,13 +944,14 @@ describe('describePlaceInspect', () => {
 
     expect(resident?.lastObservedWork).toBe('ログイン画面の直し')
     expect(describePlaceInspect(resident!)).toEqual({
-      nowText:
-        'いちばん新しい記録：ログイン画面の直し\n画面の途中が残っています。\n送っていない\n取り込み待ち',
+      nowText: '画面の途中が残っています。',
       implementationLook: null,
-      nextStep: null,
+      nextStep: '画面の途中を続ける',
       driverNote: null,
       goal: null,
+      placeIntro: 'いちばん新しい記録は『ログイン画面の直し』です',
       articleTitles: [],
+      workTitles: ['ログイン画面の直し'],
     })
     expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
       /SHA|commit|HEAD|origin|まだ分かっていません|Claude Code/,
@@ -1104,9 +1107,8 @@ describe('describeVisibleFacts', () => {
     )
     expect(describeVisibleFacts(resident!)).not.toContain('しまっていない変更')
     const inspect = describePlaceInspect(resident!)
-    expect(inspect.nowText).toBe(
-      '画面と確認の仕組みの途中が残っています。',
-    )
+    expect(inspect.nowText).toBe('画面と確認の仕組みの途中が残っています。')
+    expect(inspect.nextStep).toBe('画面と確認の仕組みの途中を続ける')
     expect(inspect.implementationLook).toBeNull()
     expect(inspect.nowText).not.toContain('しまっていない変更')
     expect(inspect.nowText).not.toContain('Office.tsx')
@@ -1194,6 +1196,9 @@ describe('describeVisibleFacts', () => {
     expect(describePlaceInspect(resident!).nowText).toBe(
       '道具と画面の途中が残っています。\n最後に見えたのは4時間前',
     )
+    expect(describePlaceInspect(resident!).nextStep).toBe(
+      '道具と画面の途中を続ける',
+    )
     expect(describePlaceInspect(resident!).nowText).not.toContain('observer.ts')
     expect(describePlaceInspect(resident!).nowText).not.toContain('schema.ts')
     expect(describePlaceInspect(resident!).nowText).not.toContain('データの形')
@@ -1218,6 +1223,8 @@ describe('describeVisibleFacts', () => {
     expect(describePlaceInspect(named!).nowText).toBe(
       'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です\n記事の途中が残っています。',
     )
+    expect(describePlaceInspect(named!).nextStep).toBe('記事の途中を続ける')
+    expect(describePlaceInspect(named!).placeIntro).toBeNull()
     expect(describePlaceInspect(named!).nowText).not.toContain('MEMORY.md')
     expect(describePlaceInspect(named!).nowText).not.toContain(
       'BLOG_WORKSPACE.md',
@@ -1233,6 +1240,7 @@ describe('describeVisibleFacts', () => {
     )
     expect(describeVisibleFacts(untitled!)).toBe('記事の続きがある')
     expect(describePlaceInspect(untitled!).nowText).toBe('記事の続きがある')
+    expect(describePlaceInspect(untitled!).nextStep).toBe('記事の途中を続ける')
     expect(describePlaceInspect(untitled!).nowText).not.toContain('AIチーム')
   })
 
@@ -1255,8 +1263,7 @@ describe('describeVisibleFacts', () => {
             }),
           ],
           {
-            workStory:
-              'いちばん新しい記事は『春のメモ』です',
+            workStory: 'いちばん新しい記事は『春のメモ』です',
             articleTitles: [
               { title: '春のメモ', date: '2026-08-15' },
               { title: '短い下書き', date: '2026-08-01' },
@@ -1274,7 +1281,103 @@ describe('describeVisibleFacts', () => {
       { title: '春のメモ', date: '2026-08-15' },
       { title: '短い下書き', date: '2026-08-01' },
     ])
-    expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain('縁側')
+    expect(describePlaceInspect(resident!).workTitles).toEqual([])
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain(
+      '縁側',
+    )
+  })
+
+  it('lists spoken recent work titles for a non-blog place', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [], {
+          latestRecordTitle: '庭のクリック詳細を厚くする',
+          workTitles: [
+            '庭のクリック詳細を厚くする',
+            'feat: launch HATARAKI office UI',
+            'a1b2c3d',
+            'ログイン画面の直し',
+            'Merge branch main',
+            'src/Office.tsx',
+          ],
+        }),
+      ]),
+    )
+
+    expect(resident?.workTitles).toEqual([
+      '庭のクリック詳細を厚くする',
+      'ログイン画面の直し',
+    ])
+    expect(describePlaceInspect(resident!).workTitles).toEqual([
+      '庭のクリック詳細を厚くする',
+      'ログイン画面の直し',
+    ])
+    expect(describePlaceInspect(resident!).placeIntro).toBe(
+      'いちばん新しい記録は『庭のクリック詳細を厚くする』です',
+    )
+    expect(describePlaceInspect(resident!).nowText).toBeNull()
+    expect(describePlaceInspect(resident!).nextStep).toBeNull()
+    expect(describePlaceInspect(resident!).articleTitles).toEqual([])
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
+      /feat:|a1b2c3d|Office\.tsx|Merge branch/,
+    )
+  })
+
+  it('omits the work history when no spoken title was read', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'hataraki', [], {
+          latestRecordTitle: 'feat: launch HATARAKI office UI',
+          workTitles: ['feat: launch HATARAKI office UI', 'a1b2c3d'],
+        }),
+      ]),
+    )
+
+    expect(resident?.workTitles).toEqual([])
+    expect(describePlaceInspect(resident!).workTitles).toEqual([])
+  })
+
+  it('does not put work titles on a blog kit place', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_blog', 'ws_blog', 'blog-agent-kit', [], {
+          workStory: '記事の続きがある',
+          workTitles: ['庭のクリック詳細を厚くする'],
+        }),
+      ]),
+    )
+
+    expect(resident?.workTitles).toEqual([])
+    expect(describePlaceInspect(resident!).workTitles).toEqual([])
+  })
+
+  it('uses a README intro as the place contents, never inventing one', () => {
+    const [named] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [], {
+          placeIntro: '働きの画面を整えるための場所です。',
+          latestRecordTitle: 'ログイン画面の直し',
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(named!).placeIntro).toBe(
+      '働きの画面を整えるための場所です。',
+    )
+    expect(describePlaceInspect(named!).nowText).toBeNull()
+    expect(JSON.stringify(describePlaceInspect(named!))).not.toContain(
+      'README.md',
+    )
+
+    const [unknown] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'notes', [], {
+          placeIntro: 'まだ分かっていません',
+        }),
+      ]),
+    )
+    expect(describePlaceInspect(unknown!).placeIntro).toBeNull()
+    expect(describePlaceInspect(unknown!).nowText).toBeNull()
+    expect(describePlaceInspect(unknown!).nextStep).toBeNull()
   })
 
   it('does not treat hook leftovers or fake-claude as a goal', () => {
@@ -1327,7 +1430,9 @@ function repository(
     readonly lastChangedAt?: string | null
     readonly latestRecordTitle?: string | null
     readonly workStory?: string | null
+    readonly placeIntro?: string | null
     readonly articleTitles?: RepositoryView['articleTitles']
+    readonly workTitles?: RepositoryView['workTitles']
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
     readonly worktrees?: RepositoryView['worktrees']
@@ -1346,7 +1451,9 @@ function repository(
     lastChangedLabel: null,
     latestRecordTitle: extras.latestRecordTitle ?? null,
     workStory: extras.workStory ?? null,
+    placeIntro: extras.placeIntro ?? null,
     articleTitles: extras.articleTitles ?? [],
+    workTitles: extras.workTitles ?? [],
     outgoingCount: extras.outgoingCount ?? null,
     incomingCount: extras.incomingCount ?? null,
     sessions,

@@ -367,11 +367,17 @@ describe('ObserverGarden', () => {
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     const inspect = screen.getByTestId('garden-inspect')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
     expect(inspect).toHaveTextContent('alpha番')
-    expect(inspect).toHaveTextContent('いま')
-    expect(inspect).toHaveTextContent('いまの仕事')
+    expect(labels).toContain('いま何をしているか')
+    expect(labels).toContain('次はどうするか')
+    expect(labels).not.toContain('いま')
+    expect(labels).not.toContain('いまの仕事')
     expect(inspect).toHaveTextContent('APIを直している')
     expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).toHaveTextContent('画面の途中を続ける')
     expect(inspect).toHaveTextContent('作業しています')
     expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('画面まわりを直している')
@@ -382,11 +388,13 @@ describe('ObserverGarden', () => {
     expect(inspect).not.toHaveTextContent('画面あたり')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent('作業中のファイル')
-    expect(inspect).not.toHaveTextContent('これから')
+    expect(labels).not.toContain('これから')
     expect(inspect).not.toHaveTextContent('いまの作業の続き')
     expect(inspect).not.toHaveTextContent('Codexが動かしている')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
-    expect(inspect).toHaveTextContent(/作業しています|仕事の合間にいます|確認を待っています/)
+    expect(inspect).toHaveTextContent(
+      /作業しています|仕事の合間にいます|確認を待っています/,
+    )
     expect(inspect.querySelector('.garden-inspect__title')).toHaveTextContent(
       'alpha番',
     )
@@ -526,8 +534,10 @@ describe('ObserverGarden', () => {
     const labels = [
       ...screen.getByTestId('garden-inspect').querySelectorAll('dt'),
     ].map((item) => item.textContent)
-    expect(labels).toContain('どこまでやったか')
-    expect(labels).toContain('次はこんな感じか')
+    expect(labels).toContain('いま何をしているか')
+    expect(labels).toContain('次はどうするか')
+    expect(labels).not.toContain('どこまでやったか')
+    expect(labels).not.toContain('次はこんな感じか')
     expect(labels).not.toContain('いま')
   })
 
@@ -604,12 +614,19 @@ describe('ObserverGarden', () => {
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('いちばん新しい記録：働きの直し')
+    const labels = [...inspect.querySelectorAll('dt')].map(
+      (item) => item.textContent,
+    )
+    expect(labels).toContain('いま何をしているか')
+    expect(labels).toContain('次はどうするか')
+    expect(labels).toContain('この場所は何の仕事か')
+    expect(labels).toContain('これまでの仕事')
+    expect(inspect).toHaveTextContent('いちばん新しい記録は『働きの直し』です')
     expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).toHaveTextContent('画面の途中を続ける')
     expect(inspect).not.toHaveTextContent('画面まわりを直している')
     expect(inspect).not.toHaveTextContent('記録する前の、途中の仕事です')
     expect(inspect).not.toHaveTextContent('途中の仕事が2')
-    expect(inspect).toHaveTextContent('送っていない')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
@@ -624,8 +641,10 @@ describe('ObserverGarden', () => {
       within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('どこまでやったか')
+    expect(inspect).toHaveTextContent('いま何をしているか')
     expect(inspect).toHaveTextContent('画面の途中が残っています。')
+    expect(inspect).toHaveTextContent('次はどうするか')
+    expect(inspect).toHaveTextContent('画面の途中を続ける')
     expect(inspect).not.toHaveTextContent('画面まわりを直している')
     expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('記録する前の、途中の仕事です')
@@ -666,8 +685,12 @@ describe('ObserverGarden', () => {
       ),
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('画面と確認の仕組みの途中が残っています。')
+    expect(inspect).toHaveTextContent('いま何をしているか')
+    expect(inspect).toHaveTextContent(
+      '画面と確認の仕組みの途中が残っています。',
+    )
+    expect(inspect).toHaveTextContent('次はどうするか')
+    expect(inspect).toHaveTextContent('画面と確認の仕組みの途中を続ける')
     expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('Office.tsx')
     expect(inspect).not.toHaveTextContent('garden.spec.ts')
@@ -720,11 +743,60 @@ describe('ObserverGarden', () => {
     )
     expect(inspect).toHaveTextContent('2026-08-01 短い下書き')
     expect(inspect).toHaveTextContent('記事の途中が残っています。')
+    expect(inspect).toHaveTextContent('次はどうするか')
+    expect(inspect).toHaveTextContent('記事の途中を続ける')
     expect(within(residents).queryByText('これまでの記事')).toBeNull()
     expect(inspect).not.toHaveTextContent('MEMORY.md')
     expect(inspect).not.toHaveTextContent('BLOG_WORKSPACE.md')
     expect(inspect).not.toHaveTextContent('STYLE.md')
     expect(inspect).not.toHaveTextContent('articles.log')
+    expect(inspect).not.toHaveTextContent('これまでの仕事')
+  })
+
+  it('shows spoken work titles on inspect for しくみローカル and hataraki', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_sikumi', 'sikumi-local', [], 0, [], {
+          workTitles: [
+            '庭の並列を直している',
+            'feat: launch HATARAKI office UI',
+            'ログイン画面の直し',
+          ],
+        }),
+        repository('repo_hataraki', 'hataraki', [], 0, [], {
+          workTitles: ['働きの画面を直している', 'a1b2c3d'],
+        }),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).queryByText('これまでの仕事')).toBeNull()
+    expect(within(residents).queryByText('これまでの記事')).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_sikumi')).getByRole(
+        'button',
+      ),
+    )
+    const sikumi = screen.getByTestId('garden-inspect')
+    expect(sikumi).toHaveTextContent('これまでの仕事')
+    expect(sikumi).toHaveTextContent('庭の並列を直している')
+    expect(sikumi).toHaveTextContent('ログイン画面の直し')
+    expect(sikumi).not.toHaveTextContent('feat:')
+    expect(sikumi).not.toHaveTextContent('これまでの記事')
+    expect(sikumi).not.toHaveTextContent('縁側')
+
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_hataraki')).getByRole(
+        'button',
+      ),
+    )
+    const hataraki = screen.getByTestId('garden-inspect')
+    expect(hataraki).toHaveTextContent('これまでの仕事')
+    expect(hataraki).toHaveTextContent('働きの画面を直している')
+    expect(hataraki).not.toHaveTextContent('a1b2c3d')
+    expect(hataraki).not.toHaveTextContent('これまでの記事')
   })
 
   it('does not show leftover files when a still place has none', async () => {
@@ -834,12 +906,16 @@ function gardenLookButton(name: '里山' | '工房') {
   )
 }
 
-function actorAtlasUrl(repositoryId: string): string {
+function actorSprite(repositoryId: string): HTMLElement {
   const sprite = screen
     .getByTestId(`garden-place-${repositoryId}`)
     .querySelector('.observer-garden-actor-sprite')
   expect(sprite).toBeInstanceOf(HTMLElement)
-  return (sprite as HTMLElement).style.backgroundImage
+  return sprite as HTMLElement
+}
+
+function actorAtlasUrl(repositoryId: string): string {
+  return actorSprite(repositoryId).style.backgroundImage
 }
 
 function renderGarden(
@@ -877,7 +953,9 @@ function repository(
   extras: {
     readonly latestRecordTitle?: string | null
     readonly workStory?: string | null
+    readonly placeIntro?: string | null
     readonly articleTitles?: RepositoryView['articleTitles']
+    readonly workTitles?: RepositoryView['workTitles']
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
     readonly worktrees?: RepositoryView['worktrees']
@@ -894,7 +972,9 @@ function repository(
     lastChangedLabel: null,
     latestRecordTitle: extras.latestRecordTitle ?? null,
     workStory: extras.workStory ?? null,
+    placeIntro: extras.placeIntro ?? null,
     articleTitles: extras.articleTitles ?? [],
+    workTitles: extras.workTitles ?? [],
     outgoingCount: extras.outgoingCount ?? null,
     incomingCount: extras.incomingCount ?? null,
     sessions,

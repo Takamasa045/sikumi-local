@@ -230,7 +230,9 @@ export function ObserverGarden({
                       driverNote: actor.driverNote,
                       live: actor.tone === 'working' || presence.traveling,
                       goal: actor.goal,
+                      placeIntro: actor.placeIntro,
                       articleTitles: actor.articleTitles,
+                      workTitles: actor.workTitles,
                     })
                   }}
                 />

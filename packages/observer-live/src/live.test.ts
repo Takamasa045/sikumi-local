@@ -68,6 +68,24 @@ describe('identifyLiveAgent', () => {
         args: 'ChatGPT Helper (GPU)',
       }),
     ).toBeNull()
+    expect(
+      identifyLiveAgent({
+        command: 'node',
+        args: 'node /Users/takamasa/Projects/*開発/hataraki/packages/provider-claude/fixtures/fake-claude.mjs',
+      }),
+    ).toBeNull()
+    expect(
+      identifyLiveAgent({
+        command: 'node',
+        args: 'node packages/provider-codex/fixtures/fake-codex.mjs',
+      }),
+    ).toBeNull()
+    expect(
+      identifyLiveAgent({
+        command: 'node',
+        args: 'node packages/process-runtime/fixtures/linger-child.mjs',
+      }),
+    ).toBeNull()
   })
 })
 
@@ -76,6 +94,8 @@ describe('acceptStoredTitle', () => {
     expect(acceptStoredTitle('ログイン画面の直し')).toBe('ログイン画面の直し')
     expect(acceptStoredTitle('作業中')).toBeNull()
     expect(acceptStoredTitle('Codexの作業が始まりました')).toBeNull()
+    expect(acceptStoredTitle('Claude Codeがファイルを扱っています')).toBeNull()
+    expect(acceptStoredTitle('Codexがファイルを扱っています')).toBeNull()
     expect(acceptStoredTitle('/Users/me/project')).toBeNull()
     expect(acceptStoredTitle(`${'長い依頼文です。'.repeat(20)}`)).toBeNull()
     expect(acceptStoredTitle('first line\nsecond line')).toBeNull()
@@ -318,6 +338,49 @@ describe('desktop and alias discovery', () => {
       repositoryId: 'repo-hataraki',
       cwd: live,
     })
+  })
+
+  it('ignores leftover fixture processes even inside a registered twin', () => {
+    const home = track(createTempDir('home-'))
+    const registered = '/Users/takamasa/Projects/hataraki'
+    const live = '/Users/takamasa/Projects/*開発/hataraki'
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', registered)],
+      listProcesses: () => [
+        processRow({
+          pid: 41,
+          user: 'mei',
+          command: 'node',
+          args: `node ${live}/packages/provider-claude/fixtures/fake-claude.mjs`,
+          cwd: `${live}/packages/provider-claude/fixtures`,
+        }),
+        processRow({
+          pid: 42,
+          user: 'mei',
+          command: 'node',
+          args: `node ${live}/packages/provider-codex/fixtures/fake-codex.mjs`,
+          cwd: live,
+        }),
+        processRow({
+          pid: 43,
+          user: 'mei',
+          command: 'ChatGPT',
+          args: '/Applications/ChatGPT.app/Contents/MacOS/ChatGPT',
+          cwd: live,
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      source: 'codex',
+      surface: 'desktop-app',
+      repositoryId: 'repo-hataraki',
+    })
+    expect(sightings.some((item) => item.source === 'claude-code')).toBe(false)
   })
 
   it('uses a child cwd when Codex Desktop is alive at /', () => {

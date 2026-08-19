@@ -21,6 +21,8 @@ const GENERIC_PATTERNS = [
   /の作業が終わりました$/,
   /の様子が届きました$/,
   /が確認を待っています$/,
+  /がファイルを扱っています$/,
+  /が道具を使っています$/,
 ]
 
 export function acceptStoredTitle(value: unknown): string | null {

@@ -13,7 +13,6 @@ import {
   SHIKUMI_PLACE_NAME,
   sortPlaceResidents,
   spreadGardenGroundPlots,
-  UNKNOWN_PLACE_WORK,
 } from './placeResidents'
 
 type RepositoryView = TodayOverview['repositories'][number]
@@ -71,14 +70,14 @@ describe('collectPlaceResidents', () => {
       lastObservedWork: 'APIを直している',
       lastObservedLabel: '1分前',
       lastObservedWorkLabel: '1分前',
-      driverNote: 'Codexが動かしている',
+      driverNote: null,
     })
     expect(residents[1]).toMatchObject({
       placeName: 'ウェブ番',
       repositoryName: 'my-website',
       working: false,
       waiting: false,
-      lastObservedWork: UNKNOWN_PLACE_WORK,
+      lastObservedWork: '',
     })
   })
 
@@ -100,8 +99,9 @@ describe('collectPlaceResidents', () => {
 
     expect(resident?.working).toBe(false)
     expect(resident?.waiting).toBe(false)
-    expect(resident?.lastObservedWork).toBe(UNKNOWN_PLACE_WORK)
+    expect(resident?.lastObservedWork).toBe('')
     expect(resident?.placeName).toBe('alpha番')
+    expect(resident?.driverNote).toBeNull()
   })
 
   it('includes registered workspaces that are not yet in the overview', () => {
@@ -113,7 +113,7 @@ describe('collectPlaceResidents', () => {
     expect(residents[0]).toMatchObject({
       placeName: 'ブログ番',
       working: false,
-      lastObservedWork: UNKNOWN_PLACE_WORK,
+      lastObservedWork: '',
     })
   })
 
@@ -158,7 +158,8 @@ describe('collectPlaceResidents', () => {
 
     expect(resident?.waiting).toBe(true)
     expect(resident?.working).toBe(false)
-    expect(resident?.lastObservedWork).toBe(UNKNOWN_PLACE_WORK)
+    expect(resident?.lastObservedWork).toBe('')
+    expect(resident?.driverNote).toBeNull()
     expect(placeActivityLabel(resident!)).toBe('確認待ち')
   })
 })
@@ -326,15 +327,15 @@ describe('collectGardenActors', () => {
     const working = actors.find((actor) => actor.placeName === 'ブログ番')
     expect(working?.station).toBe('workbench')
     expect(working?.repositoryName).toBe('my-blog')
-    expect(working?.workSummary).toBe('APIを直している')
-    expect(working?.nowText).toBe('動いている。APIを直している')
-    expect(working?.nextStep).toBe('いまの作業の続き')
-    expect(working?.driverNote).toBe('Codexが動かしている')
+    expect(working?.workSummary).toBe('動いている / APIを直している')
+    expect(working?.nowText).toBe('動いている / APIを直している')
+    expect(working?.nextStep).toBeNull()
+    expect(working?.driverNote).toBeNull()
     const quiet = actors.find((actor) => actor.placeName === 'notes番')
-    expect(quiet?.workSummary).toBe(UNKNOWN_PLACE_WORK)
-    expect(quiet?.nowText).toBe('静か。まだ分かっていません')
-    expect(quiet?.implementationLook).toBe(UNKNOWN_PLACE_WORK)
-    expect(quiet?.nextStep).toBe('次に動かすまで待つ')
+    expect(quiet?.workSummary).toBe('')
+    expect(quiet?.nowText).toBeNull()
+    expect(quiet?.implementationLook).toBeNull()
+    expect(quiet?.nextStep).toBeNull()
     expect(['rest', 'delivery']).toContain(quiet?.station)
     expect(working?.groundX).not.toBe(quiet?.groundX)
     expect(Math.min(working!.groundX, quiet!.groundX)).toBeGreaterThanOrEqual(
@@ -470,10 +471,11 @@ describe('describePlaceInspect', () => {
     )
 
     expect(describePlaceInspect(resident!)).toEqual({
-      nowText: '動いている。APIを直している（1分前）',
-      implementationLook: '作業中のファイルがいくつかある。画面やAPIあたりです',
-      nextStep: 'いまの作業の続き',
-      driverNote: 'Codexが動かしている',
+      nowText:
+        '動いている / APIを直している / 作業中のファイルが3 / 画面あたり / 最後に見えたのは1分前',
+      implementationLook: '作業中のファイルが3 / 画面やAPIあたり',
+      nextStep: null,
+      driverNote: null,
     })
   })
 
@@ -503,13 +505,14 @@ describe('describePlaceInspect', () => {
     )
 
     const inspect = describePlaceInspect(resident!)
-    expect(inspect.nowText).toBe('静か。まだ分かっていません')
+    expect(inspect.nowText).toBe('作業中のファイルが1 / ログイン状態あたり')
     expect(inspect.implementationLook).toBe(
-      '作業中のファイルが1つある。ログイン状態あたりです',
+      '作業中のファイルが1 / ログイン状態あたり',
     )
-    expect(inspect.nextStep).toBe('次に動かすまで待つ')
+    expect(inspect.nextStep).toBeNull()
     expect(inspect.driverNote).toBeNull()
     expect(inspect.nowText).not.toContain('変更元不明')
+    expect(inspect.nowText).not.toContain('まだ分かっていません')
     expect(inspect.implementationLook).not.toContain('変更元不明')
   })
 
@@ -530,10 +533,10 @@ describe('describePlaceInspect', () => {
     )
 
     expect(describePlaceInspect(resident!)).toMatchObject({
-      nowText: '確認待ち。承認が必要',
-      implementationLook: UNKNOWN_PLACE_WORK,
+      nowText: '確認待ち / 承認が必要',
+      implementationLook: null,
       nextStep: '確認が必要',
-      driverNote: 'Claude Codeが動かしている',
+      driverNote: null,
     })
   })
 
@@ -547,9 +550,55 @@ describe('describePlaceInspect', () => {
     )
 
     expect(describePlaceInspect(resident!).nextStep).toBe('確認が必要')
-    expect(describePlaceInspect(resident!).nowText).toBe(
-      '静か。まだ分かっていません',
+    expect(describePlaceInspect(resident!).nowText).toBeNull()
+    expect(describePlaceInspect(resident!).driverNote).toBeNull()
+  })
+
+  it('does not name a tool from a generic Claude Code template', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'hataraki', [
+          session({
+            id: 'fake',
+            source: 'claude-code',
+            displayName: 'Claude Code',
+            title: 'Claude Codeがファイルを扱っています',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
     )
+
+    expect(resident?.driverNote).toBeNull()
+    expect(resident?.lastObservedWork).toBe('')
+    expect(describePlaceInspect(resident!).nowText).toBe('動いている')
+    expect(describePlaceInspect(resident!).nowText).not.toContain('Claude Code')
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain(
+      'まだ分かっていません',
+    )
+  })
+
+  it('names Codex only when the desktop app is confirmed', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'hataraki', [
+          session({
+            id: 'desk',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '作業中',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+
+    expect(resident?.driverNote).toBe('Codexが動かしている')
+    expect(resident?.lastObservedWork).toBe('')
+    expect(describePlaceInspect(resident!).nowText).toBe('動いている')
   })
 })
 

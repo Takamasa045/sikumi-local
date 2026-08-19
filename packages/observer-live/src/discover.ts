@@ -1,5 +1,5 @@
 import { nowIso } from '@sikumi-local/observer-core'
-import { identifyLiveAgent } from './identify.js'
+import { identifyLiveAgent, isIgnoredLiveHaystack } from './identify.js'
 import { locateLiveProcess, sightingFromLocatedProcess } from './locate.js'
 import { matchRegisteredPlace } from './match.js'
 import { listCurrentUserLiveProcesses } from './processes.js'
@@ -31,6 +31,13 @@ export function discoverLiveSessions(
     currentUser: input.currentUser,
     ...(input.listProcesses ? { listRaw: input.listProcesses } : {}),
   })) {
+    if (
+      isIgnoredLiveHaystack(
+        `${process.command} ${process.args} ${process.cwd ?? ''}`,
+      )
+    ) {
+      continue
+    }
     const identified = identifyLiveAgent(process)
     if (!identified) {
       continue
@@ -63,6 +70,9 @@ export function discoverLiveSessions(
   }
 
   for (const record of sessionRecords) {
+    if (isIgnoredLiveHaystack(record.cwd)) {
+      continue
+    }
     const sighting = toLiveSighting(record, input.roots)
     if (!sighting) {
       continue

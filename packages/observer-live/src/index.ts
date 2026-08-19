@@ -1,6 +1,6 @@
 export { discoverLiveSessions } from './discover.js'
 export { liveSightingToEvent } from './events.js'
-export { identifyLiveAgent } from './identify.js'
+export { identifyLiveAgent, isIgnoredLiveHaystack } from './identify.js'
 export {
   isBindableCwd,
   isSameLeafAlias,

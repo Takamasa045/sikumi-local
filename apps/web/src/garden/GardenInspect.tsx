@@ -15,9 +15,9 @@ export type GardenInspectSubject =
       readonly traveling: boolean
       readonly summary: string
       readonly jobTitle?: string
-      readonly nowText?: string
-      readonly implementationLook?: string
-      readonly nextStep?: string
+      readonly nowText?: string | null
+      readonly implementationLook?: string | null
+      readonly nextStep?: string | null
       readonly driverNote?: string | null
       readonly live?: boolean
     }
@@ -106,56 +106,105 @@ function CharacterBody({
       </dd>
       {hasProgress && live ? (
         <>
-          <dt>いま</dt>
-          <dd>
-            {subject.nowText}
-            {subject.driverNote ? (
-              <span className="garden-inspect__driver">
-                {subject.driverNote}
-              </span>
-            ) : null}
-          </dd>
-          <dt>実装の様子</dt>
-          <dd>{subject.implementationLook}</dd>
-          <dt>これから</dt>
-          <dd>{subject.nextStep}</dd>
+          {knownLine(subject.nowText) ? (
+            <>
+              <dt>いま</dt>
+              <dd>
+                {subject.nowText}
+                {knownLine(subject.driverNote) ? (
+                  <span className="garden-inspect__driver">
+                    {subject.driverNote}
+                  </span>
+                ) : null}
+              </dd>
+            </>
+          ) : null}
+          {knownLine(subject.implementationLook) ? (
+            <>
+              <dt>実装の様子</dt>
+              <dd>{subject.implementationLook}</dd>
+            </>
+          ) : null}
+          {knownLine(subject.nextStep) ? (
+            <>
+              <dt>これから</dt>
+              <dd>{subject.nextStep}</dd>
+            </>
+          ) : null}
         </>
       ) : hasProgress ? (
         <>
-          <dt>どこまでやったか</dt>
-          <dd>
-            {describeStoppedLook(subject.nowText, subject.implementationLook)}
-            {subject.driverNote ? (
-              <span className="garden-inspect__driver">
-                {subject.driverNote}
-              </span>
-            ) : null}
-          </dd>
-          <dt>次はこんな感じか</dt>
-          <dd>{subject.nextStep}</dd>
+          {knownLine(
+            describeStoppedLook(subject.nowText, subject.implementationLook),
+          ) ? (
+            <>
+              <dt>どこまでやったか</dt>
+              <dd>
+                {describeStoppedLook(
+                  subject.nowText,
+                  subject.implementationLook,
+                )}
+                {knownLine(subject.driverNote) ? (
+                  <span className="garden-inspect__driver">
+                    {subject.driverNote}
+                  </span>
+                ) : null}
+              </dd>
+            </>
+          ) : null}
+          {knownLine(subject.nextStep) ? (
+            <>
+              <dt>次はこんな感じか</dt>
+              <dd>{subject.nextStep}</dd>
+            </>
+          ) : null}
         </>
       ) : (
         <>
-          {subject.jobTitle ? (
+          {subject.jobTitle && knownLine(subject.jobTitle) ? (
             <>
               <dt>仕事</dt>
               <dd>{subject.jobTitle}</dd>
             </>
           ) : null}
-          <dt>要約</dt>
-          <dd>{subject.summary}</dd>
+          {knownLine(subject.summary) ? (
+            <>
+              <dt>いま</dt>
+              <dd>{subject.summary}</dd>
+            </>
+          ) : null}
         </>
       )}
     </dl>
   )
 }
 
+function knownLine(value: string | null | undefined): boolean {
+  const trimmed = value?.trim() ?? ''
+  if (!trimmed) {
+    return false
+  }
+  if (
+    trimmed.includes('まだ分かっていません') ||
+    trimmed.includes('変更元不明') ||
+    trimmed.includes('の作業が始まりました') ||
+    trimmed.includes('がファイルを扱っています') ||
+    trimmed === '作業中' ||
+    trimmed === '作業' ||
+    trimmed === 'いまの作業の続き' ||
+    trimmed === '次に動かすまで待つ'
+  ) {
+    return false
+  }
+  return true
+}
+
 function describeStoppedLook(
-  nowText: string | undefined,
-  implementationLook: string | undefined,
+  nowText: string | null | undefined,
+  implementationLook: string | null | undefined,
 ): string {
-  const now = nowText?.trim() ?? ''
-  const look = implementationLook?.trim() ?? ''
+  const now = knownLine(nowText) ? nowText!.trim() : ''
+  const look = knownLine(implementationLook) ? implementationLook!.trim() : ''
   if (!look || now.includes(look)) {
     return now
   }

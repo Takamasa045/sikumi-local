@@ -12,6 +12,12 @@ import {
 
 export const UNKNOWN_PLACE_WORK = 'まだ分かっていません'
 export const SHIKUMI_PLACE_NAME = 'しくみローカル番'
+const CONFIRMED_TOOL_SURFACES = new Set([
+  'desktop-app',
+  'ide',
+  'cursor-agent',
+  'cursor-cli',
+])
 
 const ATLAS_COLUMNS = 3
 const ATLAS_ROWS = 4
@@ -55,9 +61,9 @@ export type PlaceResident = {
 }
 
 export type PlaceInspectCopy = {
-  readonly nowText: string
-  readonly implementationLook: string
-  readonly nextStep: string
+  readonly nowText: string | null
+  readonly implementationLook: string | null
+  readonly nextStep: string | null
   readonly driverNote: string | null
 }
 
@@ -67,9 +73,9 @@ export type GardenPlaceActor = {
   readonly placeName: string
   readonly repositoryName: string
   readonly workSummary: string
-  readonly nowText: string
-  readonly implementationLook: string
-  readonly nextStep: string
+  readonly nowText: string | null
+  readonly implementationLook: string | null
+  readonly nextStep: string | null
   readonly driverNote: string | null
   readonly station: GardenPlaceStation
   readonly tone: GardenPlaceTone
@@ -145,10 +151,12 @@ export function collectPlaceResidents(
         }
         return resolveTone(session.status, session.activity) === 'working'
       }),
-      waiting: observed.some(
-        (session) =>
-          resolveTone(session.status, session.activity) === 'waiting',
-      ),
+      waiting: observed.some((session) => {
+        if (!shouldShowGardenDog(session, nowMs)) {
+          return false
+        }
+        return resolveTone(session.status, session.activity) === 'waiting'
+      }),
       lastObservedWork: describePlaceWork(observed, repository, nowMs),
       lastObservedLabel: latest?.lastObservedLabel ?? null,
       lastObservedWorkLabel: latestObserved?.lastObservedLabel ?? null,
@@ -172,7 +180,7 @@ export function collectPlaceResidents(
       repositoryName: workspace.repository.displayName,
       working: false,
       waiting: false,
-      lastObservedWork: UNKNOWN_PLACE_WORK,
+      lastObservedWork: '',
       lastObservedLabel: null,
       lastObservedWorkLabel: null,
       lastChangedAt: workspace.updatedAt,
@@ -206,7 +214,7 @@ export function collectGardenActors(
         repositoryId: resident.repositoryId,
         placeName: resident.placeName,
         repositoryName: resident.repositoryName,
-        workSummary: resident.lastObservedWork,
+        workSummary: describeVisibleFacts(resident),
         nowText: inspect.nowText,
         implementationLook: inspect.implementationLook,
         nextStep: inspect.nextStep,
@@ -394,17 +402,38 @@ export function placeActivityLabel(resident: PlaceResident): string {
   return '静か'
 }
 
+export function describeVisibleFacts(resident: PlaceResident): string {
+  const parts: string[] = []
+  if (resident.working) {
+    parts.push('動いている')
+  } else if (resident.waiting) {
+    parts.push('確認待ち')
+  }
+  const work = resident.lastObservedWork.trim()
+  if (work && !isGenericWorkTitle(work) && work !== UNKNOWN_PLACE_WORK) {
+    parts.push(work)
+  }
+  if (resident.changedFileCount > 0) {
+    parts.push(`作業中のファイルが${resident.changedFileCount}`)
+  }
+  const area = uniqueLabels(resident.areas).find(
+    (item) => item && item !== '作業中のファイル',
+  )
+  if (area) {
+    parts.push(`${area}あたり`)
+  }
+  if (resident.lastObservedWorkLabel) {
+    parts.push(`最後に見えたのは${resident.lastObservedWorkLabel}`)
+  }
+  return parts.join(' / ')
+}
+
 export function describePlaceInspect(
   resident: PlaceResident,
 ): PlaceInspectCopy {
-  const activity = placeActivityLabel(resident)
-  const work = resident.lastObservedWork.trim() || UNKNOWN_PLACE_WORK
-  const when =
-    work !== UNKNOWN_PLACE_WORK && resident.lastObservedWorkLabel
-      ? `（${resident.lastObservedWorkLabel}）`
-      : ''
+  const nowText = describeVisibleFacts(resident) || null
   return {
-    nowText: `${activity}。${work}${when}`,
+    nowText,
     implementationLook: describeImplementationLook(resident),
     nextStep: describeNextStep(resident),
     driverNote: resident.driverNote,
@@ -416,14 +445,13 @@ function describePlaceWork(
   repository: OverviewRepository,
   nowMs: number,
 ): string {
-  const current = sessions.filter((session) => {
-    const tone = resolveTone(session.status, session.activity)
-    return tone === 'waiting' || shouldShowGardenDog(session, nowMs)
-  })
+  const current = sessions.filter((session) =>
+    shouldShowGardenDog(session, nowMs),
+  )
   const ranked = [...current].sort(compareObservedAt)
   for (const session of ranked) {
     const title = session.title?.trim()
-    if (title && !isGenericWorkTitle(title)) {
+    if (title && !isGenericWorkTitle(title) && title !== UNKNOWN_PLACE_WORK) {
       return title
     }
     const named = session.displayName?.trim()
@@ -432,6 +460,7 @@ function describePlaceWork(
       named &&
       !isGenericWorkTitle(named) &&
       named !== sourceLabel &&
+      named !== UNKNOWN_PLACE_WORK &&
       named.toLowerCase() !== sourceKey(session.source)
     ) {
       return named
@@ -441,50 +470,50 @@ function describePlaceWork(
   if (latest) {
     const described = describeGardenWork(latest, repository)
     if (
+      described &&
       described !== UNKNOWN_GARDEN_WORK &&
+      described !== UNKNOWN_PLACE_WORK &&
+      !isGenericWorkTitle(described) &&
       !described.endsWith('が対象です')
     ) {
       return described
     }
   }
-  return UNKNOWN_PLACE_WORK
+  return ''
 }
 
-function describeImplementationLook(resident: PlaceResident): string {
+function describeImplementationLook(resident: PlaceResident): string | null {
   const count = resident.changedFileCount
   const named = uniqueLabels(resident.areas).filter(
     (area) => area !== '作業中のファイル',
   )
   const shown = named.slice(0, 2)
   if (count <= 0 && shown.length === 0) {
-    return UNKNOWN_PLACE_WORK
+    return null
   }
   const filesPhrase =
-    count === 1 ? '作業中のファイルが1つある' : '作業中のファイルがいくつかある'
-  if (count <= 0) {
+    count > 0 ? `作業中のファイルが${count}` : null
+  if (!filesPhrase) {
     return shown.length === 1
-      ? `${shown[0]}あたりの様子が見えています`
-      : `${shown[0]}や${shown[1]}あたりの様子が見えています`
+      ? `${shown[0]}あたり`
+      : `${shown[0]}や${shown[1]}あたり`
   }
   if (shown.length === 0) {
     return filesPhrase
   }
   if (shown.length === 1) {
-    return `${filesPhrase}。${shown[0]}あたりです`
+    return `${filesPhrase} / ${shown[0]}あたり`
   }
-  return `${filesPhrase}。${shown[0]}や${shown[1]}あたりです`
+  return `${filesPhrase} / ${shown[0]}や${shown[1]}あたり`
 }
 
 function describeNextStep(
-  resident: Pick<PlaceResident, 'waiting' | 'working' | 'conflictCount'>,
-): string {
+  resident: Pick<PlaceResident, 'waiting' | 'conflictCount'>,
+): string | null {
   if (resident.waiting || resident.conflictCount > 0) {
     return '確認が必要'
   }
-  if (resident.working) {
-    return 'いまの作業の続き'
-  }
-  return '次に動かすまで待つ'
+  return null
 }
 
 function lookAreas(repository: OverviewRepository): string[] {
@@ -509,11 +538,10 @@ function describeObservedDriver(
 ): string | null {
   const labels: string[] = []
   for (const session of sessions) {
-    const tone = resolveTone(session.status, session.activity)
-    const live =
-      tone === 'waiting' ||
-      (tone === 'working' && shouldShowGardenDog(session, nowMs))
-    if (!live) {
+    if (!shouldShowGardenDog(session, nowMs)) {
+      continue
+    }
+    if (!isConfirmedTool(session)) {
       continue
     }
     const label = knownSourceLabel(session.source)
@@ -531,6 +559,29 @@ function describeObservedDriver(
     return `${labels[0]}と${labels[1]}が動かしている`
   }
   return `${labels[0]}と${labels[1]}などが動かしている`
+}
+
+export function isConfirmedTool(session: OverviewSession): boolean {
+  if (
+    sourceKey(session.source) === 'git' ||
+    session.attributionConfidence === 'inferred'
+  ) {
+    return false
+  }
+  if (!knownSourceLabel(session.source)) {
+    return false
+  }
+  const surface = session.surface?.trim() ?? ''
+  if (CONFIRMED_TOOL_SURFACES.has(surface)) {
+    return true
+  }
+  const title = session.title?.trim() ?? ''
+  return (
+    session.attributionConfidence === 'verified' &&
+    Boolean(title) &&
+    !isGenericWorkTitle(title) &&
+    title !== UNKNOWN_PLACE_WORK
+  )
 }
 
 function uniqueLabels(values: readonly string[]): string[] {

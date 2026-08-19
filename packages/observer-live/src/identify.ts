@@ -11,6 +11,27 @@ const HELPER_MARKERS = [
   'language server',
 ]
 
+const TEST_PROCESS_MARKERS = [
+  'fake-claude',
+  'fake-codex',
+  'fake-cli',
+  'linger-child',
+  '/fixtures/',
+  '\\fixtures\\',
+]
+
+export function isIgnoredLiveHaystack(value: string): boolean {
+  const haystack = value.toLowerCase().replaceAll('\\', '/')
+  if (
+    TEST_PROCESS_MARKERS.some((marker) =>
+      haystack.includes(marker.replaceAll('\\', '/')),
+    )
+  ) {
+    return true
+  }
+  return /(?:^|[/\s._-])(?:fake-|linger-)/.test(haystack)
+}
+
 export function identifyLiveAgent(input: {
   readonly command: string
   readonly args: string
@@ -20,6 +41,9 @@ export function identifyLiveAgent(input: {
     return null
   }
   if (haystack.includes('sikumi-observer')) {
+    return null
+  }
+  if (isIgnoredLiveHaystack(`${input.command} ${input.args}`)) {
     return null
   }
 
@@ -43,6 +67,9 @@ function identifyToken(
     return { source: 'cursor', surface: 'ide' }
   }
   const exact = token.toLowerCase()
+  if (exact.startsWith('fake-') || exact.startsWith('linger-')) {
+    return null
+  }
   if (exact === 'codex' || exact === 'codex-exec') {
     return { source: 'codex', surface: 'cli' }
   }

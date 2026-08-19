@@ -54,7 +54,7 @@ test('the garden shows registered places as characters, not a list', async ({
   await expect(page.getByRole('region', { name: '○○番の一覧' })).toHaveCount(0)
   await expect(page.getByRole('list', { name: '庭の住人' })).toBeVisible()
   await expect(page.getByText('しくみローカル番').first()).toBeVisible()
-  await expect(page.getByText('まだ分かっていません').first()).toBeVisible()
+  await expect(page.getByText('まだ分かっていません')).toHaveCount(0)
   await expect(page.getByTestId('garden-employee')).toHaveCount(0)
   await expect(
     page.getByRole('heading', { name: '出どころ未確認の変更' }),
@@ -74,10 +74,10 @@ test('the garden shows registered places as characters, not a list', async ({
   const inspect = page.getByTestId('garden-inspect')
   await expect(inspect).toContainText('しくみローカル番')
   await expect(inspect).toContainText('どこまでやったか')
-  await expect(inspect).toContainText('静か。まだ分かっていません')
   await expect(inspect).toContainText('作業中のファイル')
-  await expect(inspect).toContainText('次はこんな感じか')
-  await expect(inspect).toContainText('次に動かすまで待つ')
+  await expect(inspect).not.toContainText('まだ分かっていません')
+  await expect(inspect).not.toContainText('次に動かすまで待つ')
+  await expect(inspect).not.toContainText('次はこんな感じか')
   await expect(inspect).not.toContainText('変更元不明の作業')
 })
 

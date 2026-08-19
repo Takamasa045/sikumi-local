@@ -32,6 +32,7 @@ export type PlaceResident = {
   readonly waiting: boolean
   readonly lastObservedWork: string
   readonly lastObservedLabel: string | null
+  readonly operatorSummary: string | null
 }
 
 export type GardenPlaceActor = {
@@ -39,6 +40,7 @@ export type GardenPlaceActor = {
   readonly repositoryId: string
   readonly placeName: string
   readonly workSummary: string
+  readonly operatorSummary: string | null
   readonly station: GardenPlaceStation
   readonly tone: GardenPlaceTone
   readonly column: number
@@ -116,6 +118,7 @@ export function collectPlaceResidents(
       ),
       lastObservedWork: describePlaceWork(observed, repository, nowMs),
       lastObservedLabel: latest?.lastObservedLabel ?? null,
+      operatorSummary: describePlaceOperator(observed, nowMs),
     }
   })
   const extras = workspaces
@@ -132,6 +135,7 @@ export function collectPlaceResidents(
       waiting: false,
       lastObservedWork: UNKNOWN_PLACE_WORK,
       lastObservedLabel: null,
+      operatorSummary: null,
     }))
   return [...fromOverview, ...extras]
 }
@@ -155,6 +159,7 @@ export function collectGardenActors(
         repositoryId: resident.repositoryId,
         placeName: resident.placeName,
         workSummary: resident.lastObservedWork,
+        operatorSummary: resident.operatorSummary,
         station: stationForResident(resident, hash),
         tone,
         column: hash % ATLAS_COLUMNS,
@@ -179,6 +184,35 @@ export function stationForResident(
   if (resident.waiting) return 'waiting'
   if (resident.working) return 'workbench'
   return QUIET_STATIONS[hash % QUIET_STATIONS.length] ?? 'rest'
+}
+
+export function describePlaceOperator(
+  sessions: readonly OverviewSession[],
+  nowMs: number,
+): string | null {
+  const live = sessions.filter((session) => {
+    const tone = resolveTone(session.status, session.activity)
+    return tone === 'waiting' || shouldShowGardenDog(session, nowMs)
+  })
+  const labels = uniqueLabels(
+    live
+      .map((session) => knownSourceLabel(session.source))
+      .filter((label): label is string => Boolean(label)),
+  )
+  if (labels.length === 0) {
+    return null
+  }
+  const waitingOnly = live.every(
+    (session) => resolveTone(session.status, session.activity) === 'waiting',
+  )
+  if (waitingOnly) {
+    return labels.length === 1
+      ? `${labels[0]}が確認を待っています`
+      : `${labels.join('と')}が確認を待っています`
+  }
+  return labels.length === 1
+    ? `${labels[0]}が動かしている`
+    : `${labels.join('と')}が動かしている`
 }
 
 export function placeActivityLabel(resident: PlaceResident): string {
@@ -231,6 +265,10 @@ function describePlaceWork(
     }
   }
   return UNKNOWN_PLACE_WORK
+}
+
+function uniqueLabels(labels: readonly string[]): string[] {
+  return [...new Set(labels)]
 }
 
 function latestSession(

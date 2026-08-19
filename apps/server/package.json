@@ -22,6 +22,7 @@
     "@sikumi-local/observer-cursor": "workspace:*",
     "@sikumi-local/observer-grok": "workspace:*",
     "@sikumi-local/observer-git": "workspace:*",
+    "@sikumi-local/observer-live": "workspace:*",
     "@sikumi-local/process-runtime": "workspace:*",
     "@sikumi-local/provider-claude": "workspace:*",
     "@sikumi-local/provider-codex": "workspace:*",

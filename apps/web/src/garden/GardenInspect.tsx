@@ -15,6 +15,7 @@ export type GardenInspectSubject =
       readonly traveling: boolean
       readonly summary: string
       readonly jobTitle?: string
+      readonly operatorSummary?: string | null
     }
   | {
       readonly kind: 'station'
@@ -94,6 +95,12 @@ function CharacterBody({
       <dd>
         {subject.traveling ? `${place}へ向かっています` : `${place}にいます`}
       </dd>
+      {subject.operatorSummary ? (
+        <>
+          <dt>いま</dt>
+          <dd>{subject.operatorSummary}</dd>
+        </>
+      ) : null}
       {subject.jobTitle ? (
         <>
           <dt>仕事</dt>

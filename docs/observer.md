@@ -11,7 +11,7 @@ Shikumi Local の主画面は、各AIアプリから仕事を頼む場所では�
 - 別々の作業場が同じファイルや同じ仕組みを触っていないか
 - 衝突の可能性を、かんたんなことばで横断確認できるか
 
-直接つながっていない場合、変更が Codex / Cursor / 人間のどれかは分かりません。画面では「変更元不明」と出します。
+フォルダを登録すれば、そこで今動いている Codex / Claude Code / Cursor / Grok を自分で見つけます。つなぐ（Hooks）は任意です。失敗しても観測は進みます。Git だけで見つかった変更は、画面では「変更元不明」と出します。題名が取れなければ「まだ分かっていません」。
 
 ## 衝突エンジン
 
@@ -68,7 +68,7 @@ Portable export に Observer 履歴は含めない。Server の bind は `127.0.
 `sikumi-observer-bridge <source>` は、各アプリの Hook から呼ばれる軽量コマンドです。
 失敗しても AI 側の作業は止めません。データは `~/.shikumi-local/observer/inbox/<source>/` に書きます。
 
-Phase 2 / 3 / 4 / 5 では Codex Hooks、Claude Code Hooks、Cursor Hooks、Grok Build Hook / Plugin を導入できます。導入と解除は preview → 明示ボタンの二段階です。preview はまだ書き込みません。対象 path と差分、plan digest を返します。apply は `confirm: true`、digest 一致、CSRF / ログインが必須です。digest は TOCTOU 検出用で、認可トークンではありません。対象 directory は server が決めます。公開APIは `homeDir` / `repoDir` / `allowRealUserApply` を受けません。条件を満たしたときだけ server が内部で実ユーザー home への適用を許可します。Cursor、Grok Build、Claude Code はユーザー全体と登録 Repository 限定を選べます。Codex はユーザー全体です。Cursor Tab の編集は保存と競合検知に使いますが、トップ画面では時間窓・Repository・path 単位にまとめます。Cursor Cloud Agent は初期対象外です。Grok Build は plugin / trust の記述だけでは ready としません。streaming-json の text / thought / 全文は保存しません。ACP では Grok を起動・管理しません。
+Phase 2 / 3 / 4 / 5 では Codex Hooks、Claude Code Hooks、Cursor Hooks、Grok Build Hook / Plugin を導入できます。つなぐは必須ではありません。導入と解除は preview → 明示ボタンの二段階です。preview はまだ書き込みません。対象 path と差分、plan digest を返します。apply は `confirm: true`、digest 一致、CSRF / ログインが必須です。digest は TOCTOU 検出用で、認可トークンではありません。対象 directory は server が決めます。公開APIは `homeDir` / `repoDir` / `allowRealUserApply` を受けません。条件を満たしたときだけ server が内部で実ユーザー home への適用を許可します。Cursor、Grok Build、Claude Code はユーザー全体と登録 Repository 限定を選べます。Codex はユーザー全体です。Cursor Tab の編集は保存と競合検知に使いますが、トップ画面では時間窓・Repository・path 単位にまとめます。Cursor Cloud Agent は初期対象外です。Grok Build は plugin / trust の記述だけでは ready としません。streaming-json の text / thought / 全文は保存しません。ACP では Grok を起動・管理しません。
 
 Phase 6 の Claudeアプリ通常チャットは制限付きの協調報告です。自動の全チャット観測ではありません。Sikumi は `.mcpb` パッケージを生成・ダウンロードできるだけです。Claude Desktop の Settings > Extensions へ入れる操作はユーザーが行います。Sikumi は Claude Desktop の設定ファイルを読み書きしません。報告がない Git 変更は変更元不明のまま残し、Claude 由来だと断定しません。保存するのは session、登録Repository、resource のメタデータだけです。Prompt、返答、会話全文、ファイル本文、秘密情報は保存しません。
 

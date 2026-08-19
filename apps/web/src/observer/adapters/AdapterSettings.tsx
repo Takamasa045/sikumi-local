@@ -133,10 +133,9 @@ export function AdapterSettings() {
     <section className="observer-adapters" data-testid="observer-adapters">
       <h3>庭につなぐ道具</h3>
       <p>
-        フォルダを登録したあと、Codex や Claude Code
-        が庭に様子を知らせるには、一度つなぎます。つないだら、そのフォルダでいつもどおり動かせば庭が反応します。Cursor
-        と Grok Build
-        も同じです。Claudeアプリは、自分から知らせてくれた分だけ届きます。
+        フォルダを登録すれば、そこで動かしている Codex や Claude Code
+        は庭に出ます。つなぐは任意です。つないでも、失敗しても、観測は進みます。Cursor
+        と Grok Build も同じです。Claudeアプリは、自分から知らせてくれた分だけ届きます。
       </p>
       {error ? (
         <p className="repository-panel__error" role="alert">

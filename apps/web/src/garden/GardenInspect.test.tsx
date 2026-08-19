@@ -16,12 +16,16 @@ describe('GardenInspect', () => {
           traveling: true,
           summary: 'この工房の資料を読んでいます',
           jobTitle: '調査',
+          operatorSummary: 'Codexが動かしている',
         }}
         onClose={onClose}
       />,
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       '資料棚へ向かっています',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'Codexが動かしている',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('調査')
     await userEvent.keyboard('{Escape}')

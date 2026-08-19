@@ -65,6 +65,7 @@ describe('collectPlaceResidents', () => {
       waiting: false,
       lastObservedWork: 'APIを直している',
       lastObservedLabel: '1分前',
+      operatorSummary: 'Codexが動かしている',
     })
     expect(residents[1]).toMatchObject({
       placeName: 'ウェブ番',
@@ -94,6 +95,7 @@ describe('collectPlaceResidents', () => {
     expect(resident?.working).toBe(false)
     expect(resident?.waiting).toBe(false)
     expect(resident?.lastObservedWork).toBe(UNKNOWN_PLACE_WORK)
+    expect(resident?.operatorSummary).toBeNull()
     expect(resident?.placeName).toBe('alpha番')
   })
 
@@ -129,6 +131,7 @@ describe('collectPlaceResidents', () => {
     expect(resident?.waiting).toBe(true)
     expect(resident?.working).toBe(false)
     expect(resident?.lastObservedWork).toBe(UNKNOWN_PLACE_WORK)
+    expect(resident?.operatorSummary).toBe('Claude Codeが確認を待っています')
     expect(placeActivityLabel(resident!)).toBe('確認待ち')
   })
 })
@@ -167,8 +170,10 @@ describe('collectGardenActors', () => {
     const working = actors.find((actor) => actor.placeName === 'ブログ番')
     expect(working?.station).toBe('workbench')
     expect(working?.workSummary).toBe('APIを直している')
+    expect(working?.operatorSummary).toBe('Codexが動かしている')
     const quiet = actors.find((actor) => actor.placeName === 'notes番')
     expect(quiet?.workSummary).toBe(UNKNOWN_PLACE_WORK)
+    expect(quiet?.operatorSummary).toBeNull()
     expect(['archive', 'rest', 'delivery']).toContain(quiet?.station)
   })
 })

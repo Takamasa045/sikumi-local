@@ -170,7 +170,7 @@ describe('ObserverGarden', () => {
     expect(inspect).toHaveTextContent('alpha番')
     expect(inspect).toHaveTextContent('APIを直している')
     expect(inspect).toHaveTextContent('作業台')
-    expect(inspect).not.toHaveTextContent('Codex')
+    expect(inspect).toHaveTextContent('Codexが動かしている')
     expect(inspect).not.toHaveTextContent('望遠鏡')
     expect(screen.queryByTestId('garden-employee')).toBeNull()
     expect(
@@ -244,6 +244,9 @@ describe('ObserverGarden', () => {
     await userEvent.click(within(residents).getByRole('button'))
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       'まだ分かっていません',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'Codexが動かしている',
     )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
   })

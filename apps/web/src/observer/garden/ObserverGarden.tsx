@@ -214,6 +214,9 @@ export function ObserverGarden({
                       station: actor.station,
                       traveling: actorTravel[actor.key] === true,
                       summary: actor.workSummary,
+                      ...(actor.operatorSummary
+                        ? { operatorSummary: actor.operatorSummary }
+                        : {}),
                     })
                   }}
                 />

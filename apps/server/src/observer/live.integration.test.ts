@@ -261,6 +261,94 @@ describe('live discovery without hooks', () => {
         ?.lastEventAt,
     ).toBeNull()
   })
+
+  it('keeps grok --cwd hataraki and a second grok at tsugite both active', async () => {
+    const { store, dataDirectory } = openIsolatedStore()
+    const hataraki = track(createTemporaryGitRepository())
+    const tsugite = track(createTemporaryGitRepository())
+    const launch = track(createTemporaryDirectory())
+    const hatarakiWorkspace = store.createWorkspace({
+      absolutePath: hataraki,
+      displayName: 'hataraki',
+      currentBranch: 'main',
+      remoteName: null,
+      remoteUrl: null,
+      readable: true,
+    })
+    const tsugiteWorkspace = store.createWorkspace({
+      absolutePath: tsugite,
+      displayName: 'tsugite',
+      currentBranch: 'main',
+      remoteName: null,
+      remoteUrl: null,
+      readable: true,
+    })
+    store.upsertExternalSession({
+      id: 'sess-hataraki-stale',
+      source: 'grok-build',
+      surface: 'cli',
+      externalSessionId: `live:grok-build:${hatarakiWorkspace.repository.id}`,
+      workspaceId: hatarakiWorkspace.id,
+      repositoryId: hatarakiWorkspace.repository.id,
+      cwd: hataraki,
+      worktreePath: hataraki,
+      branch: null,
+      baseCommit: null,
+      headCommit: null,
+      title: '作業中',
+      status: 'stale',
+      activity: 'editing',
+      attributionConfidence: 'verified',
+      startedAt: '2026-08-18T00:00:00.000Z',
+      lastObservedAt: '2026-08-18T00:00:00.000Z',
+      endedAt: null,
+    })
+
+    const service = trackService(
+      createObserverService(store, dataDirectory, {
+        consistencyIntervalMs: 0,
+        liveHomeDir: track(createTemporaryDirectory()),
+        liveCurrentUser: 'mei',
+        listLiveProcesses: () => [
+          {
+            pid: 81,
+            user: 'mei',
+            command: 'grok',
+            args: `grok --cwd ${hataraki}`,
+            cwd: launch,
+          },
+          {
+            pid: 82,
+            user: 'mei',
+            command: 'grok',
+            args: 'grok',
+            cwd: tsugite,
+          },
+        ],
+      }),
+    )
+    await service.recover()
+
+    const overview = service.today()
+    const hatarakiRepo = overview.repositories.find(
+      (item) => item.repositoryId === hatarakiWorkspace.repository.id,
+    )
+    const tsugiteRepo = overview.repositories.find(
+      (item) => item.repositoryId === tsugiteWorkspace.repository.id,
+    )
+    expect(
+      hatarakiRepo?.sessions.find((item) => item.source === 'grok-build'),
+    ).toMatchObject({
+      source: 'grok-build',
+      status: 'active',
+    })
+    expect(
+      tsugiteRepo?.sessions.find((item) => item.source === 'grok-build'),
+    ).toMatchObject({
+      source: 'grok-build',
+      status: 'active',
+    })
+  })
 })
 
 function writeCodexRollout(
@@ -322,7 +410,10 @@ function track(directory: string): string {
 }
 
 function writePackageName(directory: string, name: string): void {
-  writeFileSync(join(directory, 'package.json'), `${JSON.stringify({ name })}\n`)
+  writeFileSync(
+    join(directory, 'package.json'),
+    `${JSON.stringify({ name })}\n`,
+  )
 }
 
 function writeIdentifiedTwin(

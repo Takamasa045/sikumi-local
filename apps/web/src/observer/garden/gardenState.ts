@@ -1,6 +1,7 @@
 import type { TodayOverview } from '../../api/observer'
 
 export const GARDEN_ACTIVE_WINDOW_MS = 5 * 60_000
+export const GARDEN_OVERVIEW_REFRESH_MS = 5_000
 export const UNKNOWN_GARDEN_WORK = '仕事の内容はまだ分かっていません'
 
 type OverviewRepository = TodayOverview['repositories'][number]
@@ -41,7 +42,8 @@ const GENERIC_WORK_TITLES = new Set([
   'first commit',
 ])
 
-const GIT_JARGON = /\b(merge|rebase|cherry-pick|commit|commits|branch|HEAD|origin|refs)\b/i
+const GIT_JARGON =
+  /\b(merge|rebase|cherry-pick|commit|commits|branch|HEAD|origin|refs)\b/i
 const SHA_ONLY = /^[0-9a-f]{7,40}$/i
 const HAS_JAPANESE = /[\u3040-\u30ff\u4e00-\u9faf]/
 const CONVENTIONAL_COMMIT_PREFIX =
@@ -148,7 +150,9 @@ export function softenRecordTitle(title: string | null | undefined): string {
   return (title ?? '').trim().replace(CONVENTIONAL_COMMIT_PREFIX, '').trim()
 }
 
-export function isEverydayRecordTitle(title: string | null | undefined): boolean {
+export function isEverydayRecordTitle(
+  title: string | null | undefined,
+): boolean {
   const trimmed = softenRecordTitle(title)
   if (isGenericWorkTitle(trimmed)) return false
   if (SHA_ONLY.test(trimmed)) return false

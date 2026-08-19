@@ -113,9 +113,9 @@ describe('acceptStoredTitle', () => {
     expect(acceptStoredTitle('/Users/me/project')).toBeNull()
     expect(acceptStoredTitle(`${'長い依頼文です。'.repeat(20)}`)).toBeNull()
     expect(acceptStoredTitle('first line\nsecond line')).toBeNull()
-    expect(acceptGoalText(`${'あ'.repeat(40)}。${'い'.repeat(40)}。続きは出さない`)).toBe(
-      `${'あ'.repeat(40)}`,
-    )
+    expect(
+      acceptGoalText(`${'あ'.repeat(40)}。${'い'.repeat(40)}。続きは出さない`),
+    ).toBe(`${'あ'.repeat(40)}`)
     expect(acceptGoalText('あ'.repeat(120))).toBe('あ'.repeat(80))
     expect(acceptGoalText('作業中')).toBeNull()
     expect(acceptGoalText('Codexの作業が始まりました')).toBeNull()
@@ -271,9 +271,7 @@ describe('discoverLiveSessions', () => {
     })
 
     expect(sightings).toHaveLength(1)
-    expect(sightings[0]?.title).toBe(
-      'ログイン画面の直しと確認の仕組みを見て',
-    )
+    expect(sightings[0]?.title).toBe('ログイン画面の直しと確認の仕組みを見て')
     expect(JSON.stringify(sightings)).not.toContain('base_instructions')
   })
 
@@ -371,7 +369,144 @@ describe('discoverLiveSessions', () => {
       ingestionMethod: 'process-scan',
     })
   })
+
+  it('binds grok --cwd and Codex --cd even when the process cwd is elsewhere', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = track(createTempDir('hataraki-'))
+    const tsugite = track(createTempDir('tsugite-'))
+    const launch = track(createTempDir('launch-'))
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [
+        root('repo-hataraki', 'ws-hataraki', hataraki),
+        root('repo-tsugite', 'ws-tsugite', tsugite),
+      ],
+      listProcesses: () => [
+        processRow({
+          pid: 51,
+          user: 'mei',
+          command: 'grok',
+          args: `grok --cwd ${hataraki}`,
+          cwd: launch,
+        }),
+        processRow({
+          pid: 52,
+          user: 'mei',
+          command: 'grok',
+          args: 'grok',
+          cwd: tsugite,
+        }),
+        processRow({
+          pid: 53,
+          user: 'mei',
+          command: 'codex',
+          args: `codex --cd ${hataraki}`,
+          cwd: launch,
+        }),
+        processRow({
+          pid: 54,
+          user: 'mei',
+          command: 'claude',
+          args: `claude --cwd ${tsugite}`,
+          cwd: launch,
+        }),
+      ],
+    })
+
+    const grokHataraki = sightings.find(
+      (item) =>
+        item.source === 'grok-build' && item.repositoryId === 'repo-hataraki',
+    )
+    const grokTsugite = sightings.find(
+      (item) =>
+        item.source === 'grok-build' && item.repositoryId === 'repo-tsugite',
+    )
+    const codexHataraki = sightings.find(
+      (item) =>
+        item.source === 'codex' && item.repositoryId === 'repo-hataraki',
+    )
+    const claudeTsugite = sightings.find(
+      (item) =>
+        item.source === 'claude-code' && item.repositoryId === 'repo-tsugite',
+    )
+    expect(grokHataraki).toMatchObject({
+      kind: 'process',
+      cwd: hataraki,
+      ingestionMethod: 'process-scan',
+    })
+    expect(grokTsugite).toMatchObject({
+      kind: 'process',
+      cwd: tsugite,
+    })
+    expect(codexHataraki).toMatchObject({
+      kind: 'process',
+      cwd: hataraki,
+    })
+    expect(claudeTsugite).toMatchObject({
+      kind: 'process',
+      cwd: tsugite,
+    })
+  })
+
+  it('prefers a readable session title over a generic live 作業中 title', () => {
+    const home = track(createTempDir('home-'))
+    const hataraki = track(createTempDir('hataraki-'))
+    writeGrokSession(home, {
+      id: 'sess-hataraki',
+      cwd: hataraki,
+      mtime: NOW - 8_000,
+      title: '働きの画面を直している',
+    })
+
+    const sightings = discoverLiveSessions({
+      homeDir: home,
+      currentUser: 'mei',
+      now: NOW,
+      roots: [root('repo-hataraki', 'ws-hataraki', hataraki)],
+      listProcesses: () => [
+        processRow({
+          pid: 61,
+          user: 'mei',
+          command: 'grok',
+          args: `grok --cwd ${hataraki}`,
+          cwd: home,
+        }),
+      ],
+    })
+
+    expect(sightings).toHaveLength(1)
+    expect(sightings[0]).toMatchObject({
+      kind: 'process',
+      title: '働きの画面を直している',
+    })
+  })
 })
+
+function writeGrokSession(
+  home: string,
+  input: {
+    readonly id: string
+    readonly cwd: string
+    readonly mtime: number
+    readonly title?: string
+  },
+): string {
+  const folder = join(home, '.grok', 'sessions')
+  mkdirSync(folder, { recursive: true })
+  const file = join(folder, `${input.id}.jsonl`)
+  writeFileSync(
+    file,
+    `${JSON.stringify({
+      id: input.id,
+      cwd: input.cwd,
+      title: input.title ?? '作業中',
+    })}\n`,
+  )
+  touch(file, input.mtime)
+  return file
+}
 
 describe('same-repo identity', () => {
   it('treats https and ssh remotes as the same repo and refuses a different package', () => {
@@ -793,7 +928,9 @@ describe('desktop and alias discovery', () => {
       clientSource: 'vscode',
       firstLineBytes: 48_000,
     })
-    expect(firstJsonlLineLength(file)).toBeGreaterThan(OBSERVER_LIVE_MAX_FILE_BYTES)
+    expect(firstJsonlLineLength(file)).toBeGreaterThan(
+      OBSERVER_LIVE_MAX_FILE_BYTES,
+    )
 
     const sightings = discoverLiveSessions({
       homeDir: home,
@@ -826,7 +963,9 @@ describe('desktop and alias discovery', () => {
       firstLineBytes: 48_000,
       threadName: '確認の仕組みを直している',
     })
-    expect(firstJsonlLineLength(file)).toBeGreaterThan(OBSERVER_LIVE_MAX_FILE_BYTES)
+    expect(firstJsonlLineLength(file)).toBeGreaterThan(
+      OBSERVER_LIVE_MAX_FILE_BYTES,
+    )
 
     const sightings = discoverLiveSessions({
       homeDir: home,

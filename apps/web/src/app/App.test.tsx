@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionToken } from '../api/session'
@@ -822,6 +822,33 @@ describe('Shikumi Local garden', () => {
         (await screen.findAllByText(/SSEで届いた作業/)).length,
       ).toBeGreaterThan(0)
     } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('re-reads garden observation on a short interval', async () => {
+    vi.useFakeTimers()
+    class FakeEventSource {
+      close() {}
+    }
+    vi.stubGlobal('EventSource', FakeEventSource)
+    try {
+      render(<App />)
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const todayCalls = () =>
+        fetchMock.mock.calls.filter((call) =>
+          String(call[0]).endsWith('/api/observer/today'),
+        ).length
+      const before = todayCalls()
+      expect(before).toBeGreaterThan(0)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000)
+      })
+      expect(todayCalls()).toBeGreaterThan(before)
+    } finally {
+      vi.useRealTimers()
       vi.unstubAllGlobals()
     }
   })

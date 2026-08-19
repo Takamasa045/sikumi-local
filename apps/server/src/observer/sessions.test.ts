@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { projectInboundEvent } from '@sikumi-local/observer-core'
-import { correlateRepository } from './sessions.js'
+import { liveSightingToEvent } from '@sikumi-local/observer-live'
+import { correlateRepository, nextSessionStatus } from './sessions.js'
 
 const repoA = {
   id: 'repo-a',
@@ -32,6 +33,60 @@ describe('correlateRepository', () => {
       cwd: '/Users/example/project-other',
       occurredAt: '2026-08-18T00:00:00.000Z',
     })
-    expect(correlateRepository(sibling, [repoA], { 'repo-a': [repoA.absolutePath] })).toBeNull()
+    expect(
+      correlateRepository(sibling, [repoA], { 'repo-a': [repoA.absolutePath] }),
+    ).toBeNull()
   })
 })
+
+describe('nextSessionStatus', () => {
+  it('revives a stale session when a live process is at the place', () => {
+    expect(nextSessionStatus(liveProcessEvent(), 'stale')).toBe('active')
+    expect(nextSessionStatus(liveProcessEvent(), 'detected')).toBe('active')
+    expect(nextSessionStatus(liveProcessEvent(), 'ended')).toBe('active')
+  })
+
+  it('does not revive stale from a session file alone', () => {
+    expect(nextSessionStatus(liveSessionFileEvent(), 'stale')).toBe('stale')
+  })
+
+  it('keeps a human wait even when the process is still alive', () => {
+    expect(nextSessionStatus(liveProcessEvent(), 'waiting-for-user')).toBe(
+      'waiting-for-user',
+    )
+  })
+})
+
+function liveProcessEvent() {
+  return liveSightingToEvent({
+    source: 'grok-build',
+    surface: 'cli',
+    kind: 'process',
+    cwd: '/Users/takamasa/Projects/hataraki',
+    repositoryId: 'repo-hataraki',
+    workspaceId: 'ws-hataraki',
+    title: '作業中',
+    lastObservedAt: '2026-08-19T00:10:00.000Z',
+    attributionConfidence: 'verified',
+    ingestionMethod: 'process-scan',
+    externalSessionId: 'live:grok-build:repo-hataraki',
+    pid: 42,
+  })
+}
+
+function liveSessionFileEvent() {
+  return liveSightingToEvent({
+    source: 'grok-build',
+    surface: 'cli',
+    kind: 'session-file',
+    cwd: '/Users/takamasa/Projects/hataraki',
+    repositoryId: 'repo-hataraki',
+    workspaceId: 'ws-hataraki',
+    title: '作業中',
+    lastObservedAt: '2026-08-19T00:10:00.000Z',
+    attributionConfidence: 'correlated',
+    ingestionMethod: 'session-file',
+    externalSessionId: 'live:grok-build:sess-old',
+    pid: null,
+  })
+}

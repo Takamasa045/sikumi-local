@@ -3,14 +3,9 @@ import { identifyLiveAgent, isIgnoredLiveHaystack } from './identify.js'
 import { locateLiveProcess, sightingFromLocatedProcess } from './locate.js'
 import { matchRegisteredPlace } from './match.js'
 import { listCurrentUserLiveProcesses } from './processes.js'
-import {
-  listRecentSessionRecords,
-  toLiveSighting,
-} from './session-files.js'
-import type {
-  LiveDiscoveryInput,
-  LiveSighting,
-} from './types.js'
+import { listRecentSessionRecords, toLiveSighting } from './session-files.js'
+import { acceptStoredTitle } from './titles.js'
+import type { LiveDiscoveryInput, LiveSighting } from './types.js'
 
 export function discoverLiveSessions(
   input: LiveDiscoveryInput,
@@ -83,7 +78,11 @@ export function discoverLiveSessions(
       byKey.set(key, sighting)
       continue
     }
-    if (existing.kind === 'process' && !existing.title && sighting.title) {
+    if (
+      existing.kind === 'process' &&
+      !acceptStoredTitle(existing.title) &&
+      acceptStoredTitle(sighting.title)
+    ) {
       byKey.set(key, { ...existing, title: sighting.title })
     }
   }
@@ -92,7 +91,11 @@ export function discoverLiveSessions(
 }
 
 function titleForLocatedPlace(
-  records: readonly { readonly source: string; readonly cwd: string; readonly title: string | null }[],
+  records: readonly {
+    readonly source: string
+    readonly cwd: string
+    readonly title: string | null
+  }[],
   source: string,
   repositoryId: string,
   roots: LiveDiscoveryInput['roots'],
@@ -105,7 +108,7 @@ function titleForLocatedPlace(
         matchRegisteredPlace(record.cwd, roots)?.root.repositoryId ===
           repositoryId,
     )
-    .map((record) => record.title)
+    .map((record) => acceptStoredTitle(record.title))
     .filter((title): title is string => Boolean(title))
   return titles[0] ?? null
 }

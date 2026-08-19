@@ -53,6 +53,7 @@ import { ApprovalPanel } from '../approvals/ApprovalPanel'
 import { ArtifactShelf } from '../artifacts/ArtifactShelf'
 import { EmployeeDrawer } from '../employees/EmployeeDrawer'
 import { ObserverGarden } from '../observer/garden/ObserverGarden'
+import { GARDEN_OVERVIEW_REFRESH_MS } from '../observer/garden/gardenState'
 import {
   acknowledgeConflict,
   getConflict,
@@ -284,6 +285,10 @@ export function App() {
         })
     }
 
+    const timer = window.setInterval(
+      refreshOverview,
+      GARDEN_OVERVIEW_REFRESH_MS,
+    )
     const close = openEventStream(
       '/api/observer/events/stream',
       () => {
@@ -295,6 +300,7 @@ export function App() {
     )
     return () => {
       cancelled = true
+      window.clearInterval(timer)
       close()
     }
   }, [screen])

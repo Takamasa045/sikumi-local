@@ -876,11 +876,16 @@ describe('describePlaceInspect', () => {
     })
   })
 
-  it('asks for a check when overlapping work is already known', () => {
+  it('asks for a check when observed AIs are approaching each other', () => {
     const [resident] = collectPlaceResidents(
       overviewOf([
         repository('repo_a', 'ws_a', 'alpha', [], {
-          conflictCount: 1,
+          conflicts: [
+            observedAgentConflict({
+              leftSource: 'grok-build',
+              rightSource: 'codex',
+            }),
+          ],
         }),
       ]),
     )
@@ -888,6 +893,23 @@ describe('describePlaceInspect', () => {
     expect(describePlaceInspect(resident!).nextStep).toBe('確認が必要')
     expect(describePlaceInspect(resident!).nowText).toBeNull()
     expect(describePlaceInspect(resident!).driverNote).toBeNull()
+  })
+
+  it('does not treat inferred git file overlap as a garden check', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'alpha', [], {
+          conflictCount: 70,
+        }),
+      ]),
+    )
+
+    expect(resident?.conflictCount).toBe(0)
+    expect(describePlaceInspect(resident!).nextStep).toBeNull()
+    expect(describePlaceInspect(resident!).nowText).toBeNull()
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toMatch(
+      /確認待ち|確認が必要|変更元不明/,
+    )
   })
 
   it('does not name a tool from a generic Claude Code template', () => {
@@ -1403,6 +1425,281 @@ describe('describeVisibleFacts', () => {
       'ファイルを扱っています',
     )
   })
+
+  it('keeps live Grok and Codex ahead of leftover confirmation and inferred git overlap', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cursor-agent',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'codex',
+              source: 'codex',
+              surface: 'desktop-app',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedAt: '2026-08-19T00:09:30.000Z',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          {
+            changedFileCount: 122,
+            areas: ['確認用の仕組み', '作業中のファイル'],
+            conflictCount: 70,
+          },
+        ),
+      ]),
+    )
+
+    expect(actors.length).toBeGreaterThanOrEqual(1)
+    expect(actors.every((actor) => actor.tone === 'working')).toBe(true)
+    expect(
+      actors.some(
+        (actor) =>
+          actor.workSummary === '動いている' ||
+          actor.workSummary === ANOTHER_LIVE_WORK,
+      ),
+    ).toBe(true)
+    expect(
+      actors.some(
+        (actor) =>
+          actor.driverNote === 'Grok Buildが動かしている' ||
+          actor.driverNote === 'Codexが動かしている' ||
+          actor.driverNote === 'Grok BuildとCodexが動かしている',
+      ),
+    ).toBe(true)
+    expect(
+      actors.every((actor) => actor.goal === null || actor.goal === undefined),
+    ).toBe(true)
+    for (const actor of actors) {
+      const inspect = {
+        nowText: actor.nowText ?? '',
+        nextStep: actor.nextStep ?? '',
+        summary: actor.workSummary,
+      }
+      expect(inspect.summary).not.toMatch(/確認待ち|確認が必要/)
+      expect(inspect.nowText).not.toMatch(/確認待ち|確認が必要/)
+      expect(inspect.nextStep).not.toMatch(/確認待ち|確認が必要/)
+      expect(inspect.nowText).not.toContain('確認まわりを直している')
+      expect(JSON.stringify(actor)).not.toMatch(
+        /まだ分かっていません|変更元不明|SHA|commit|HEAD/,
+      )
+    }
+
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cursor-agent',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'codex',
+              source: 'codex',
+              surface: 'desktop-app',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedAt: '2026-08-19T00:09:30.000Z',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          {
+            changedFileCount: 122,
+            areas: ['確認用の仕組み', '作業中のファイル'],
+            conflictCount: 70,
+          },
+        ),
+      ]),
+    )
+    expect(resident?.working).toBe(true)
+    expect(resident?.waiting).toBe(false)
+    expect(resident?.conflictCount).toBe(0)
+    expect(placeActivityLabel(resident!)).toBe('動いている')
+    expect(describeVisibleFacts(resident!)).toBe('動いている')
+    expect(describePlaceInspect(resident!).nowText).toContain('動いている')
+    expect(describePlaceInspect(resident!).nowText).not.toMatch(
+      /確認待ち|確認が必要|確認まわりを直している/,
+    )
+    expect(describePlaceInspect(resident!).nextStep).not.toMatch(
+      /確認待ち|確認が必要/,
+    )
+    expect(describePlaceInspect(resident!).driverNote).toBe(
+      'Grok BuildとCodexが動かしている',
+    )
+    expect(describePlaceInspect(resident!).goal).toBeNull()
+  })
+
+  it('says 確認待ち only when a live session is actually waiting', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'wait',
+              source: 'claude-code',
+              displayName: 'Claude Code',
+              title: '承認が必要',
+              status: 'idle',
+              activity: 'waiting',
+            }),
+          ],
+          {
+            changedFileCount: 122,
+            areas: ['確認用の仕組み'],
+            conflictCount: 70,
+          },
+        ),
+      ]),
+    )
+
+    expect(resident?.waiting).toBe(true)
+    expect(resident?.working).toBe(false)
+    expect(placeActivityLabel(resident!)).toBe('確認待ち')
+    expect(describeVisibleFacts(resident!)).not.toBe('確認待ち')
+    expect(describePlaceInspect(resident!)).toMatchObject({
+      nowText: expect.stringContaining('確認待ち'),
+      nextStep: '確認が必要',
+    })
+  })
+
+  it('replaces confirmation-wait copy when observation moves to live work', () => {
+    const waiting = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'wait',
+              source: 'grok-build',
+              displayName: 'Grok Build',
+              title: '承認が必要',
+              status: 'idle',
+              activity: 'waiting',
+            }),
+          ],
+          {
+            changedFileCount: 12,
+            areas: ['確認用の仕組み'],
+            conflictCount: 8,
+          },
+        ),
+      ]),
+    )
+    expect(waiting[0]?.nowText).toMatch(/確認待ち/)
+    expect(waiting[0]?.nextStep).toBe('確認が必要')
+
+    const working = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '働きの画面を直している',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          {
+            changedFileCount: 12,
+            areas: ['確認用の仕組み'],
+            conflictCount: 8,
+          },
+        ),
+      ]),
+    )
+    expect(working[0]?.tone).toBe('working')
+    expect(working[0]?.workSummary).toBe('働きの画面を直している')
+    expect(working[0]?.nowText).toContain('働きの画面を直している')
+    expect(working[0]?.nowText).not.toMatch(/確認待ち|確認が必要/)
+    expect(working[0]?.nextStep).not.toMatch(/確認待ち|確認が必要/)
+  })
+
+  it('treats a live grok --cwd hataraki session as working, not stale or waiting', () => {
+    const [resident] = collectPlaceResidents(
+      overviewOf([
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          { changedFileCount: 4, areas: ['確認用の仕組み'] },
+        ),
+      ]),
+    )
+    expect(resident?.working).toBe(true)
+    expect(resident?.waiting).toBe(false)
+    expect(placeActivityLabel(resident!)).toBe('動いている')
+    expect(describeVisibleFacts(resident!)).toBe('動いている')
+    expect(describeVisibleFacts(resident!)).not.toMatch(/確認待ち|確認が必要/)
+
+    const [stale] = collectPlaceResidents(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [
+          session({
+            id: 'stale',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'stale',
+            activity: 'editing',
+            lastObservedLabel: 'たった今',
+          }),
+        ]),
+      ]),
+    )
+    expect(stale?.working).toBe(false)
+    expect(placeActivityLabel(stale!)).toBe('静か')
+  })
 })
 
 function overviewOf(
@@ -1427,6 +1724,7 @@ function repository(
     readonly changedFileCount?: number
     readonly areas?: readonly string[]
     readonly conflictCount?: number
+    readonly conflicts?: RepositoryView['conflicts']
     readonly lastChangedAt?: string | null
     readonly latestRecordTitle?: string | null
     readonly workStory?: string | null
@@ -1459,17 +1757,40 @@ function repository(
     sessions,
     worktrees: extras.worktrees ?? [],
     ...(extras.truncated === undefined ? {} : { truncated: extras.truncated }),
-    conflicts: Array.from(
-      { length: extras.conflictCount ?? 0 },
-      (_, index) => ({
-        id: `conflict_${index}`,
-        level: 'yellow',
-        score: 40,
-        summary: '作業が近づいています',
-        status: 'open',
-      }),
-    ),
+    conflicts:
+      extras.conflicts ?? inferredGitConflicts(extras.conflictCount ?? 0),
     areas: [...(extras.areas ?? [])],
+  }
+}
+
+function inferredGitConflicts(count: number): RepositoryView['conflicts'] {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `conflict_${index}`,
+    level: 'yellow',
+    score: 40,
+    summary: '変更元不明の2つの作業が同じ作業中のファイルを変更しています',
+    status: 'open',
+    leftSource: 'git',
+    rightSource: 'git',
+    leftAttributionConfidence: 'inferred',
+    rightAttributionConfidence: 'inferred',
+  }))
+}
+
+function observedAgentConflict(input: {
+  readonly leftSource: string
+  readonly rightSource: string
+}): RepositoryView['conflicts'][number] {
+  return {
+    id: `conflict_${input.leftSource}_${input.rightSource}`,
+    level: 'orange',
+    score: 80,
+    summary: '作業が近づいています',
+    status: 'open',
+    leftSource: input.leftSource,
+    rightSource: input.rightSource,
+    leftAttributionConfidence: 'reported',
+    rightAttributionConfidence: 'reported',
   }
 }
 

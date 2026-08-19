@@ -26,8 +26,6 @@ const ATLAS_COLUMNS = 3
 const ATLAS_ROWS = 4
 const QUIET_STATIONS = ['rest', 'delivery'] as const
 const GENERIC_AREA_LABEL = '作業中のファイル'
-const GENERIC_AREA_DISPLAY = 'そのほか'
-const LEFTOVER_FILES_PER_AREA = 3
 const BUBBLE_AREA_SHORT: Readonly<Record<string, string>> = {
   確認用の仕組み: '確認',
   道具の一覧: '道具',
@@ -36,8 +34,19 @@ const BUBBLE_AREA_SHORT: Readonly<Record<string, string>> = {
   データの形: 'データ',
   別作業場: '別の場所',
 }
+const EVERYDAY_INSPECT_AREAS: Readonly<Record<string, string>> = {
+  画面: '画面',
+  確認: '確認',
+  確認用の仕組み: '確認',
+  道具: '道具',
+  道具の一覧: '道具',
+  ユーザー: 'ユーザー',
+  ユーザー情報: 'ユーザー',
+  ログイン: 'ログイン',
+  ログイン状態: 'ログイン',
+}
 
-export const LEFTOVER_WORK_MEANING = '記録する前の、途中の仕事です'
+export const LEFTOVER_WORK_REMAINING = '途中の仕事が残っている'
 
 export const GARDEN_GROUND = {
   minX: 36,
@@ -58,23 +67,6 @@ type OverviewSession = OverviewRepository['sessions'][number]
 export type GardenPlaceStation = Exclude<GardenStationId, 'observatory'>
 export type GardenPlaceTone = 'waiting' | 'working' | 'observing'
 
-export type LeftoverWorkItem = {
-  readonly path: string
-  readonly name: string
-  readonly areaLabel: string
-  readonly changeLabel: string
-}
-
-export type LeftoverWorkGroup = {
-  readonly areaLabel: string
-  readonly names: readonly string[]
-}
-
-export type LeftoverWorkCopy = {
-  readonly groups: readonly LeftoverWorkGroup[]
-  readonly more: boolean
-}
-
 export type PlaceResident = {
   readonly repositoryId: string
   readonly workspaceId: string
@@ -88,11 +80,10 @@ export type PlaceResident = {
   readonly lastChangedAt: string | null
   readonly lastObservedAt: string | null
   readonly changedFileCount: number
-  readonly leftoverItems: readonly LeftoverWorkItem[]
-  readonly leftoverTruncated: boolean
   readonly areas: readonly string[]
   readonly conflictCount: number
   readonly latestRecordTitle: string | null
+  readonly workStory: string | null
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
   readonly driverNote: string | null
@@ -103,7 +94,6 @@ export type PlaceInspectCopy = {
   readonly implementationLook: string | null
   readonly nextStep: string | null
   readonly driverNote: string | null
-  readonly leftoverWork: LeftoverWorkCopy | null
 }
 
 export type GardenPlaceActor = {
@@ -114,7 +104,6 @@ export type GardenPlaceActor = {
   readonly workSummary: string
   readonly nowText: string | null
   readonly implementationLook: string | null
-  readonly leftoverWork: LeftoverWorkCopy | null
   readonly nextStep: string | null
   readonly driverNote: string | null
   readonly station: GardenPlaceStation
@@ -177,7 +166,6 @@ export function collectPlaceResidents(
     )
     const latest = latestSession(repository.sessions ?? [])
     const latestObserved = latestSession(observed)
-    const leftover = collectLeftoverItems(repository)
     return {
       repositoryId: repository.repositoryId,
       workspaceId: repository.workspaceId,
@@ -204,11 +192,10 @@ export function collectPlaceResidents(
       lastChangedAt: repository.lastChangedAt ?? null,
       lastObservedAt: latest?.lastObservedAt ?? null,
       changedFileCount: repository.changedFileCount,
-      leftoverItems: leftover.items,
-      leftoverTruncated: leftover.truncated,
       areas: lookAreas(repository),
       conflictCount: repository.conflicts.length,
       latestRecordTitle: everydayRecordTitle(repository.latestRecordTitle),
+      workStory: everydayWorkStory(repository.workStory),
       outgoingCount: repository.outgoingCount ?? null,
       incomingCount: repository.incomingCount ?? null,
       driverNote: describeObservedDriver(observed, nowMs),
@@ -232,11 +219,10 @@ export function collectPlaceResidents(
       lastChangedAt: workspace.updatedAt,
       lastObservedAt: workspace.updatedAt,
       changedFileCount: 0,
-      leftoverItems: [],
-      leftoverTruncated: false,
       areas: [],
       conflictCount: 0,
       latestRecordTitle: null,
+      workStory: null,
       outgoingCount: null,
       incomingCount: null,
       driverNote: null,
@@ -268,7 +254,6 @@ export function collectGardenActors(
         workSummary: describeVisibleFacts(resident),
         nowText: inspect.nowText,
         implementationLook: inspect.implementationLook,
-        leftoverWork: inspect.leftoverWork,
         nextStep: inspect.nextStep,
         driverNote: inspect.driverNote,
         station: plot?.station ?? stationForResident(resident),
@@ -498,11 +483,14 @@ export function describeVisibleFacts(resident: PlaceResident): string {
   if (resident.working && spoken) {
     return spoken
   }
+  if (resident.working && resident.workStory) {
+    return resident.workStory
+  }
   if (resident.working && area) {
     return `${area}まわりを直している`
   }
   if (resident.changedFileCount > 0) {
-    return leftoverWorkSummary(resident)
+    return resident.workStory ?? leftoverWorkSummary(resident)
   }
   if (resident.waiting) {
     return '確認待ち'
@@ -523,36 +511,10 @@ export function describePlaceInspect(
   resident: PlaceResident,
 ): PlaceInspectCopy {
   return {
-    nowText: joinFactLines(inspectNowLines(resident)),
-    implementationLook: joinFactLines(inspectLookLines(resident)),
-    leftoverWork: describeLeftoverWork(resident),
+    nowText: joinFactLines(inspectLastStateLines(resident)),
+    implementationLook: null,
     nextStep: describeNextStep(resident),
     driverNote: resident.driverNote,
-  }
-}
-
-export function describeLeftoverWork(
-  resident: Pick<
-    PlaceResident,
-    'changedFileCount' | 'leftoverItems' | 'leftoverTruncated'
-  >,
-): LeftoverWorkCopy | null {
-  if (resident.changedFileCount <= 0 && resident.leftoverItems.length === 0) {
-    return null
-  }
-  const groups = groupLeftoverItems(
-    resident.leftoverItems,
-    LEFTOVER_FILES_PER_AREA,
-  )
-  if (groups.length === 0) {
-    return null
-  }
-  const shown = groups.reduce((sum, group) => sum + group.names.length, 0)
-  return {
-    groups,
-    more:
-      resident.leftoverTruncated ||
-      uniqueLeftoverNames(resident.leftoverItems).length > shown,
   }
 }
 
@@ -590,57 +552,87 @@ function describePlaceWork(
   return spokenRecordTitle(repository.latestRecordTitle) ?? ''
 }
 
-function inspectNowLines(resident: PlaceResident): string[] {
+function inspectLastStateLines(resident: PlaceResident): string[] {
   const lines: string[] = []
-  if (resident.working) {
-    lines.push('動いている')
-  } else if (resident.waiting) {
-    lines.push('確認待ち')
-  }
   const spoken = spokenWorkTitle(resident)
   const spokenIsOnlyRecord =
     Boolean(spoken) &&
     !resident.working &&
     !resident.waiting &&
     spoken === softenRecordTitle(resident.latestRecordTitle)
-  if (spoken && spoken !== lines[0] && !spokenIsOnlyRecord) {
-    lines.push(spoken)
+  const leftover = resident.changedFileCount > 0
+  const areaWork =
+    leftover || resident.working ? describeAreaWork(resident) : null
+
+  if (resident.waiting && !resident.working) {
+    lines.push('確認待ち')
   }
+
+  if (resident.workStory) {
+    lines.push(resident.workStory)
+  } else if (spoken && spoken !== '確認待ち' && !spokenIsOnlyRecord) {
+    lines.push(spoken)
+  } else if (resident.working && areaWork) {
+    lines.push(areaWork)
+  } else if (resident.working) {
+    lines.push('動いている')
+  } else if (areaWork) {
+    lines.push(areaWork)
+  }
+
   const record = describeLatestRecord(
     resident,
-    spokenIsOnlyRecord ? null : spoken,
+    resident.workStory ?? (spokenIsOnlyRecord ? null : spoken),
   )
-  if (record) {
+  if (record && !resident.workStory) {
     lines.push(record)
   }
-  if (resident.lastObservedWorkLabel) {
-    lines.push(`最後に見えたのは${resident.lastObservedWorkLabel}`)
-  }
-  return lines
-}
 
-function inspectLookLines(resident: PlaceResident): string[] {
-  const lines: string[] = []
-  if (resident.changedFileCount > 0) {
-    lines.push(LEFTOVER_WORK_MEANING)
-    lines.push(`途中の仕事が${resident.changedFileCount}`)
+  if (
+    leftover &&
+    !storyImpliesLeftover(resident.workStory) &&
+    !lines.some((line) => line.includes('途中の仕事'))
+  ) {
+    lines.push(LEFTOVER_WORK_REMAINING)
   }
-  if (resident.leftoverItems.length === 0) {
-    const named = namedAreas(resident.areas)
-    const shown = named.slice(0, 2)
-    if (shown.length === 1) {
-      lines.push(`${shown[0]}あたり`)
-    } else if (shown.length >= 2) {
-      lines.push(`${shown[0]}や${shown[1]}あたり`)
-    }
+
+  const seen = lastSeenLabel(resident)
+  if (seen) {
+    lines.push(`最後に見えたのは${seen}`)
   }
+
   if ((resident.outgoingCount ?? 0) > 0) {
     lines.push('送っていない')
   }
   if ((resident.incomingCount ?? 0) > 0) {
     lines.push('取り込み待ち')
   }
+
   return lines
+}
+
+function describeAreaWork(resident: Pick<PlaceResident, 'areas'>): string | null {
+  const named = everydayInspectAreas(resident.areas)
+  const shown = named.slice(0, 2)
+  if (shown.length === 2) {
+    return `${shown[0]}や${shown[1]}まわりを直している`
+  }
+  if (shown.length === 1) {
+    return `${shown[0]}まわりを直している`
+  }
+  return null
+}
+
+function lastSeenLabel(resident: PlaceResident): string | null {
+  const label = resident.lastObservedWorkLabel ?? resident.lastObservedLabel
+  if (!label || !/(前|たった今)$/.test(label)) {
+    return null
+  }
+  return label
+}
+
+function storyImpliesLeftover(story: string | null): boolean {
+  return Boolean(story && (story.includes('続き') || story.includes('書いています')))
 }
 
 function describeLatestRecord(
@@ -648,7 +640,7 @@ function describeLatestRecord(
   spoken: string | null,
 ): string | null {
   const title = softenRecordTitle(resident.latestRecordTitle)
-  if (!title || !isEverydayRecordTitle(title)) {
+  if (!title || !isSpokenJapaneseTitle(title)) {
     return null
   }
   if (spoken && (title === spoken || softenRecordTitle(spoken) === title)) {
@@ -689,6 +681,20 @@ function primaryArea(resident: Pick<PlaceResident, 'areas'>): string | null {
 
 function namedAreas(areas: readonly string[]): string[] {
   return uniqueLabels(areas).filter((item) => !isGenericArea(item))
+}
+
+function everydayInspectAreas(areas: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const labels: string[] = []
+  for (const area of uniqueLabels(areas)) {
+    const everyday = EVERYDAY_INSPECT_AREAS[area]
+    if (!everyday || seen.has(everyday)) {
+      continue
+    }
+    seen.add(everyday)
+    labels.push(everyday)
+  }
+  return labels
 }
 
 function shortAreaForBubble(area: string): string {
@@ -736,81 +742,6 @@ function lookAreas(repository: OverviewRepository): string[] {
     }
   }
   return uniqueLabels(fromFiles)
-}
-
-function collectLeftoverItems(repository: OverviewRepository): {
-  readonly items: LeftoverWorkItem[]
-  readonly truncated: boolean
-} {
-  const items: LeftoverWorkItem[] = []
-  const seen = new Set<string>()
-  let truncated = repository.truncated === true
-  for (const worktree of repository.worktrees) {
-    if (worktree.filesTruncated) {
-      truncated = true
-    }
-    for (const file of worktree.files) {
-      const path = file.path.trim()
-      const name = leftoverDisplayName(path)
-      if (!path || !name || seen.has(path)) {
-        continue
-      }
-      seen.add(path)
-      items.push({
-        path,
-        name,
-        areaLabel: file.areaLabel.trim() || GENERIC_AREA_LABEL,
-        changeLabel: file.changeLabel.trim(),
-      })
-    }
-  }
-  if (repository.changedFileCount > items.length) {
-    truncated = true
-  }
-  return { items, truncated }
-}
-
-function leftoverDisplayName(path: string): string {
-  const normalized = path.replaceAll('\\', '/').replace(/\/+$/, '')
-  const parts = normalized.split('/').filter(Boolean)
-  return parts[parts.length - 1] ?? ''
-}
-
-function groupLeftoverItems(
-  items: readonly LeftoverWorkItem[],
-  limit: number,
-): LeftoverWorkGroup[] {
-  const order: string[] = []
-  const namesByArea = new Map<string, string[]>()
-  for (const item of items) {
-    const area = displayAreaLabel(item.areaLabel)
-    if (!namesByArea.has(area)) {
-      order.push(area)
-      namesByArea.set(area, [])
-    }
-    const names = namesByArea.get(area)!
-    if (!names.includes(item.name)) {
-      names.push(item.name)
-    }
-  }
-  const known = order.filter((area) => area !== GENERIC_AREA_DISPLAY)
-  const generic = order.filter((area) => area === GENERIC_AREA_DISPLAY)
-  return [...known, ...generic].map((area) => ({
-    areaLabel: area,
-    names: (namesByArea.get(area) ?? []).slice(0, limit),
-  }))
-}
-
-function uniqueLeftoverNames(items: readonly LeftoverWorkItem[]): string[] {
-  return uniqueLabels(items.map((item) => item.name))
-}
-
-function displayAreaLabel(area: string): string {
-  const trimmed = area.trim()
-  if (!trimmed || isGenericArea(trimmed)) {
-    return GENERIC_AREA_DISPLAY
-  }
-  return trimmed
 }
 
 function describeObservedDriver(
@@ -871,6 +802,21 @@ function everydayRecordTitle(value: string | null | undefined): string | null {
     return null
   }
   return softened
+}
+
+function everydayWorkStory(value: string | null | undefined): string | null {
+  const story = value?.trim() ?? ''
+  if (!story) {
+    return null
+  }
+  if (
+    story.includes('まだ分かっていません') ||
+    story.includes('変更元不明') ||
+    /\b(SHA|commit|HEAD|origin)\b/i.test(story)
+  ) {
+    return null
+  }
+  return story
 }
 
 function spokenRecordTitle(value: string | null | undefined): string | null {

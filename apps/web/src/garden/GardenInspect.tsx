@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import type { GardenStationId } from '@sikumi-local/core'
-import type { LeftoverWorkCopy } from '../observer/places/placeResidents'
 import {
   describeStationOccupants,
   gardenStationLabels,
@@ -18,7 +17,6 @@ export type GardenInspectSubject =
       readonly jobTitle?: string
       readonly nowText?: string | null
       readonly implementationLook?: string | null
-      readonly leftoverWork?: LeftoverWorkCopy | null
       readonly nextStep?: string | null
       readonly driverNote?: string | null
       readonly live?: boolean
@@ -74,11 +72,13 @@ export function GardenInspect({ subject, onClose }: GardenInspectProps) {
           閉じる
         </button>
       </div>
-      {subject.kind === 'character' ? (
-        <CharacterBody subject={subject} />
-      ) : (
-        <StationBody subject={subject} />
-      )}
+      <div className="garden-inspect__body">
+        {subject.kind === 'character' ? (
+          <CharacterBody subject={subject} />
+        ) : (
+          <StationBody subject={subject} />
+        )}
+      </div>
     </aside>
   )
 }
@@ -121,15 +121,6 @@ function CharacterBody({
               </dd>
             </>
           ) : null}
-          {hasLookContent(subject) ? (
-            <>
-              <dt>実装の様子</dt>
-              <dd>
-                <FactLines value={subject.implementationLook} />
-                <LeftoverWorkList leftover={subject.leftoverWork} />
-              </dd>
-            </>
-          ) : null}
           {hasFactLines(subject.nextStep) ? (
             <>
               <dt>これから</dt>
@@ -141,7 +132,9 @@ function CharacterBody({
         </>
       ) : hasProgress ? (
         <>
-          {hasStoppedLook(subject) ? (
+          {hasFactLines(
+            describeStoppedLook(subject.nowText, subject.implementationLook),
+          ) ? (
             <>
               <dt>どこまでやったか</dt>
               <dd>
@@ -151,7 +144,6 @@ function CharacterBody({
                     subject.implementationLook,
                   )}
                 />
-                <LeftoverWorkList leftover={subject.leftoverWork} />
                 {knownLine(subject.driverNote) ? (
                   <span className="garden-inspect__driver">
                     {subject.driverNote}
@@ -229,58 +221,6 @@ function factLines(value: string | null | undefined): string[] {
 
 function hasFactLines(value: string | null | undefined): boolean {
   return factLines(value).length > 0
-}
-
-function hasLeftoverGroups(
-  leftover: LeftoverWorkCopy | null | undefined,
-): leftover is LeftoverWorkCopy {
-  return Boolean(leftover && leftover.groups.length > 0)
-}
-
-function hasLookContent(
-  subject: Extract<GardenInspectSubject, { kind: 'character' }>,
-): boolean {
-  return (
-    hasFactLines(subject.implementationLook) ||
-    hasLeftoverGroups(subject.leftoverWork)
-  )
-}
-
-function hasStoppedLook(
-  subject: Extract<GardenInspectSubject, { kind: 'character' }>,
-): boolean {
-  return (
-    hasFactLines(
-      describeStoppedLook(subject.nowText, subject.implementationLook),
-    ) || hasLeftoverGroups(subject.leftoverWork)
-  )
-}
-
-function LeftoverWorkList({
-  leftover,
-}: {
-  readonly leftover: LeftoverWorkCopy | null | undefined
-}) {
-  if (!hasLeftoverGroups(leftover)) {
-    return null
-  }
-  return (
-    <div className="garden-inspect__leftover">
-      {leftover.groups.map((group) => (
-        <div key={group.areaLabel} className="garden-inspect__leftover-group">
-          <p className="garden-inspect__leftover-area">{group.areaLabel}</p>
-          <ul className="garden-inspect__leftover-files">
-            {group.names.map((name) => (
-              <li key={name}>{name}</li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      {leftover.more ? (
-        <p className="garden-inspect__leftover-more">ほかにもある</p>
-      ) : null}
-    </div>
-  )
 }
 
 function FactLines({ value }: { readonly value: string | null | undefined }) {

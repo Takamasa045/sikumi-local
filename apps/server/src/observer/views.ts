@@ -28,6 +28,7 @@ export interface RepositoryActivityView {
   readonly lastChangedAt: string | null
   readonly lastChangedLabel: string | null
   readonly latestRecordTitle: string | null
+  readonly workStory: string | null
   readonly outgoingCount: number | null
   readonly incomingCount: number | null
   readonly sessions: readonly SessionView[]
@@ -188,6 +189,7 @@ export function buildRepositoryActivity(input: {
     lastChangedAt: input.snapshot.scannedAt,
     lastChangedLabel: relativeTimeLabel(input.snapshot.scannedAt),
     latestRecordTitle: input.snapshot.latestRecordTitle,
+    workStory: input.snapshot.workStory,
     outgoingCount: input.snapshot.outgoingCount,
     incomingCount: input.snapshot.incomingCount,
     sessions: sessions.items,

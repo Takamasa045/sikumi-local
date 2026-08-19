@@ -2584,7 +2584,13 @@ footer span {
   right: 18px;
   bottom: 18px;
   z-index: 9;
+  display: flex;
+  flex-direction: column;
   width: min(300px, 56vw);
+  max-height: 68vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 12px 12px 10px;
   color: #36372f;
   background: linear-gradient(
@@ -2597,11 +2603,19 @@ footer span {
   box-shadow: 2px 6px 0 rgba(40, 28, 16, 0.12);
 }
 .garden-inspect__head {
+  position: sticky;
+  top: -12px;
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px 10px;
-  margin-bottom: 8px;
+  margin: -12px -12px 8px;
+  padding: 12px 12px 8px;
+  background: rgba(244, 234, 216, 0.98);
+}
+.garden-inspect__body {
+  min-height: 0;
 }
 .garden-inspect__kicker {
   margin: 0;
@@ -2650,30 +2664,6 @@ footer span {
 .garden-inspect__driver {
   display: block;
   margin-top: 2px;
-  color: #6f6c5e;
-  font-size: 12px;
-}
-.garden-inspect__leftover {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 6px;
-}
-.garden-inspect__leftover-group {
-  min-width: 0;
-}
-.garden-inspect__leftover-area {
-  margin: 0;
-  color: #6f6c5e;
-  font-size: 11px;
-}
-.garden-inspect__leftover-files {
-  margin: 2px 0 0;
-  padding-left: 1.15em;
-  font-size: 13px;
-}
-.garden-inspect__leftover-more {
-  margin: 0;
   color: #6f6c5e;
   font-size: 12px;
 }

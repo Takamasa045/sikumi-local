@@ -1,9 +1,28 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { GardenInspect } from './GardenInspect'
 
+const appCss = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), '../app/app.css'),
+  'utf8',
+)
+
 describe('GardenInspect', () => {
+  it('caps the beige inspect panel so long copy scrolls inside', () => {
+    const block = appCss.slice(
+      appCss.indexOf('.garden-inspect {'),
+      appCss.indexOf('.garden-inspect__head {'),
+    )
+    expect(block).toMatch(/max-height:\s*6[0-9]vh/)
+    expect(block).toContain('overflow-y: auto')
+    expect(appCss).toContain('.garden-inspect__head {')
+    expect(appCss).toMatch(/\.garden-inspect__head \{[\s\S]*position:\s*sticky/)
+  })
+
   it('shows a traveling employee and closes on Escape', async () => {
     const onClose = vi.fn()
     render(
@@ -24,6 +43,12 @@ describe('GardenInspect', () => {
       '資料棚へ向かっています',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('調査')
+    expect(
+      screen.getByTestId('garden-inspect').querySelector('.garden-inspect__head'),
+    ).not.toBeNull()
+    expect(
+      screen.getByTestId('garden-inspect').querySelector('.garden-inspect__body'),
+    ).not.toBeNull()
     await userEvent.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalled()
   })
@@ -37,9 +62,9 @@ describe('GardenInspect', () => {
           station: 'workbench',
           traveling: false,
           summary: 'APIを直している',
-          nowText: '動いている\nAPIを直している',
-          implementationLook:
-            '記録する前の、途中の仕事です\n途中の仕事が2\n画面あたり',
+          nowText:
+            'APIを直している\n途中の仕事が残っている\n最後に見えたのは1分前',
+          implementationLook: null,
           nextStep: null,
           driverNote: 'Codexが動かしている',
         }}
@@ -49,14 +74,14 @@ describe('GardenInspect', () => {
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('ブログ番')
     expect(inspect).toHaveTextContent('いま')
-    expect(inspect).toHaveTextContent('動いている')
     expect(inspect).toHaveTextContent('APIを直している')
+    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('最後に見えたのは1分前')
     expect(inspect).not.toHaveTextContent(' / ')
     expect(inspect).toHaveTextContent('Codexが動かしている')
-    expect(inspect).toHaveTextContent('実装の様子')
-    expect(inspect).toHaveTextContent('記録する前の、途中の仕事です')
-    expect(inspect).toHaveTextContent('途中の仕事が2')
-    expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('実装の様子')
+    expect(inspect).not.toHaveTextContent('記録する前の、途中の仕事です')
+    expect(inspect).not.toHaveTextContent('途中の仕事が2')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent('作業中のファイル')
     expect(inspect).not.toHaveTextContent('これから')
@@ -65,7 +90,7 @@ describe('GardenInspect', () => {
     expect(inspect).not.toHaveTextContent('要約')
   })
 
-  it('uses stopped words for progress and next when the character is still', () => {
+  it('uses stopped words for the last-state summary when the character is still', () => {
     render(
       <GardenInspect
         subject={{
@@ -74,9 +99,8 @@ describe('GardenInspect', () => {
           station: 'rest',
           traveling: false,
           summary: '',
-          nowText: null,
-          implementationLook:
-            '記録する前の、途中の仕事です\n途中の仕事が1\n画面あたり',
+          nowText: '画面まわりを直している\n途中の仕事が残っている',
+          implementationLook: null,
           nextStep: null,
           live: false,
         }}
@@ -85,9 +109,8 @@ describe('GardenInspect', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('記録する前の、途中の仕事です')
-    expect(inspect).toHaveTextContent('途中の仕事が1')
-    expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).toHaveTextContent('画面まわりを直している')
+    expect(inspect).toHaveTextContent('途中の仕事が残っている')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).not.toHaveTextContent('次に動かすまで待つ')
@@ -124,35 +147,18 @@ describe('GardenInspect', () => {
     expect(inspect).not.toHaveTextContent('変更元不明')
   })
 
-  it('lists leftover pieces by area instead of a slash string', () => {
+  it('summarizes leftover work without listing engineer file names', () => {
     render(
       <GardenInspect
         subject={{
           kind: 'character',
-          name: 'hataraki番',
+          name: 'しくみローカル番',
           station: 'rest',
           traveling: false,
-          summary: '画面や確認まわりに、途中の仕事がある',
-          nowText: null,
-          implementationLook: '記録する前の、途中の仕事です\n途中の仕事が18',
-          leftoverWork: {
-            groups: [
-              {
-                areaLabel: '画面',
-                names: ['App.tsx', 'Office.tsx', 'styles.css'],
-              },
-              {
-                areaLabel: '確認用の仕組み',
-                names: [
-                  'garden.spec.ts',
-                  'observer.spec.ts',
-                  'visual-qa.spec.ts',
-                ],
-              },
-              { areaLabel: 'そのほか', names: ['README.md', 'server', 'live'] },
-            ],
-            more: true,
-          },
+          summary: '道具や画面まわりに、途中の仕事がある',
+          nowText:
+            '道具や画面まわりを直している\n途中の仕事が残っている\n最後に見えたのは4時間前',
+          implementationLook: null,
           nextStep: null,
           live: false,
         }}
@@ -161,19 +167,20 @@ describe('GardenInspect', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('記録する前の、途中の仕事です')
-    expect(inspect).toHaveTextContent('途中の仕事が18')
-    expect(inspect).toHaveTextContent('画面')
-    expect(inspect).toHaveTextContent('Office.tsx')
-    expect(inspect).toHaveTextContent('確認用の仕組み')
-    expect(inspect).toHaveTextContent('garden.spec.ts')
-    expect(inspect).toHaveTextContent('README.md')
-    expect(inspect).toHaveTextContent('ほかにもある')
-    expect(inspect).not.toHaveTextContent(' / ')
+    expect(inspect).toHaveTextContent('道具や画面まわりを直している')
+    expect(inspect).toHaveTextContent('途中の仕事が残っている')
+    expect(inspect).toHaveTextContent('最後に見えたのは4時間前')
+    expect(inspect).not.toHaveTextContent('Office.tsx')
+    expect(inspect).not.toHaveTextContent('observer.ts')
+    expect(inspect).not.toHaveTextContent('app.css')
+    expect(inspect).not.toHaveTextContent('schema.ts')
+    expect(inspect).not.toHaveTextContent('package.json')
+    expect(inspect).not.toHaveTextContent('AdapterSettings.tsx')
+    expect(inspect).not.toHaveTextContent('データの形')
+    expect(inspect).not.toHaveTextContent('記録する前の、途中の仕事です')
     expect(inspect).not.toHaveTextContent('しまっていない変更')
-    expect(
-      inspect.querySelectorAll('.garden-inspect__leftover-files li'),
-    ).toHaveLength(9)
+    expect(inspect).not.toHaveTextContent(' / ')
+    expect(inspect.querySelector('.garden-inspect__leftover')).toBeNull()
   })
 
   it('does not invent leftover files when none remain', () => {
@@ -187,7 +194,6 @@ describe('GardenInspect', () => {
           summary: '',
           nowText: '静か',
           implementationLook: null,
-          leftoverWork: null,
           nextStep: null,
           live: false,
         }}
@@ -195,6 +201,7 @@ describe('GardenInspect', () => {
       />,
     )
     const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('静か')
     expect(inspect).not.toHaveTextContent('記録する前の、途中の仕事です')
     expect(inspect).not.toHaveTextContent('途中の仕事')
     expect(inspect).not.toHaveTextContent('ほかにもある')

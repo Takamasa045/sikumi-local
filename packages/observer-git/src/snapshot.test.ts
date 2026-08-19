@@ -97,9 +97,57 @@ describe('snapshotGitRepository', () => {
 
     const snapshot = snapshotGitRepository(repo)
     expect(snapshot.latestRecordTitle).toBe('ログイン画面の直し')
+    expect(snapshot.workStory).toBeNull()
     expect(snapshot.outgoingCount).toBe(1)
     expect(snapshot.incomingCount).toBe(0)
     expect(snapshot.headCommit).not.toBe('ログイン画面の直し')
+  })
+
+  it('extracts a blog article title from articles.log when the place is a kit', () => {
+    const repo = createGitRepo()
+    writeFileSync(join(repo, 'BLOG_WORKSPACE.md'), '# blog\n')
+    writeFileSync(
+      join(repo, 'articles.log'),
+      [
+        'date | title | characters | memo',
+        '2026-08-15 | AIチームは多いほど強い、ではなかった | 3200 |',
+        '',
+      ].join('\n'),
+    )
+    const snapshot = snapshotGitRepository(repo)
+    expect(snapshot.workStory).toBe(
+      'いちばん新しい記事は『AIチームは多いほど強い、ではなかった』です',
+    )
+    expect(snapshot.workStory).not.toContain('MEMORY.md')
+    expect(snapshot.workStory).not.toContain('BLOG_WORKSPACE.md')
+  })
+
+  it('uses a topic brief title when that topic folder is dirty', () => {
+    const repo = createGitRepo()
+    mkdirSync(join(repo, 'topics', '2026-08-15_ai-agent-wiring'), {
+      recursive: true,
+    })
+    writeFileSync(join(repo, 'BLOG_WORKSPACE.md'), '# blog\n')
+    writeFileSync(
+      join(repo, 'topics', '2026-08-15_ai-agent-wiring', 'brief.yml'),
+      'title: AIエージェントの配線\n',
+    )
+    writeFileSync(
+      join(repo, 'articles.log'),
+      ['date | title | characters | memo', '2026-08-01 | 短い下書き | 400 |', ''].join(
+        '\n',
+      ),
+    )
+    execFileSync('git', ['add', '.'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'blog kit'], { cwd: repo })
+    writeFileSync(
+      join(repo, 'topics', '2026-08-15_ai-agent-wiring', 'brief.yml'),
+      'title: AIエージェントの配線\noutline: 続き\n',
+    )
+
+    const snapshot = snapshotGitRepository(repo)
+    expect(snapshot.workStory).toBe('『AIエージェントの配線』を書いています')
+    expect(snapshot.workStory).not.toContain('brief.yml')
   })
 
   it('uses merge-base of worktree branches without mutating git', () => {

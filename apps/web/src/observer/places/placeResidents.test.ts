@@ -805,6 +805,178 @@ describe('collectGardenActors', () => {
     )
   })
 
+  it('keeps the same everyday work words for two live Groks when the place was read', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-248',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'grok-26794',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedAt: '2026-08-19T00:09:00.000Z',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.every((actor) => actor.placeName === '継番')).toBe(true)
+    expect(
+      actors.every((actor) => actor.workSummary === '動画を作っている'),
+    ).toBe(true)
+    expect(
+      actors.every((actor) =>
+        actor.nowText?.includes('Grokで動画を作っている'),
+      ),
+    ).toBe(true)
+    expect(actors.some((actor) => actor.placeName === '継番 2')).toBe(false)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /もう一つの仕事|Grok 2|Codex 2|Grok Build|fake-claude|変更元不明|縁側|SHA/,
+    )
+  })
+
+  it('puts only the live tool in front of the same video work', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-248',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'codex',
+              source: 'codex',
+              surface: 'desktop-app',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedAt: '2026-08-19T00:09:30.000Z',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.every((actor) => actor.placeName === '継番')).toBe(true)
+    expect(
+      actors.every((actor) => actor.workSummary === '動画を作っている'),
+    ).toBe(true)
+    expect(
+      actors.some((actor) => actor.nowText?.includes('Grokで動画を作っている')),
+    ).toBe(true)
+    expect(
+      actors.some((actor) =>
+        actor.nowText?.includes('Codexで動画を作っている'),
+      ),
+    ).toBe(true)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /もう一つの仕事|Grok 2|Codex 2|Grok Build|fake-claude|変更元不明|縁側|SHA/,
+    )
+  })
+
+  it('does not name a live Grok walker Codex when Codex is stale', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-248',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'codex',
+              source: 'codex',
+              surface: 'desktop-app',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedAt: '2026-08-18T23:00:00.000Z',
+            }),
+          ],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]?.placeName).toBe('継番')
+    expect(actors[0]?.workSummary).toBe('動画を作っている')
+    expect(actors[0]?.nowText).toContain('Grokで動画を作っている')
+    expect(actors[0]?.nowText).not.toContain('Codex')
+    expect(JSON.stringify(actors)).not.toMatch(
+      /もう一つの仕事|Codexで|Grok Build|fake-claude|変更元不明|縁側|SHA/,
+    )
+  })
+
+  it('does not invent a live tool for leftover-only tsugite', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_tsugite', 'ws_tsugite', 'tsugite', [], {
+          placeIntro: '継。ローカルで動画を作る工房です。',
+          changedFileCount: 18,
+        }),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]?.placeName).toBe('継番')
+    expect(actors[0]?.workSummary).toBe('動画の途中が残っている')
+    expect(actors[0]?.nowText).not.toContain('Grokで')
+    expect(actors[0]?.nowText).not.toContain('Codexで')
+    expect(JSON.stringify(actors)).not.toMatch(
+      /もう一つの仕事|Grok Build|fake-claude|変更元不明|縁側|SHA/,
+    )
+  })
+
   it('keeps one walker when only one live CLI process is at the place', () => {
     const actors = collectGardenActors(
       overviewOf([

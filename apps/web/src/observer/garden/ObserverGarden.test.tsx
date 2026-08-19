@@ -194,38 +194,46 @@ describe('ObserverGarden', () => {
   it('walks two live Grok CLIs at one place even when both titles are 作業中', async () => {
     renderGarden(
       overviewOf([
-        repository('repo_tsugite', 'tsugite', [
-          session({
-            id: 'grok-248',
-            source: 'grok-build',
-            surface: 'cli',
-            displayName: 'Grok Build',
-            title: '作業中',
-            status: 'active',
-            activity: 'editing',
-            lastObservedLabel: 'たった今',
-          }),
-          session({
-            id: 'grok-26794',
-            source: 'grok-build',
-            surface: 'cli',
-            displayName: 'Grok Build',
-            title: '作業中',
-            status: 'active',
-            activity: 'editing',
-            lastObservedAt: '2026-08-18T23:59:00.000Z',
-            lastObservedLabel: 'たった今',
-          }),
-        ]),
+        repository(
+          'repo_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-248',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'grok-26794',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedAt: '2026-08-18T23:59:00.000Z',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          0,
+          [],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
       ]),
+      [workspace('ws_repo_tsugite', '継番')],
     )
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
     const walkers = within(residents).getAllByRole('listitem')
     expect(walkers).toHaveLength(2)
-    expect(within(residents).getAllByText('tsugite番')).toHaveLength(2)
-    expect(within(residents).getByText('動いている')).toBeVisible()
-    expect(within(residents).getByText(ANOTHER_LIVE_WORK)).toBeVisible()
+    expect(within(residents).getAllByText('継番')).toHaveLength(2)
+    expect(within(residents).getAllByText('動画を作っている')).toHaveLength(2)
+    expect(within(residents).queryByText(ANOTHER_LIVE_WORK)).toBeNull()
     expect(within(residents).queryByText('Grok Build')).toBeNull()
     const groundXs = walkers.map((item) =>
       Number(item.getAttribute('data-ground-x')),
@@ -238,12 +246,12 @@ describe('ObserverGarden', () => {
       ),
     )
     const first = screen.getByTestId('garden-inspect')
-    expect(first).toHaveTextContent('Grokで動いている')
+    expect(first).toHaveTextContent('Grokで動画を作っている')
     expect(first).not.toHaveTextContent(ANOTHER_LIVE_WORK)
     expect(first).not.toHaveTextContent('Grok Build')
     expect(first).not.toHaveTextContent('まだ分かっていません')
     expect(first.querySelector('.garden-inspect__title')).toHaveTextContent(
-      'tsugite番',
+      '継番',
     )
 
     await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
@@ -253,11 +261,79 @@ describe('ObserverGarden', () => {
       ),
     )
     const second = screen.getByTestId('garden-inspect')
-    expect(second).toHaveTextContent(`Grokで${ANOTHER_LIVE_WORK}`)
+    expect(second).toHaveTextContent('Grokで動画を作っている')
+    expect(second).not.toHaveTextContent(ANOTHER_LIVE_WORK)
     expect(second).not.toHaveTextContent('Grok Build')
     expect(second).not.toHaveTextContent('まだ分かっていません')
     expect(second.querySelector('.garden-inspect__title')).toHaveTextContent(
-      'tsugite番',
+      '継番',
+    )
+  })
+
+  it('names Codex in inspect now only when that live walk is Codex', async () => {
+    renderGarden(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-248',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'codex',
+              source: 'codex',
+              surface: 'desktop-app',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedAt: '2026-08-18T23:59:30.000Z',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          0,
+          [],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+      ]),
+      [workspace('ws_repo_tsugite', '継番')],
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getAllByText('動画を作っている')).toHaveLength(2)
+    expect(within(residents).queryByText(ANOTHER_LIVE_WORK)).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_tsugite')).getByRole(
+        'button',
+      ),
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'Grokで動画を作っている',
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
+      'Codexで動画を作っている',
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_tsugite-2')).getByRole(
+        'button',
+      ),
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'Codexで動画を作っている',
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
+      ANOTHER_LIVE_WORK,
     )
   })
 

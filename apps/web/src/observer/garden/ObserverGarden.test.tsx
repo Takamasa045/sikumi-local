@@ -974,7 +974,7 @@ describe('ObserverGarden', () => {
     expect(inspect.querySelector('.garden-inspect__leftover')).toBeNull()
   })
 
-  it('shows a square yard with everyday places, not workshop plaques', () => {
+  it('shows a wide yard with everyday places, not workshop plaques', () => {
     renderGarden(
       overviewOf([
         repository('repo_a', 'alpha', [
@@ -993,7 +993,8 @@ describe('ObserverGarden', () => {
     )
 
     const garden = screen.getByRole('region', { name: '観測の庭' })
-    expect(garden).toHaveAttribute('data-garden-floor', 'square')
+    expect(garden).toHaveAttribute('data-garden-floor', 'wide')
+    expect(garden).not.toHaveAttribute('data-garden-floor', 'square')
     expect(garden.className).toContain('observer-garden--satoyama')
     expect(screen.getByRole('button', { name: '仕事' })).toHaveStyle({
       left: `${GARDEN_PLACE_POINTS.workbench.x}%`,
@@ -1014,6 +1015,14 @@ describe('ObserverGarden', () => {
     expect(GARDEN_PLACE_POINTS.workbench.y).toBeGreaterThan(
       GARDEN_PLACE_POINTS.delivery.y,
     )
+    expect(GARDEN_PLACE_POINTS.rest.x).toBeLessThan(
+      GARDEN_PLACE_POINTS.workbench.x,
+    )
+    expect(GARDEN_PLACE_POINTS.waiting.x).toBeGreaterThan(
+      GARDEN_PLACE_POINTS.workbench.x,
+    )
+    expect(GARDEN_PLACE_POINTS.workbench.y).toBeLessThan(70)
+    expect(GARDEN_PLACE_POINTS.delivery.y).toBeGreaterThan(28)
     expect(screen.queryByRole('button', { name: '縁側' })).toBeNull()
     expect(screen.queryByRole('button', { name: '資料棚' })).toBeNull()
     expect(screen.queryByRole('button', { name: '資料館' })).toBeNull()

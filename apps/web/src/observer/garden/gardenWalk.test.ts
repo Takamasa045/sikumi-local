@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { GARDEN_WORK_GROUND } from '../places/placeResidents'
+import {
+  GARDEN_PLACE_POINTS,
+  GARDEN_WORK_GROUND,
+} from '../places/placeResidents'
 import {
   WORKING_WALK_LANE_X,
   WORKING_WALK_LOOP_RX,
@@ -41,12 +44,22 @@ describe('gardenWalk', () => {
   it('keeps a stable starting stop and paces near the walker on the ground', () => {
     expect(initialWalkIndex('repo_a')).toBe(initialWalkIndex('repo_a'))
     expect(initialWalkIndex('repo_a')).not.toBe(initialWalkIndex('repo_b'))
-    const actor = { jitterX: 1, jitterY: -0.5, groundX: 46, groundY: 72 }
+    const actor = {
+      jitterX: 1,
+      jitterY: -0.5,
+      groundX: GARDEN_PLACE_POINTS.workbench.x,
+      groundY: GARDEN_PLACE_POINTS.workbench.y,
+    }
     const left = workingWalkPoint('pace-a', actor)
     const right = workingWalkPoint('pace-b', actor)
     expect(right.x - left.x).toBeCloseTo(WORKING_WALK_PACE_X * 2, 5)
     expect(Math.hypot(right.x - left.x, right.y - left.y)).toBeLessThan(16)
-    expect(Math.hypot(right.x - 47, right.y - 71.5)).toBeLessThan(8)
+    expect(
+      Math.hypot(
+        right.x - (actor.groundX + actor.jitterX),
+        right.y - (actor.groundY + actor.jitterY),
+      ),
+    ).toBeLessThan(8)
     expect(walkFacing(left, actor)).toBe('left')
     expect(walkFacing(right, actor)).toBe('right')
     for (const stop of WORKING_WALK_STOPS) {
@@ -64,16 +77,16 @@ describe('gardenWalk', () => {
       jitterY: 0.1,
       streamIndex: 0,
       slot: 0,
-      groundX: 46,
-      groundY: 72,
+      groundX: GARDEN_PLACE_POINTS.workbench.x,
+      groundY: GARDEN_PLACE_POINTS.workbench.y,
     }
     const second = {
       jitterX: -0.2,
       jitterY: -0.14,
       streamIndex: 0,
       slot: 1,
-      groundX: 46,
-      groundY: 72,
+      groundX: GARDEN_PLACE_POINTS.workbench.x,
+      groundY: GARDEN_PLACE_POINTS.workbench.y,
     }
     const firstLoop = WORKING_WALK_STOPS.filter(
       (stop) => walkStopKind(stop) === 'loop',

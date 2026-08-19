@@ -82,9 +82,10 @@ test('the garden shows registered places as characters, not a list', async ({
     .getByRole('listitem')
   await expect(resident).not.toHaveAttribute('data-station', 'observatory')
   await expect(resident).not.toHaveAttribute('data-station', 'archive')
+  await expect(resident).toHaveAttribute('data-station', 'rest')
   expect(
     Number(await resident.getAttribute('data-ground-x')),
-  ).toBeGreaterThanOrEqual(36)
+  ).toBeLessThanOrEqual(28)
   await resident.getByRole('button').click()
   const inspect = page.getByTestId('garden-inspect')
   await expect(inspect).toContainText('しくみローカル番')
@@ -144,11 +145,14 @@ test('a user can click a garden station to see what is happening', async ({
     0,
   )
 
-  await page.getByRole('button', { name: '資料棚' }).click()
-  await expect(page.getByTestId('garden-inspect')).toContainText('資料棚')
+  await page.getByRole('button', { name: '仕事' }).click()
+  await expect(page.getByTestId('garden-inspect')).toContainText('仕事')
   await expect(page.getByTestId('garden-inspect')).toContainText(
-    'この工房の資料を読む場所',
+    '動いている仕事がいる場所',
   )
+  await expect(page.getByTestId('garden-inspect')).not.toContainText('資料棚')
+  await expect(page.getByTestId('garden-inspect')).not.toContainText('作業台')
+  await expect(page.getByTestId('garden-inspect')).not.toContainText('縁側')
 })
 
 test('the garden remains usable on a phone viewport', async ({ page }) => {

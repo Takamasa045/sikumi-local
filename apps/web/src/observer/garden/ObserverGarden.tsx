@@ -157,7 +157,7 @@ export function ObserverGarden({
         role="region"
         aria-label="観測の庭"
         data-world-pack={world.id}
-        data-garden-floor="square"
+        data-garden-floor="wide"
         style={gardenStyle}
       >
         <div className="observer-garden-mist" aria-hidden="true" />

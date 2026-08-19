@@ -38,13 +38,13 @@ export const WORKING_WALK_PACE_X = 4.4
 export const WORKING_WALK_LOOP_RX = 3.2
 
 const WALK_GROUND = {
-  minX: 26,
-  maxX: 74,
-  minY: 60,
-  maxY: 82,
+  minX: 28,
+  maxX: 72,
+  minY: 54,
+  maxY: 66,
 } as const
 
-const WALK_HOME = { x: 46, y: 72 } as const
+const WALK_HOME = { x: 48, y: 60 } as const
 
 type WalkActor = Pick<GardenPlaceActor, 'jitterX' | 'jitterY'> &
   Partial<

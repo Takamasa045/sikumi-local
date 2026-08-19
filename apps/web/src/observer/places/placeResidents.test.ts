@@ -1116,9 +1116,7 @@ describe('describeVisibleFacts', () => {
     )
     expect(describeVisibleFacts(resident!)).not.toContain('しまっていない変更')
     const inspect = describePlaceInspect(resident!)
-    expect(inspect.nowText).toBe(
-      '画面と確認の仕組みの途中が残っています。',
-    )
+    expect(inspect.nowText).toBe('画面と確認の仕組みの途中が残っています。')
     expect(inspect.implementationLook).toBeNull()
     expect(inspect.nowText).not.toContain('しまっていない変更')
     expect(inspect.nowText).not.toContain('Office.tsx')
@@ -1267,8 +1265,7 @@ describe('describeVisibleFacts', () => {
             }),
           ],
           {
-            workStory:
-              'いちばん新しい記事は『春のメモ』です',
+            workStory: 'いちばん新しい記事は『春のメモ』です',
             articleTitles: [
               { title: '春のメモ', date: '2026-08-15' },
               { title: '短い下書き', date: '2026-08-01' },
@@ -1287,7 +1284,9 @@ describe('describeVisibleFacts', () => {
       { title: '短い下書き', date: '2026-08-01' },
     ])
     expect(describePlaceInspect(resident!).workTitles).toEqual([])
-    expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain('縁側')
+    expect(JSON.stringify(describePlaceInspect(resident!))).not.toContain(
+      '縁側',
+    )
   })
 
   it('lists spoken recent work titles for a non-blog place', () => {

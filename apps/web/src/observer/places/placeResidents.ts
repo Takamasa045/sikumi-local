@@ -1170,9 +1170,7 @@ function collectSpokenWorkTitles(repository: OverviewRepository): string[] {
   return latest ? [latest] : []
 }
 
-function everydayWorkTitles(
-  values: readonly string[] | undefined,
-): string[] {
+function everydayWorkTitles(values: readonly string[] | undefined): string[] {
   const titles: string[] = []
   const seen = new Set<string>()
   for (const item of values ?? []) {

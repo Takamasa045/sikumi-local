@@ -38,10 +38,7 @@ export function resolveGardenResidentKind(
   return null
 }
 
-function isShikumiResident(
-  placeName: string,
-  repositoryName: string,
-): boolean {
+function isShikumiResident(placeName: string, repositoryName: string): boolean {
   if (placeName.trim() === SHIKUMI_PLACE_NAME) {
     return true
   }
@@ -58,9 +55,7 @@ function isBlogResident(placeName: string, repositoryName: string): boolean {
     return true
   }
   return identityTokens(placeName, repositoryName).some((token) =>
-    BLOG_REPO_KEYS.some(
-      (key) => token === key || token.includes(key),
-    ),
+    BLOG_REPO_KEYS.some((key) => token === key || token.includes(key)),
   )
 }
 
@@ -79,10 +74,7 @@ function isHatarakiResident(
   )
 }
 
-function identityTokens(
-  placeName: string,
-  repositoryName: string,
-): string[] {
+function identityTokens(placeName: string, repositoryName: string): string[] {
   return unique([
     ...comparableTokens(placeName),
     ...comparableTokens(repositoryName),

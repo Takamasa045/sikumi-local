@@ -266,7 +266,8 @@ function knownArticleTitles(
     | undefined,
 ): { readonly title: string; readonly date: string | null }[] {
   const seen = new Set<string>()
-  const articles: { readonly title: string; readonly date: string | null }[] = []
+  const articles: { readonly title: string; readonly date: string | null }[] =
+    []
   for (const item of values ?? []) {
     const title = item.title.trim()
     if (!knownLine(title) || seen.has(title)) {
@@ -286,11 +287,7 @@ function knownWorkTitles(values: readonly string[] | undefined): string[] {
   const titles: string[] = []
   for (const item of values ?? []) {
     const title = softenRecordTitle(item)
-    if (
-      !knownLine(title) ||
-      !isSpokenJapaneseTitle(title) ||
-      seen.has(title)
-    ) {
+    if (!knownLine(title) || !isSpokenJapaneseTitle(title) || seen.has(title)) {
       continue
     }
     seen.add(title)

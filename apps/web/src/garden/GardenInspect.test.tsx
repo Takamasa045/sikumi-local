@@ -45,10 +45,14 @@ describe('GardenInspect', () => {
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('調査')
     expect(
-      screen.getByTestId('garden-inspect').querySelector('.garden-inspect__head'),
+      screen
+        .getByTestId('garden-inspect')
+        .querySelector('.garden-inspect__head'),
     ).not.toBeNull()
     expect(
-      screen.getByTestId('garden-inspect').querySelector('.garden-inspect__body'),
+      screen
+        .getByTestId('garden-inspect')
+        .querySelector('.garden-inspect__body'),
     ).not.toBeNull()
     await userEvent.keyboard('{Escape}')
     expect(onClose).toHaveBeenCalled()
@@ -161,8 +165,7 @@ describe('GardenInspect', () => {
           station: 'rest',
           traveling: false,
           summary: '道具や画面まわりに、途中の仕事がある',
-          nowText:
-            '道具と画面の途中が残っています。\n最後に見えたのは4時間前',
+          nowText: '道具と画面の途中が残っています。\n最後に見えたのは4時間前',
           implementationLook: null,
           nextStep: null,
           live: false,

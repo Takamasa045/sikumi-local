@@ -386,7 +386,9 @@ describe('ObserverGarden', () => {
     expect(inspect).not.toHaveTextContent('いまの作業の続き')
     expect(inspect).not.toHaveTextContent('Codexが動かしている')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
-    expect(inspect).toHaveTextContent(/作業しています|仕事の合間にいます|確認を待っています/)
+    expect(inspect).toHaveTextContent(
+      /作業しています|仕事の合間にいます|確認を待っています/,
+    )
     expect(inspect.querySelector('.garden-inspect__title')).toHaveTextContent(
       'alpha番',
     )
@@ -667,7 +669,9 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('画面と確認の仕組みの途中が残っています。')
+    expect(inspect).toHaveTextContent(
+      '画面と確認の仕組みの途中が残っています。',
+    )
     expect(inspect).not.toHaveTextContent('縁側')
     expect(inspect).not.toHaveTextContent('Office.tsx')
     expect(inspect).not.toHaveTextContent('garden.spec.ts')
@@ -749,7 +753,9 @@ describe('ObserverGarden', () => {
     expect(within(residents).queryByText('これまでの記事')).toBeNull()
 
     await userEvent.click(
-      within(screen.getByTestId('garden-place-repo_sikumi')).getByRole('button'),
+      within(screen.getByTestId('garden-place-repo_sikumi')).getByRole(
+        'button',
+      ),
     )
     const sikumi = screen.getByTestId('garden-inspect')
     expect(sikumi).toHaveTextContent('これまでの仕事')

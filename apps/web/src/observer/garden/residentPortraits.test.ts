@@ -21,9 +21,7 @@ describe('resolveGardenResidentKind', () => {
     expect(resolveGardenResidentKind('キット番', 'shikumi_local')).toBe(
       'shikumi',
     )
-    expect(gardenResidentPortraitUrl('shikumi')).toContain(
-      'shikumi-local-ban',
-    )
+    expect(gardenResidentPortraitUrl('shikumi')).toContain('shikumi-local-ban')
   })
 
   it('binds the bear by はたらき or the hataraki repo name', () => {
@@ -38,10 +36,7 @@ describe('resolveGardenResidentKind', () => {
       resolveGardenResidentKind('*開発/hataraki番', '*開発/hataraki'),
     ).toBeNull()
     expect(
-      resolveGardenResidentKind(
-        'notes番',
-        '/Users/me/Projects/*開発/hataraki',
-      ),
+      resolveGardenResidentKind('notes番', '/Users/me/Projects/*開発/hataraki'),
     ).toBeNull()
     expect(resolveGardenResidentKind('はたらき', '*開発/hataraki')).toBe(
       'hataraki',

@@ -291,6 +291,81 @@ describe('ObserverGarden', () => {
     expect(employee).toHaveAttribute('data-gesture', 'working')
     vi.useRealTimers()
   })
+
+  it('opens observed work in place without turning a tool into an employee', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'alpha', [
+          session({
+            id: 's1',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+          }),
+        ]),
+      ]),
+    )
+
+    const agents = screen.getByRole('list', { name: '観測中のエージェント' })
+    await userEvent.click(within(agents).getByRole('button'))
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('Codex')
+    expect(inspect).toHaveTextContent('作業中')
+    expect(inspect).toHaveTextContent('APIを直している')
+    expect(inspect).toHaveTextContent('作業台')
+    expect(screen.getByTestId('garden-employee')).toHaveTextContent('サグル')
+    expect(
+      screen.queryByRole('heading', { name: 'いま何が、どこで起きているか' }),
+    ).toBeNull()
+  })
+
+  it('keeps Saguru put when the station does not change', async () => {
+    vi.useFakeTimers()
+    const { rerender } = render(
+      <ObserverGarden
+        overview={null}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        presence={{
+          station: 'rest',
+          pose: 'idle',
+          summary: 'まだ仕事は始まっていません',
+          stateName: 'idle',
+        }}
+        onOpenWorkshop={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    )
+    rerender(
+      <ObserverGarden
+        overview={null}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        presence={{
+          station: 'rest',
+          pose: 'idle',
+          summary: '仕事の準備をしています',
+          stateName: 'idle',
+        }}
+        onOpenWorkshop={vi.fn()}
+        onOpenSettings={vi.fn()}
+      />,
+    )
+    expect(screen.getByTestId('garden-employee')).toHaveAttribute(
+      'data-traveling',
+      'false',
+    )
+    await act(async () => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(screen.getByTestId('garden-employee')).toHaveAttribute(
+      'data-traveling',
+      'false',
+    )
+    vi.useRealTimers()
+  })
 })
 
 function renderGarden(overview: TodayOverview | null) {

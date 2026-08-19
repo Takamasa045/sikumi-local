@@ -95,6 +95,32 @@ describe('WorldStage', () => {
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       '資料棚に、いまは誰もいません',
     )
+
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByTestId('garden-inspect')).not.toBeInTheDocument()
+  })
+
+  it('says who is at the clicked station', async () => {
+    render(
+      <WorldStage
+        world={getWorldPack('dog-office')}
+        employeeName="サグル"
+        employeeRole="調査担当"
+        station="archive"
+        pose="reading"
+        activitySummary="この工房の資料を読んでいます"
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: '資料棚' }))
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'サグルが資料棚にいます',
+    )
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+      'サグル：この工房の資料を読んでいます',
+    )
+    await userEvent.click(screen.getByRole('button', { name: '閉じる' }))
+    expect(screen.queryByTestId('garden-inspect')).not.toBeInTheDocument()
   })
 
   it('walks between stations instead of snapping', async () => {

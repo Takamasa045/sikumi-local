@@ -27,7 +27,10 @@ export function RepositoryObserverPage({
   }
 
   return (
-    <section className="observer-detail" aria-label={`${activity.displayName}の様子`}>
+    <section
+      className="observer-detail"
+      aria-label={`${activity.displayName}の様子`}
+    >
       <p className="section-kicker">場所の様子</p>
       <h2>{activity.displayName}</h2>
       <p>{activity.summary}</p>
@@ -54,9 +57,7 @@ export function RepositoryObserverPage({
       <h3>変更されているところ</h3>
       {activity.worktrees.map((worktree) => (
         <article key={worktree.path} className="observer-worktree">
-          <strong>
-            {worktree.isPrimary ? '本体の作業場' : '別の作業場'}
-          </strong>
+          <strong>{worktree.isPrimary ? '本体の作業場' : '別の作業場'}</strong>
           <p>
             {worktree.changedFileCount} 件の変更
             {worktree.filesTruncated

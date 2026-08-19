@@ -399,8 +399,7 @@ export function describePlaceInspect(
 ): PlaceInspectCopy {
   const activity = placeActivityLabel(resident)
   const work = resident.lastObservedWork.trim()
-  const whenLabel =
-    resident.lastObservedWorkLabel ?? resident.lastObservedLabel
+  const whenLabel = resident.lastObservedWorkLabel ?? resident.lastObservedLabel
   const when = whenLabel ? `（${whenLabel}）` : ''
   return {
     nowText: work ? `${activity}。${work}${when}` : `${activity}${when}`,

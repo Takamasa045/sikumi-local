@@ -83,7 +83,9 @@ export function presentRepositoryActivity(
   if (mode === 'detail') {
     return {
       ...activity,
-      conflicts: activity.conflicts.map((item) => presentConflict(item, 'detail')),
+      conflicts: activity.conflicts.map((item) =>
+        presentConflict(item, 'detail'),
+      ),
     }
   }
   return {
@@ -93,7 +95,9 @@ export function presentRepositoryActivity(
       path: worktree.isPrimary ? 'primary' : `other-${index}`,
       branch: null,
     })),
-    conflicts: activity.conflicts.map((item) => presentConflict(item, 'simple')),
+    conflicts: activity.conflicts.map((item) =>
+      presentConflict(item, 'simple'),
+    ),
   }
 }
 
@@ -213,12 +217,12 @@ export function buildTodayOverview(
     ),
     conflictCount: repositories.reduce(
       (sum, item) =>
-        sum + item.conflicts.filter((conflict) => conflict.status === 'open').length,
+        sum +
+        item.conflicts.filter((conflict) => conflict.status === 'open').length,
       0,
     ),
     repositories: bounded.items,
-    truncated:
-      bounded.truncated || repositories.some((item) => item.truncated),
+    truncated: bounded.truncated || repositories.some((item) => item.truncated),
   }
 }
 

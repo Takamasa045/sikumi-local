@@ -102,9 +102,7 @@ function PlaceResidentRow({
         <span className="observer-place-row__status">
           {placeActivityLabel(resident)}
         </span>
-        {work ? (
-          <span className="observer-place-row__work">{work}</span>
-        ) : null}
+        {work ? <span className="observer-place-row__work">{work}</span> : null}
         {resident.lastObservedLabel ? (
           <small className="observer-place-row__observed">
             最後の観測: {resident.lastObservedLabel}

@@ -2404,12 +2404,6 @@ footer span {
 }
 
 .observer-garden.observer-garden--satoyama
-  .observer-garden-actor-sprite.is-portrait {
-  background-size: contain;
-  background-position: center bottom;
-}
-
-.observer-garden.observer-garden--satoyama
   .observer-garden-actor--workbench
   .observer-garden-actor-sprite {
   animation: observer-garden-bob 2.6s ease-in-out infinite;

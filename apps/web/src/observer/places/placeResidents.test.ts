@@ -452,16 +452,6 @@ describe('collectGardenActors', () => {
     )
 
     const leftover = actors.find((actor) => actor.placeName === 'hataraki番')
-    const blog = actors.find((actor) => actor.placeName === 'ブログ番')
-    const shikumi = actors.find(
-      (actor) => actor.placeName === SHIKUMI_PLACE_NAME,
-    )
-    expect(blog?.residentKind).toBe('blog')
-    expect(blog?.portraitUrl).toContain('blog-ban')
-    expect(shikumi?.residentKind).toBe('shikumi')
-    expect(shikumi?.portraitUrl).toContain('shikumi-local-ban')
-    expect(leftover?.residentKind).toBe('hataraki')
-    expect(leftover?.portraitUrl).toContain('hataraki')
     expect(leftover?.tone).toBe('observing')
     expect(leftover?.station).not.toBe('delivery')
     expect(['rest', 'workbench']).toContain(leftover?.station)

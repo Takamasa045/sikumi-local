@@ -12,11 +12,6 @@ import {
   sourceKey,
   UNKNOWN_GARDEN_WORK,
 } from '../garden/gardenState'
-import {
-  gardenResidentPortraitUrl,
-  resolveGardenResidentKind,
-  type GardenResidentKind,
-} from '../garden/residentPortraits'
 import { walkLaneOffset, WORKING_WALK_LANE_X } from '../garden/gardenWalk'
 
 const MAX_VISIBLE_WORK_TITLES = 12
@@ -163,8 +158,6 @@ export type GardenPlaceActor = {
     readonly date: string | null
   }[]
   readonly workTitles: readonly string[]
-  readonly residentKind: GardenResidentKind | null
-  readonly portraitUrl: string | null
   readonly station: GardenPlaceStation
   readonly tone: GardenPlaceTone
   readonly groundX: number
@@ -453,10 +446,6 @@ export function collectGardenActors(
           ? 'working'
           : 'observing'
       const inspect = describePlaceInspect(source)
-      const residentKind = resolveGardenResidentKind(
-        source.placeName,
-        source.repositoryName,
-      )
       const plot = plots.get(gardenPlotKey(source))
       const slot = plot?.slot ?? 0
       const lane =
@@ -479,8 +468,6 @@ export function collectGardenActors(
         goal: inspect.goal,
         articleTitles: inspect.articleTitles,
         workTitles: inspect.workTitles,
-        residentKind,
-        portraitUrl: gardenResidentPortraitUrl(residentKind),
         station: plot?.station ?? stationForResident(source),
         tone,
         groundX: clamp(

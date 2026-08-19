@@ -541,6 +541,71 @@ describe('ObserverGarden', () => {
     expect(labels).not.toContain('いま')
   })
 
+  it('keeps live Grok and Codex ahead of leftover confirmation and inferred git overlap', async () => {
+    renderGarden(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok',
+              source: 'grok-build',
+              surface: 'cursor-agent',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'codex',
+              source: 'codex',
+              surface: 'desktop-app',
+              displayName: 'Codex',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedAt: '2026-08-19T00:00:00.000Z',
+              lastObservedLabel: 'たった今',
+            }),
+          ],
+          122,
+          ['確認用の仕組み', '作業中のファイル'],
+          { conflictCount: 70 },
+        ),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).queryByText('確認待ち')).toBeNull()
+    expect(within(residents).queryByText('確認が必要')).toBeNull()
+    expect(within(residents).queryByText('確認まわりを直している')).toBeNull()
+    expect(within(residents).getByText('動いている')).toBeVisible()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_tsugite')).getByRole(
+        'button',
+      ),
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('動いている')
+    expect(inspect.textContent).toMatch(
+      /Grok Buildが動かしている|Codexが動かしている/,
+    )
+    expect(inspect).not.toHaveTextContent('確認待ち')
+    expect(inspect).not.toHaveTextContent('確認が必要')
+    expect(inspect).not.toHaveTextContent('確認まわりを直している')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('変更元不明')
+    expect(inspect).not.toHaveTextContent('縁側')
+    expect(screen.getByTestId('garden-place-repo_tsugite')).toHaveAttribute(
+      'data-status',
+      'working',
+    )
+  })
+
   it('walks a working character between the shelf, bench, and check place', async () => {
     vi.useFakeTimers()
     renderGarden(
@@ -959,6 +1024,8 @@ function repository(
     readonly outgoingCount?: number | null
     readonly incomingCount?: number | null
     readonly worktrees?: RepositoryView['worktrees']
+    readonly conflictCount?: number
+    readonly conflicts?: RepositoryView['conflicts']
   } = {},
 ): RepositoryView {
   return {
@@ -979,7 +1046,19 @@ function repository(
     incomingCount: extras.incomingCount ?? null,
     sessions,
     worktrees: extras.worktrees ?? [],
-    conflicts: [],
+    conflicts:
+      extras.conflicts ??
+      Array.from({ length: extras.conflictCount ?? 0 }, (_, index) => ({
+        id: `conflict_${index}`,
+        level: 'yellow',
+        score: 40,
+        summary: '変更元不明の2つの作業が同じ作業中のファイルを変更しています',
+        status: 'open',
+        leftSource: 'git',
+        rightSource: 'git',
+        leftAttributionConfidence: 'inferred',
+        rightAttributionConfidence: 'inferred',
+      })),
     areas: [...areas],
   }
 }

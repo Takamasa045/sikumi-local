@@ -249,7 +249,7 @@ export function collectPlaceResidents(
       lastObservedAt: latest?.lastObservedAt ?? null,
       changedFileCount: repository.changedFileCount,
       areas: lookAreas(repository),
-      conflictCount: repository.conflicts.length,
+      conflictCount: countObservedAgentApproaches(repository.conflicts),
       latestRecordTitle: everydayRecordTitle(repository.latestRecordTitle),
       workStory: everydayWorkStory(repository.workStory),
       placeIntro: everydayPlaceIntro(repository.placeIntro),
@@ -774,7 +774,7 @@ export function placeActivityLabel(resident: PlaceResident): string {
 
 export function describeVisibleFacts(resident: PlaceResident): string {
   const spoken = spokenWorkTitle(resident)
-  const area = primaryArea(resident)
+  const area = liveWorkArea(resident)
   if (resident.working && spoken && spoken.length <= BUBBLE_GOAL_MAX) {
     return spoken
   }
@@ -782,16 +782,16 @@ export function describeVisibleFacts(resident: PlaceResident): string {
     return resident.workStory
   }
   if (resident.working && area) {
-    return `${area}まわりを直している`
+    return `${shortAreaForBubble(area)}まわりを直している`
+  }
+  if (resident.working) {
+    return '動いている'
   }
   if (resident.changedFileCount > 0) {
     return resident.workStory ?? leftoverWorkSummary(resident)
   }
   if (resident.waiting) {
     return '確認待ち'
-  }
-  if (resident.working) {
-    return '動いている'
   }
   if ((resident.outgoingCount ?? 0) > 0) {
     return '送っていない'
@@ -861,8 +861,9 @@ function inspectNowLines(resident: PlaceResident): string[] {
   const lines: string[] = []
   const spoken = spokenWorkTitle(resident)
   const leftover = resident.changedFileCount > 0
-  const leftoverKinds = leftover ? leftoverKindsSentence(resident) : null
-  const areaWork = resident.working ? describeAreaWork(resident) : null
+  const leftoverKinds = leftover ? leftoverKindAreas(resident) : []
+  const leftoverSentence = leftover ? leftoverKindsSentence(resident) : null
+  const areaWork = resident.working ? describeLiveAreaWork(resident) : null
 
   if (resident.waiting && !resident.working) {
     lines.push('確認待ち')
@@ -896,14 +897,15 @@ function inspectNowLines(resident: PlaceResident): string[] {
 
   if (
     leftover &&
-    leftoverKinds &&
+    leftoverSentence &&
     !storyImpliesLeftover(resident.workStory) &&
-    !lines.includes(leftoverKinds)
+    !lines.includes(leftoverSentence) &&
+    !hidesConfirmationLeftover(resident.working, leftoverKinds)
   ) {
-    lines.push(leftoverKinds)
+    lines.push(leftoverSentence)
   } else if (
     leftover &&
-    !leftoverKinds &&
+    leftoverKinds.length === 0 &&
     !storyImpliesLeftover(resident.workStory) &&
     !lines.some((line) => line.includes('途中の仕事'))
   ) {
@@ -940,10 +942,12 @@ function describePlaceIntro(resident: PlaceResident): string | null {
   return `いちばん新しい記録は『${title}』です`
 }
 
-function describeAreaWork(
+function describeLiveAreaWork(
   resident: Pick<PlaceResident, 'areas'>,
 ): string | null {
-  const named = everydayInspectAreas(resident.areas)
+  const named = everydayInspectAreas(resident.areas).filter(
+    (area) => !isConfirmationLookArea(area),
+  )
   const shown = named.slice(0, 2)
   if (shown.length === 2) {
     return `${shown[0]}や${shown[1]}まわりを直している`
@@ -952,6 +956,28 @@ function describeAreaWork(
     return `${shown[0]}まわりを直している`
   }
   return null
+}
+
+function liveWorkArea(resident: Pick<PlaceResident, 'areas'>): string | null {
+  return (
+    namedAreas(resident.areas).find((area) => !isConfirmationLookArea(area)) ??
+    null
+  )
+}
+
+function isConfirmationLookArea(area: string): boolean {
+  return area === '確認' || area === '確認用の仕組み' || area === '確認の仕組み'
+}
+
+function hidesConfirmationLeftover(
+  working: boolean,
+  leftoverKinds: readonly string[],
+): boolean {
+  return (
+    working &&
+    leftoverKinds.length > 0 &&
+    leftoverKinds.every((area) => isConfirmationLookArea(area))
+  )
 }
 
 function lastSeenLabel(resident: PlaceResident): string | null {
@@ -1016,10 +1042,6 @@ function leftoverWorkSummary(resident: Pick<PlaceResident, 'areas'>): string {
     return `${shown[0]}まわりに、途中の仕事がある`
   }
   return '途中の仕事がある'
-}
-
-function primaryArea(resident: Pick<PlaceResident, 'areas'>): string | null {
-  return namedAreas(resident.areas)[0] ?? null
 }
 
 function namedAreas(areas: readonly string[]): string[] {
@@ -1105,6 +1127,43 @@ function describeNextStep(
     return '取り込みを待つ'
   }
   return null
+}
+
+function countObservedAgentApproaches(
+  conflicts: OverviewRepository['conflicts'],
+): number {
+  return conflicts.filter(isObservedAgentApproach).length
+}
+
+function isObservedAgentApproach(
+  conflict: OverviewRepository['conflicts'][number],
+): boolean {
+  if (conflict.status && conflict.status !== 'open') {
+    return false
+  }
+  return (
+    isObservedConflictParty(
+      conflict.leftSource,
+      conflict.leftAttributionConfidence,
+    ) &&
+    isObservedConflictParty(
+      conflict.rightSource,
+      conflict.rightAttributionConfidence,
+    )
+  )
+}
+
+function isObservedConflictParty(
+  source: string | null | undefined,
+  confidence: string | null | undefined,
+): boolean {
+  if (!source || sourceKey(source) === 'git') {
+    return false
+  }
+  if (!confidence || confidence === 'inferred') {
+    return false
+  }
+  return true
 }
 
 function lookAreas(repository: OverviewRepository): string[] {

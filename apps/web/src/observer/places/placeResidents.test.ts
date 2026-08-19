@@ -796,9 +796,9 @@ describe('collectGardenActors', () => {
     expect(actors.some((actor) => actor.placeName === 'tsugite番 2')).toBe(
       false,
     )
-    expect(
-      actors.every((actor) => actor.nowText?.includes('Grokで')),
-    ).toBe(true)
+    expect(actors.every((actor) => actor.nowText?.includes('Grokで'))).toBe(
+      true,
+    )
     expect(actors.some((actor) => actor.placeName.includes('Grok'))).toBe(false)
     expect(JSON.stringify(actors)).not.toMatch(
       /Grok Build|Claude Code|Codex|まだ分かっていません|変更元不明|fake-claude/,
@@ -2065,12 +2065,10 @@ describe('describeVisibleFacts', () => {
           actor.workSummary === ANOTHER_LIVE_WORK,
       ),
     ).toBe(true)
-    expect(
-      actors.some((actor) => actor.nowText?.includes('Grokで')),
-    ).toBe(true)
-    expect(
-      actors.some((actor) => actor.nowText?.includes('Codexで')),
-    ).toBe(true)
+    expect(actors.some((actor) => actor.nowText?.includes('Grokで'))).toBe(true)
+    expect(actors.some((actor) => actor.nowText?.includes('Codexで'))).toBe(
+      true,
+    )
     expect(JSON.stringify(actors)).not.toContain('Grok Build')
     expect(
       actors.every((actor) => actor.goal === null || actor.goal === undefined),

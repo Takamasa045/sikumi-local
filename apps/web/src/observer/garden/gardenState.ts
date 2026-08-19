@@ -6,7 +6,8 @@ export const UNKNOWN_GARDEN_WORK = '仕事の内容はまだ分かっていま�
 type OverviewRepository = TodayOverview['repositories'][number]
 type OverviewSession = OverviewRepository['sessions'][number]
 
-export type AgentStation = 'observatory' | 'workbench' | 'delivery' | 'waiting' | 'rest'
+export type AgentStation =
+  'observatory' | 'workbench' | 'delivery' | 'waiting' | 'rest'
 export type ActorTone = 'waiting' | 'working' | 'completed' | 'observing'
 
 export type GardenActor = {
@@ -92,13 +93,17 @@ export function sourceKey(source: string | null | undefined): string {
   return (source ?? '').trim().toLowerCase()
 }
 
-export function knownSourceLabel(source: string | null | undefined): string | null {
+export function knownSourceLabel(
+  source: string | null | undefined,
+): string | null {
   const key = sourceKey(source)
   if (!key) return null
   return KNOWN_SOURCE_LABELS[key] ?? null
 }
 
-export function atlasColumnForSource(source: string | null | undefined): number {
+export function atlasColumnForSource(
+  source: string | null | undefined,
+): number {
   const key = sourceKey(source)
   const mapped = SOURCE_COLUMN[key]
   if (mapped != null) return mapped % ATLAS_COLUMNS

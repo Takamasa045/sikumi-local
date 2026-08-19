@@ -355,10 +355,15 @@ describe('ObserverGarden', () => {
     )
 
     const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    expect(within(agents).queryByText('エージェントワークフローキッズ版')).toBeNull()
+    expect(
+      within(agents).queryByText('エージェントワークフローキッズ版'),
+    ).toBeNull()
     expect(within(agents).getByText('alphaが対象です')).toBeVisible()
     expect(within(agents).queryByText('Codexの作業が始まりました')).toBeNull()
-    expect(screen.getByRole('listitem')).toHaveAttribute('data-station', 'workbench')
+    expect(screen.getByRole('listitem')).toHaveAttribute(
+      'data-station',
+      'workbench',
+    )
     expect(screen.queryByRole('listitem', { name: /望遠鏡/ })).toBeNull()
   })
 
@@ -379,7 +384,9 @@ describe('ObserverGarden', () => {
     )
 
     const agents = screen.getByRole('list', { name: '観測中のエージェント' })
-    expect(within(agents).getByText('仕事の内容はまだ分かっていません')).toBeVisible()
+    expect(
+      within(agents).getByText('仕事の内容はまだ分かっていません'),
+    ).toBeVisible()
     await userEvent.click(within(agents).getByRole('button'))
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
       '仕事の内容はまだ分かっていません',
@@ -404,7 +411,9 @@ describe('ObserverGarden', () => {
       ]),
     )
 
-    await userEvent.click(within(screen.getByRole('listitem')).getByRole('button'))
+    await userEvent.click(
+      within(screen.getByRole('listitem')).getByRole('button'),
+    )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認の場所')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('確認札')

@@ -185,32 +185,37 @@ describe('collectGardenState', () => {
   it('keeps live dogs on the ground stations, not the observatory', () => {
     const { actors, bulletin } = collectGardenState(
       overviewOf([
-        repository('repo_a', 'alpha', [
-          session({
-            id: 'run',
-            source: 'codex',
-            displayName: 'Codex',
-            title: 'Codexの作業が始まりました',
-            status: 'running',
-            activity: 'working',
-            lastObservedAt: NOW,
-          }),
-          session({
-            id: 'kids',
-            source: 'cursor',
-            displayName: 'エージェントワークフローキッズ版',
-            title: '作業',
-            status: 'idle',
-            activity: 'idle',
-            lastObservedAt: NOW,
-          }),
-          session({
-            id: 'git',
-            source: 'git',
-            displayName: 'Git作業',
-            attributionConfidence: 'observed',
-          }),
-        ], 3),
+        repository(
+          'repo_a',
+          'alpha',
+          [
+            session({
+              id: 'run',
+              source: 'codex',
+              displayName: 'Codex',
+              title: 'Codexの作業が始まりました',
+              status: 'running',
+              activity: 'working',
+              lastObservedAt: NOW,
+            }),
+            session({
+              id: 'kids',
+              source: 'cursor',
+              displayName: 'エージェントワークフローキッズ版',
+              title: '作業',
+              status: 'idle',
+              activity: 'idle',
+              lastObservedAt: NOW,
+            }),
+            session({
+              id: 'git',
+              source: 'git',
+              displayName: 'Git作業',
+              attributionConfidence: 'observed',
+            }),
+          ],
+          3,
+        ),
       ]),
     )
 

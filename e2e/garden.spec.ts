@@ -80,8 +80,9 @@ test('a user can click the garden character and a station to see what is happeni
   await page.getByTestId('garden-employee').click()
   const inspect = page.getByTestId('garden-inspect')
   await expect(inspect).toBeVisible()
-  await expect(inspect).toContainText('サグル')
+  await expect(inspect).toContainText('調査担当')
   await expect(inspect).toContainText('縁側')
+  await expect(inspect).toContainText('まだ仕事は始まっていません')
   await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
   await expect(
     page.getByRole('heading', { name: 'いま何が、どこで起きているか' }),

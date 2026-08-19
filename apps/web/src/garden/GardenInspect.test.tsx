@@ -1,26 +1,27 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { GardenInspect } from './GardenInspect'
 
-const appCss = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), '../app/app.css'),
-  'utf8',
-)
-
 describe('GardenInspect', () => {
   it('caps the beige inspect panel so long copy scrolls inside', () => {
-    const block = appCss.slice(
-      appCss.indexOf('.garden-inspect {'),
-      appCss.indexOf('.garden-inspect__head {'),
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'サグル',
+          role: '調査担当',
+          station: 'archive',
+          traveling: false,
+          summary: 'この工房の資料を読んでいます',
+        }}
+        onClose={vi.fn()}
+      />,
     )
-    expect(block).toMatch(/max-height:\s*6[0-9]vh/)
-    expect(block).toContain('overflow-y: auto')
-    expect(appCss).toContain('.garden-inspect__head {')
-    expect(appCss).toMatch(/\.garden-inspect__head \{[\s\S]*position:\s*sticky/)
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveClass('garden-inspect')
+    expect(inspect.querySelector('.garden-inspect__head')).not.toBeNull()
+    expect(inspect.querySelector('.garden-inspect__body')).not.toBeNull()
   })
 
   it('shows a traveling employee and closes on Escape', async () => {

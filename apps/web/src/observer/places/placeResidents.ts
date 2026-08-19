@@ -1573,7 +1573,7 @@ function pickResidentWorkTool(
       tools.push(tool)
     }
   }
-  return tools.length === 1 ? tools[0] : null
+  return tools.length === 1 ? tools[0] ?? null : null
 }
 
 function withInspectTool(line: string, tool: string | null): string {

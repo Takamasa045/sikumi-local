@@ -272,6 +272,7 @@ function ObserverGardenActor({
     traveling,
     durationMs,
     walkStation,
+    destination,
   } = useWorkingWalk(actor, home, reducedMotion)
   const pose =
     actor.tone === 'waiting'
@@ -320,12 +321,18 @@ function ObserverGardenActor({
         .join(' ')}
       role="listitem"
       aria-label={actorAriaLabel(actor, repoLabel)}
-      data-testid={`garden-place-${actor.repositoryId}`}
+      data-testid={
+        actor.streamIndex > 0
+          ? `garden-place-${actor.repositoryId}-${actor.streamIndex + 1}`
+          : `garden-place-${actor.repositoryId}`
+      }
       data-status={actor.tone}
       data-station={actor.station}
       data-walk-stop={walkStation}
       data-ground-x={String(Math.round(actor.groundX))}
       data-ground-y={String(Math.round(actor.groundY))}
+      data-walk-x={String(Math.round(destination.x))}
+      data-walk-y={String(Math.round(destination.y))}
       data-gesture={gesture}
       data-traveling={traveling ? 'true' : 'false'}
       style={actorStyle}

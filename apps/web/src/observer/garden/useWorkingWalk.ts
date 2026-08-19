@@ -16,7 +16,7 @@ import {
 export function useWorkingWalk(
   actor: Pick<
     GardenPlaceActor,
-    'key' | 'tone' | 'station' | 'jitterX' | 'jitterY'
+    'key' | 'tone' | 'station' | 'jitterX' | 'jitterY' | 'slot' | 'streamIndex'
   >,
   home: { readonly x: number; readonly y: number },
   reducedMotion: boolean,

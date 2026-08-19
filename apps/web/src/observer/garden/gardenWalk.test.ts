@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  WORKING_WALK_LANE_X,
   WORKING_WALK_POINTS,
   WORKING_WALK_STOPS,
   initialWalkIndex,
   nextWalkIndex,
   placeRepoLabel,
+  walkLaneOffset,
   walkStopAt,
   workingWalkPoint,
 } from './gardenWalk'
@@ -26,6 +28,32 @@ describe('gardenWalk', () => {
     expect(initialWalkIndex('repo_a')).not.toBe(initialWalkIndex('repo_b'))
     const point = workingWalkPoint('workbench', { jitterX: 1, jitterY: -0.5 })
     expect(point).toEqual({ x: 50, y: 37.5 })
+  })
+
+  it('shifts a second live walker off the same stop so they are not hidden', () => {
+    expect(walkLaneOffset({ streamIndex: 0, slot: 0 })).toEqual({ x: 0, y: 0 })
+    expect(Math.abs(walkLaneOffset({ streamIndex: 1, slot: 1 }).x)).toBe(
+      WORKING_WALK_LANE_X,
+    )
+    for (const stop of WORKING_WALK_STOPS) {
+      const first = workingWalkPoint(stop, {
+        jitterX: 0.3,
+        jitterY: 0.2,
+        streamIndex: 0,
+        slot: 0,
+      })
+      const second = workingWalkPoint(stop, {
+        jitterX: -0.2,
+        jitterY: 0.1,
+        streamIndex: 1,
+        slot: 1,
+      })
+      expect(Math.abs(second.x - first.x)).toBeGreaterThanOrEqual(
+        WORKING_WALK_LANE_X - 1,
+      )
+      expect(Math.abs(second.x - first.x)).toBeGreaterThan(2)
+      expect(first).not.toEqual(second)
+    }
   })
 
   it('shows the repository name only when the place name does not already name it', () => {

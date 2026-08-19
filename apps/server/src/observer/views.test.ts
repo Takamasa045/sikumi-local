@@ -21,6 +21,9 @@ describe('observer views', () => {
         branch: 'main',
         headCommit: 'abc',
         baseCommit: null,
+        latestRecordTitle: 'ログイン画面の直し',
+        outgoingCount: 1,
+        incomingCount: 0,
         worktrees: [],
         changedFiles: [],
         scannedAt: '2026-08-18T00:10:00.000Z',
@@ -54,6 +57,9 @@ describe('observer views', () => {
       ],
     })
     expect(activity.lastChangedAt).toBe('2026-08-18T00:10:00.000Z')
+    expect(activity.latestRecordTitle).toBe('ログイン画面の直し')
+    expect(activity.outgoingCount).toBe(1)
+    expect(activity.incomingCount).toBe(0)
     expect(activity.sessions.map((item) => item.displayName)).toEqual([
       'Cursor Agent',
       'Cursor Tab',

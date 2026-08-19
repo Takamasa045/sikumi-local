@@ -27,6 +27,9 @@ export interface RepositoryActivityView {
   readonly changedFileCount: number
   readonly lastChangedAt: string | null
   readonly lastChangedLabel: string | null
+  readonly latestRecordTitle: string | null
+  readonly outgoingCount: number | null
+  readonly incomingCount: number | null
   readonly sessions: readonly SessionView[]
   readonly worktrees: readonly WorktreeView[]
   readonly conflicts: readonly ConflictFinding[]
@@ -184,6 +187,9 @@ export function buildRepositoryActivity(input: {
     changedFileCount,
     lastChangedAt: input.snapshot.scannedAt,
     lastChangedLabel: relativeTimeLabel(input.snapshot.scannedAt),
+    latestRecordTitle: input.snapshot.latestRecordTitle,
+    outgoingCount: input.snapshot.outgoingCount,
+    incomingCount: input.snapshot.incomingCount,
     sessions: sessions.items,
     worktrees,
     conflicts: conflicts.items,

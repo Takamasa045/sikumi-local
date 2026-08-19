@@ -4,6 +4,7 @@ import {
   GARDEN_ACTIVE_WINDOW_MS,
   UNKNOWN_GARDEN_WORK,
   describeGardenWork,
+  isEverydayRecordTitle,
   isGenericWorkTitle,
   shouldShowGardenDog,
   stationForTone,
@@ -30,7 +31,7 @@ describe('shouldShowGardenDog', () => {
     ).toBe(true)
   })
 
-  it('shows a waiting session even if the last observation is a bit older', () => {
+  it('shows a recently observed waiting session', () => {
     expect(
       shouldShowGardenDog(
         session({
@@ -38,11 +39,26 @@ describe('shouldShowGardenDog', () => {
           source: 'claude-code',
           status: 'idle',
           activity: 'waiting-for-user',
-          lastObservedAt: '2026-08-19T00:00:00.000Z',
+          lastObservedAt: '2026-08-19T00:08:00.000Z',
         }),
         NOW_MS,
       ),
     ).toBe(true)
+  })
+
+  it('hides a waiting session last seen outside the short window', () => {
+    expect(
+      shouldShowGardenDog(
+        session({
+          id: 'old-wait',
+          source: 'claude-code',
+          status: 'idle',
+          activity: 'waiting-for-user',
+          lastObservedAt: '2026-08-19T00:00:00.000Z',
+        }),
+        NOW_MS,
+      ),
+    ).toBe(false)
   })
 
   it('hides idle, stale, completed, and inferred sessions', () => {
@@ -176,6 +192,13 @@ describe('describeGardenWork', () => {
     expect(isGenericWorkTitle('Grok Buildが確認を待っています')).toBe(true)
     expect(isGenericWorkTitle('作業中')).toBe(true)
     expect(isGenericWorkTitle('APIを直している')).toBe(false)
+  })
+
+  it('keeps everyday record titles and drops SHA or git jargon', () => {
+    expect(isEverydayRecordTitle('ログイン画面の直し')).toBe(true)
+    expect(isEverydayRecordTitle('a1b2c3d')).toBe(false)
+    expect(isEverydayRecordTitle('Merge branch main')).toBe(false)
+    expect(isEverydayRecordTitle('init')).toBe(false)
   })
 })
 

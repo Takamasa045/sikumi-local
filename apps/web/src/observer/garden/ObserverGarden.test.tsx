@@ -44,9 +44,9 @@ describe('ObserverGarden', () => {
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
     expect(within(residents).getByText('ブログ番')).toBeVisible()
-    expect(within(residents).getByText('APIを直している')).toBeVisible()
+    expect(within(residents).getByText(/APIを直している/)).toBeVisible()
     expect(within(residents).getByText('notes番')).toBeVisible()
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(within(residents).queryByText('Codex')).toBeNull()
     expect(within(residents).queryByText('Claude Code')).toBeNull()
     expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
@@ -69,9 +69,7 @@ describe('ObserverGarden', () => {
     expect(within(residents).getAllByRole('listitem')).toHaveLength(2)
     expect(within(residents).getByText('alpha番')).toBeVisible()
     expect(within(residents).getByText('beta番')).toBeVisible()
-    expect(within(residents).getAllByText('まだ分かっていません')).toHaveLength(
-      2,
-    )
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     const items = within(residents).getAllByRole('listitem')
     expect(
       items.every(
@@ -115,7 +113,8 @@ describe('ObserverGarden', () => {
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
     expect(within(residents).getByText('alpha番')).toBeVisible()
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).getByText('まだしまっていない変更が4')).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(within(residents).queryByText('変更元不明の作業')).toBeNull()
     expect(within(residents).queryByText('Git作業')).toBeNull()
     expect(within(residents).queryByText('Codexらしい')).toBeNull()
@@ -183,12 +182,14 @@ describe('ObserverGarden', () => {
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('alpha番')
     expect(inspect).toHaveTextContent('いま')
-    expect(inspect).toHaveTextContent('動いている。APIを直している')
+    expect(inspect).toHaveTextContent('動いている / APIを直している')
     expect(inspect).toHaveTextContent('実装の様子')
-    expect(inspect).toHaveTextContent('作業中のファイル')
-    expect(inspect).toHaveTextContent('これから')
-    expect(inspect).toHaveTextContent('いまの作業の続き')
-    expect(inspect).toHaveTextContent('Codexが動かしている')
+    expect(inspect).toHaveTextContent('作業中のファイルが2')
+    expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('これから')
+    expect(inspect).not.toHaveTextContent('いまの作業の続き')
+    expect(inspect).not.toHaveTextContent('Codexが動かしている')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
     expect(inspect).toHaveTextContent(/資料棚|作業台|確認の場所/)
     expect(inspect.querySelector('.garden-inspect__title')).toHaveTextContent(
       'alpha番',
@@ -228,10 +229,12 @@ describe('ObserverGarden', () => {
     expect(
       within(residents).queryByText('エージェントワークフローキッズ版'),
     ).toBeNull()
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).getByText('動いている')).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     expect(
       within(residents).queryByText('Codexの作業が始まりました'),
     ).toBeNull()
+    expect(within(residents).queryByText('Codexが動かしている')).toBeNull()
     expect(within(residents).getByRole('listitem')).toHaveAttribute(
       'data-station',
       'workbench',
@@ -245,7 +248,7 @@ describe('ObserverGarden', () => {
     )
   })
 
-  it('says the work is unknown when no real title remains', async () => {
+  it('shows only known facts when no real title remains', async () => {
     renderGarden(
       overviewOf([
         repository('repo_a', '', [
@@ -262,12 +265,14 @@ describe('ObserverGarden', () => {
     )
 
     const residents = screen.getByRole('list', { name: '庭の住人' })
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).getByText('動いている')).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
     await userEvent.click(within(residents).getByRole('button'))
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+    expect(screen.getByTestId('garden-inspect')).toHaveTextContent('動いている')
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       'まだ分かっていません',
     )
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       'いまの作業の続き',
     )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
@@ -306,11 +311,14 @@ describe('ObserverGarden', () => {
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認の場所')
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
-      '確認待ち。承認が必要',
+      '確認待ち / 承認が必要',
     )
     expect(screen.getByTestId('garden-inspect')).toHaveTextContent('確認が必要')
-    expect(screen.getByTestId('garden-inspect')).toHaveTextContent(
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
       'Claudeアプリが動かしている',
+    )
+    expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent(
+      'Claude Codeが動かしている',
     )
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('望遠鏡')
     expect(screen.getByTestId('garden-inspect')).not.toHaveTextContent('確認札')
@@ -370,7 +378,38 @@ describe('ObserverGarden', () => {
     const residents = screen.getByRole('list', { name: '庭の住人' })
     expect(within(residents).getByText('ブログ番')).toBeVisible()
     expect(within(residents).getByText('my-blog')).toBeVisible()
-    expect(within(residents).getByText('まだ分かっていません')).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
+  })
+
+  it('shows everyday git status without SHA or unknown boilerplate', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'hataraki', [], 2, ['画面'], {
+          latestRecordTitle: '働きの直し',
+          outgoingCount: 1,
+          incomingCount: 0,
+        }),
+      ]),
+    )
+
+    const residents = screen.getByRole('list', { name: '庭の住人' })
+    expect(within(residents).getByText(/働きの直し/)).toBeVisible()
+    expect(within(residents).getByText(/まだしまっていない変更が2/)).toBeVisible()
+    expect(within(residents).getByText(/送っていない/)).toBeVisible()
+    expect(within(residents).queryByText('まだ分かっていません')).toBeNull()
+    expect(within(residents).queryByText(/Claude Code/)).toBeNull()
+    expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
+
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
+    )
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('働きの直し')
+    expect(inspect).toHaveTextContent('まだしまっていない変更が2')
+    expect(inspect).toHaveTextContent('送っていない')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('commit')
+    expect(inspect).not.toHaveTextContent('HEAD')
   })
 
   it('shows how far a still place got and what is next, without inventing', async () => {
@@ -381,10 +420,11 @@ describe('ObserverGarden', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
-    expect(inspect).toHaveTextContent('作業中のファイルが1つある')
-    expect(inspect).toHaveTextContent('次はこんな感じか')
-    expect(inspect).toHaveTextContent('次に動かすまで待つ')
+    expect(inspect).toHaveTextContent('まだしまっていない変更が1')
+    expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('次に動かすまで待つ')
+    expect(inspect).not.toHaveTextContent('次はこんな感じか')
     const labels = [...inspect.querySelectorAll('dt')].map(
       (item) => item.textContent,
     )
@@ -403,7 +443,6 @@ function renderGarden(
       overview={overview}
       workspaces={workspaces}
       onOpenWorkshop={vi.fn()}
-      onOpenSettings={vi.fn()}
     />,
   )
 }
@@ -427,6 +466,11 @@ function repository(
   sessions: SessionView[],
   changedFileCount = 0,
   areas: readonly string[] = [],
+  extras: {
+    readonly latestRecordTitle?: string | null
+    readonly outgoingCount?: number | null
+    readonly incomingCount?: number | null
+  } = {},
 ): RepositoryView {
   return {
     repositoryId,
@@ -437,6 +481,9 @@ function repository(
     summary: '',
     changedFileCount,
     lastChangedLabel: null,
+    latestRecordTitle: extras.latestRecordTitle ?? null,
+    outgoingCount: extras.outgoingCount ?? null,
+    incomingCount: extras.incomingCount ?? null,
     sessions,
     worktrees: [],
     conflicts: [],

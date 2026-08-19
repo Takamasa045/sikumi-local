@@ -3,6 +3,7 @@ import type { TodayOverview } from '../../api/observer'
 import { confirmUnregisterPlace } from '../../workspace/confirmUnregisterPlace'
 import {
   collectPlaceResidents,
+  describeVisibleFacts,
   placeActivityLabel,
   sortPlaceResidents,
   type PlaceResident,
@@ -100,9 +101,11 @@ function PlaceResidentRow({
         <span className="observer-place-row__status">
           {placeActivityLabel(resident)}
         </span>
-        <span className="observer-place-row__work">
-          {resident.lastObservedWork}
-        </span>
+        {describeVisibleFacts(resident) ? (
+          <span className="observer-place-row__work">
+            {describeVisibleFacts(resident)}
+          </span>
+        ) : null}
         {resident.lastObservedLabel ? (
           <small className="observer-place-row__observed">
             最後の観測: {resident.lastObservedLabel}

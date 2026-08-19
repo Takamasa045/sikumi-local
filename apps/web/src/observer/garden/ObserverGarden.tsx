@@ -42,7 +42,6 @@ type ObserverGardenProps = {
   overview: TodayOverview | null
   workspaces?: readonly Workspace[]
   onOpenWorkshop: () => void
-  onOpenSettings: () => void
 }
 
 function atlasPosition(column: number, row: number): { x: string; y: string } {
@@ -82,7 +81,6 @@ export function ObserverGarden({
   overview,
   workspaces = [],
   onOpenWorkshop,
-  onOpenSettings,
 }: ObserverGardenProps) {
   const world = getWorldPack(WORLD_ID)
   const actors = collectGardenActors(overview, workspaces)
@@ -145,13 +143,6 @@ export function ObserverGarden({
               onClick={onOpenWorkshop}
             >
               今日の作業場
-            </button>
-            <button
-              type="button"
-              className="observer-garden-nav-button observer-garden-nav-settings"
-              onClick={onOpenSettings}
-            >
-              設定
             </button>
           </div>
         </header>
@@ -330,7 +321,9 @@ function ObserverGardenActor({
         {repoLabel ? (
           <p className="observer-garden-bubble-repo">{repoLabel}</p>
         ) : null}
-        <p className="observer-garden-bubble-title">{actor.workSummary}</p>
+        {actor.workSummary ? (
+          <p className="observer-garden-bubble-title">{actor.workSummary}</p>
+        ) : null}
       </div>
     </article>
   )

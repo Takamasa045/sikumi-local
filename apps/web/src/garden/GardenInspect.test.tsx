@@ -37,9 +37,9 @@ describe('GardenInspect', () => {
           station: 'workbench',
           traveling: false,
           summary: 'APIを直している',
-          nowText: '動いている。APIを直している',
-          implementationLook: '作業中のファイルがいくつかある。画面あたりです',
-          nextStep: 'いまの作業の続き',
+          nowText: '動いている / APIを直している',
+          implementationLook: '作業中のファイルが2 / 画面あたり',
+          nextStep: null,
           driverNote: 'Codexが動かしている',
         }}
         onClose={vi.fn()}
@@ -48,14 +48,13 @@ describe('GardenInspect', () => {
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('ブログ番')
     expect(inspect).toHaveTextContent('いま')
-    expect(inspect).toHaveTextContent('動いている。APIを直している')
+    expect(inspect).toHaveTextContent('動いている / APIを直している')
     expect(inspect).toHaveTextContent('Codexが動かしている')
     expect(inspect).toHaveTextContent('実装の様子')
-    expect(inspect).toHaveTextContent(
-      '作業中のファイルがいくつかある。画面あたりです',
-    )
-    expect(inspect).toHaveTextContent('これから')
-    expect(inspect).toHaveTextContent('いまの作業の続き')
+    expect(inspect).toHaveTextContent('作業中のファイルが2')
+    expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('これから')
+    expect(inspect).not.toHaveTextContent('いまの作業の続き')
     expect(inspect).not.toHaveTextContent('役割')
     expect(inspect).not.toHaveTextContent('要約')
   })
@@ -68,10 +67,10 @@ describe('GardenInspect', () => {
           name: 'notes番',
           station: 'rest',
           traveling: false,
-          summary: 'まだ分かっていません',
-          nowText: '静か。まだ分かっていません',
-          implementationLook: '作業中のファイルが1つある',
-          nextStep: '次に動かすまで待つ',
+          summary: '',
+          nowText: 'まだしまっていない変更が1 / 画面あたり',
+          implementationLook: 'まだしまっていない変更が1 / 画面あたり',
+          nextStep: null,
           live: false,
         }}
         onClose={vi.fn()}
@@ -79,21 +78,21 @@ describe('GardenInspect', () => {
     )
     const inspect = screen.getByTestId('garden-inspect')
     expect(inspect).toHaveTextContent('どこまでやったか')
-    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
-    expect(inspect).toHaveTextContent('作業中のファイルが1つある')
-    expect(inspect).toHaveTextContent('次はこんな感じか')
-    expect(inspect).toHaveTextContent('次に動かすまで待つ')
+    expect(inspect).toHaveTextContent('まだしまっていない変更が1')
+    expect(inspect).toHaveTextContent('画面あたり')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('次に動かすまで待つ')
     const labels = [...inspect.querySelectorAll('dt')].map(
       (item) => item.textContent,
     )
     expect(labels).toContain('どこまでやったか')
-    expect(labels).toContain('次はこんな感じか')
+    expect(labels).not.toContain('次はこんな感じか')
     expect(labels).not.toContain('いま')
     expect(labels).not.toContain('これから')
     expect(inspect).not.toHaveTextContent('変更元不明')
   })
 
-  it('says the work is unknown instead of inventing missing facts', () => {
+  it('omits unknown boilerplate instead of inventing missing facts', () => {
     render(
       <GardenInspect
         subject={{
@@ -110,9 +109,9 @@ describe('GardenInspect', () => {
       />,
     )
     const inspect = screen.getByTestId('garden-inspect')
-    expect(inspect).toHaveTextContent('静か。まだ分かっていません')
-    expect(inspect).toHaveTextContent('実装の様子')
-    expect(inspect).toHaveTextContent('次に動かすまで待つ')
+    expect(inspect).not.toHaveTextContent('まだ分かっていません')
+    expect(inspect).not.toHaveTextContent('実装の様子')
+    expect(inspect).not.toHaveTextContent('次に動かすまで待つ')
     expect(inspect).not.toHaveTextContent('変更元不明')
   })
 

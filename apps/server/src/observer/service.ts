@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
+import { userInfo } from 'node:os'
 import { AppError } from '@sikumi-local/core'
 import { createClaudeCodeObserverAdapter } from '@sikumi-local/observer-claude-code'
 import {
@@ -23,8 +24,10 @@ import {
   OBSERVER_MAX_SPOOL_FILE_LINES,
   OBSERVER_MAX_SPOOL_FILES_PER_SWEEP,
   OBSERVER_CONSISTENCY_INTERVAL_MS,
+  OBSERVER_LIVE_SCAN_THROTTLE_MS,
   OBSERVER_SCAN_DEBOUNCE_MS,
   OBSERVER_SCAN_THROTTLE_MS,
+  realUserHome,
   projectInboundEvent,
   rememberAdapterObservation,
   toAdapterRecord,
@@ -45,9 +48,18 @@ import {
 } from '@sikumi-local/observer-bridge'
 import {
   createGitObserverAdapter,
+  readLatestRecordTitle,
+  readSyncCounts,
   snapshotGitRepository,
   type ChangedFileRecord,
 } from '@sikumi-local/observer-git'
+import {
+  discoverLiveSessions,
+  liveSightingToEvent,
+  type LiveDiscoveryInput,
+  type LiveProcessRow,
+  type LiveSighting,
+} from '@sikumi-local/observer-live'
 import type { CombinedStore } from '../storage/store.js'
 import { createObserverId } from '../storage/observer-store.js'
 import { refreshConflicts } from './conflicts.js'
@@ -87,6 +99,10 @@ export interface ObserverServiceOptions {
     listener: (eventType: string, filename: string | Buffer | null) => void,
   ) => RepositoryWatcherHandle
   readonly isWatchable?: (rootPath: string) => boolean
+  readonly discoverLive?: (input: LiveDiscoveryInput) => readonly LiveSighting[]
+  readonly listLiveProcesses?: () => readonly LiveProcessRow[]
+  readonly liveHomeDir?: string
+  readonly liveCurrentUser?: string
 }
 
 export interface ObserverService {
@@ -145,6 +161,7 @@ export function createObserverService(
   const clearIntervalFn = options.clearIntervalFn ?? clearInterval
   let disposed = false
   let consistencyTimer: ReturnType<typeof setInterval> | undefined
+  let lastLiveScanAt = 0
 
   const scheduler = createScanScheduler({
     scan: (repositoryId) => {
@@ -198,6 +215,7 @@ export function createObserverService(
       }
       syncRegisteredRepositoryCatalog()
       markStaleSessions(store)
+      ingestLiveDiscovery({ force: true })
       service.scanAll()
     },
     ingestSpool() {
@@ -415,6 +433,7 @@ export function createObserverService(
     today(mode = 'simple') {
       syncRegisteredRepositoryCatalog()
       reconcileRegisteredWatchers()
+      ingestLiveDiscovery()
       const registered = store.listRegisteredRepositories()
       for (const repository of registered) {
         try {
@@ -693,10 +712,108 @@ export function createObserverService(
       return
     }
     try {
+      ingestLiveDiscovery()
+    } catch {
+      // live discovery is fail-open and never blocks hook or git observation
+    }
+    try {
       markStaleSessions(store)
     } catch {
       // stale marking must not keep a closed process alive
     }
+  }
+
+  function ingestLiveDiscovery(optionsForScan: { readonly force?: boolean } = {}): void {
+    if (disposed) {
+      return
+    }
+    const now = options.now?.() ?? Date.now()
+    if (
+      !optionsForScan.force &&
+      lastLiveScanAt > 0 &&
+      now - lastLiveScanAt < OBSERVER_LIVE_SCAN_THROTTLE_MS
+    ) {
+      return
+    }
+    lastLiveScanAt = now
+    const roots = collectLiveRoots()
+    if (roots.length === 0) {
+      return
+    }
+    let sightings: readonly LiveSighting[] = []
+    try {
+      const discover = options.discoverLive ?? discoverLiveSessions
+      const listProcesses = resolveLiveProcessLister(options)
+      sightings = discover({
+        roots,
+        homeDir: options.liveHomeDir ?? realUserHome(),
+        currentUser: options.liveCurrentUser ?? userInfo().username,
+        now,
+        ...(listProcesses ? { listProcesses } : {}),
+      })
+    } catch {
+      return
+    }
+    const repositories = store.listRegisteredRepositories()
+    const discoveredWorktrees = Object.fromEntries(
+      repositories.map((repository) => [
+        repository.id,
+        store
+          .latestSnapshotsByRepository(repository.id)
+          .map((snapshot) => snapshot.worktreePath),
+      ]),
+    )
+    const touched = new Set<string>()
+    for (const sighting of sightings) {
+      try {
+        const projected = liveSightingToEvent(sighting)
+        upsertSessionFromEvent(
+          store,
+          projected,
+          repositories,
+          discoveredWorktrees,
+        )
+        touched.add(sighting.repositoryId)
+      } catch {
+        // one sighting must not hide the rest
+      }
+    }
+    for (const repositoryId of touched) {
+      hub.publish({
+        id: createObserverEventId(),
+        type: 'observer.rescan',
+        payload: { repositoryId },
+        occurredAt: nowIso(),
+      })
+    }
+  }
+
+  function collectLiveRoots() {
+    const roots: Array<{
+      repositoryId: string
+      workspaceId: string
+      absolutePath: string
+    }> = []
+    for (const repository of store.listRegisteredRepositories()) {
+      roots.push({
+        repositoryId: repository.id,
+        workspaceId: repository.workspaceId,
+        absolutePath: repository.absolutePath,
+      })
+      for (const snapshot of store.latestSnapshotsByRepository(repository.id)) {
+        if (
+          snapshot.worktreePath &&
+          snapshot.worktreePath !== repository.absolutePath
+        ) {
+          roots.push({
+            repositoryId: repository.id,
+            workspaceId: repository.workspaceId,
+            absolutePath: snapshot.worktreePath,
+          })
+        }
+      }
+    }
+    return roots
   }
 
   if (consistencyIntervalMs > 0) {
@@ -752,6 +869,18 @@ export function createObserverService(
   }
 
   return service
+}
+
+function resolveLiveProcessLister(
+  options: ObserverServiceOptions,
+): (() => readonly LiveProcessRow[]) | undefined {
+  if (options.listLiveProcesses) {
+    return options.listLiveProcesses
+  }
+  if (process.env.VITEST === 'true' && !options.discoverLive) {
+    return () => []
+  }
+  return undefined
 }
 
 function alreadyProjected(raw: unknown): boolean {
@@ -818,14 +947,21 @@ function latestSnapshotView(
     }
     return snapshotGitRepository(repository.absolutePath)
   }
+  const root = latest[0]?.worktreePath ?? null
+  const sync = root
+    ? readSyncCounts(root)
+    : { outgoingCount: null, incomingCount: null }
   return {
     available: true,
     reason: null,
-    repositoryRoot: latest[0]?.worktreePath ?? null,
+    repositoryRoot: root,
     displayName: store.getRegisteredRepository(repositoryId)?.displayName ?? null,
     branch: latest.find((item) => item.worktreePath)?.branch ?? null,
     headCommit: latest[0]?.headCommit ?? null,
     baseCommit: latest[0]?.baseCommit ?? null,
+    latestRecordTitle: root ? readLatestRecordTitle(root) : null,
+    outgoingCount: sync.outgoingCount,
+    incomingCount: sync.incomingCount,
     worktrees: latest.map((item, index) => {
       const files = item.changedFiles as ChangedFileRecord[]
       const status = item.status as {

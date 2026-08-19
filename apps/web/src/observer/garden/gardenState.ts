@@ -36,7 +36,13 @@ const GENERIC_WORK_TITLES = new Set([
   '作業中',
   '無題',
   '変更元不明の作業',
+  'init',
+  'initial commit',
+  'first commit',
 ])
+
+const GIT_JARGON = /\b(merge|rebase|cherry-pick|commit|commits|branch|HEAD|origin|refs)\b/i
+const SHA_ONLY = /^[0-9a-f]{7,40}$/i
 
 const GENERIC_WORK_PATTERNS = [
   /の作業が始まりました$/,
@@ -121,12 +127,11 @@ export function shouldShowGardenDog(
   if (!isObservedAgent(session) || isUnconfirmedChange(session)) {
     return false
   }
-  const tone = resolveTone(session.status, session.activity)
-  if (tone === 'waiting') return true
-  if (tone === 'working') {
-    return isRecentlyObserved(session.lastObservedAt, nowMs)
+  if (!isRecentlyObserved(session.lastObservedAt, nowMs)) {
+    return false
   }
-  return false
+  const tone = resolveTone(session.status, session.activity)
+  return tone === 'waiting' || tone === 'working'
 }
 
 export function isGenericWorkTitle(title: string | null | undefined): boolean {
@@ -134,6 +139,15 @@ export function isGenericWorkTitle(title: string | null | undefined): boolean {
   if (!trimmed) return true
   if (GENERIC_WORK_TITLES.has(trimmed)) return true
   return GENERIC_WORK_PATTERNS.some((pattern) => pattern.test(trimmed))
+}
+
+export function isEverydayRecordTitle(title: string | null | undefined): boolean {
+  const trimmed = title?.trim() ?? ''
+  if (isGenericWorkTitle(trimmed)) return false
+  if (SHA_ONLY.test(trimmed)) return false
+  if (GIT_JARGON.test(trimmed)) return false
+  if (/^(Merge|Revert|Rebase)\b/.test(trimmed)) return false
+  return true
 }
 
 export function describeGardenWork(

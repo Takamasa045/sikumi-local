@@ -85,6 +85,8 @@ export const ingestionMethods = [
   'stream-json',
   'git-scan',
   'http',
+  'process-scan',
+  'session-file',
 ] as const
 export type IngestionMethod = (typeof ingestionMethods)[number]
 

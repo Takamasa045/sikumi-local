@@ -56,10 +56,10 @@ describe('PlaceResidentList', () => {
     expect(screen.getByText('キット番')).toBeVisible()
     expect(screen.getByText('agent-workflow-kits')).toBeVisible()
     expect(screen.getByText('動いている')).toBeVisible()
-    expect(screen.getByText('APIを直している')).toBeVisible()
+    expect(screen.getByText(/APIを直している/)).toBeVisible()
     expect(screen.getByText('notes番')).toBeVisible()
     expect(screen.getByText('静か')).toBeVisible()
-    expect(screen.getByText('まだ分かっていません')).toBeVisible()
+    expect(screen.queryByText('まだ分かっていません')).toBeNull()
 
     await userEvent.click(screen.getByTestId('observer-place-repo_a'))
     expect(onSelect).toHaveBeenCalledWith('repo_a')

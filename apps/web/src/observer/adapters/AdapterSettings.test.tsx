@@ -188,7 +188,7 @@ describe('AdapterSettings', () => {
     expect(
       screen.queryByRole('button', { name: 'この場所につなぐ' }),
     ).toBeNull()
-    expect(screen.getByText(/一度つなぎます/)).toBeVisible()
+    expect(screen.getByText(/つなぐは任意です/)).toBeVisible()
     await userEvent.click(screen.getAllByRole('button', { name: 'つなぐ' })[0]!)
     expect(await screen.findByText('つながりました')).toBeVisible()
     expect(screen.queryByRole('alert')).toBeNull()

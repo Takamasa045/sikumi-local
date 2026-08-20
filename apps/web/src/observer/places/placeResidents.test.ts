@@ -1028,6 +1028,272 @@ describe('collectGardenActors', () => {
     )
   })
 
+  it('walks only the newest Codex wait on 継 when many waits pile up', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-live',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            session({
+              id: 'grok-sit',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'idle',
+              lastObservedAt: '2026-08-19T00:09:00.000Z',
+            }),
+            session({
+              id: 'git-left',
+              source: 'git',
+              displayName: '変更元不明',
+              title: '変更元不明の作業',
+              attributionConfidence: 'inferred',
+            }),
+            ...waitingSessions({
+              count: 21,
+              source: 'codex',
+              idPrefix: 'codex-wait',
+              displayName: 'Codex',
+              surface: 'desktop-app',
+              newestTitle: '承認が必要',
+            }),
+          ],
+          {
+            placeIntro: '継。ローカルで動画を作る工房です。',
+            worktrees: [
+              worktreeOf([leftoverFile('src/clip.tsx', '画面')], {
+                changedFileCount: 4,
+              }),
+            ],
+          },
+        ),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.every((actor) => actor.placeName === '継番')).toBe(true)
+    const working = actors.find((actor) => actor.tone === 'working')
+    const waiting = actors.find((actor) => actor.tone === 'waiting')
+    expect(working?.nowText).toContain('Grokで動画を作っている')
+    expect(working?.station).toBe('workbench')
+    expect(waiting?.workSummary).toBe('確認待ち')
+    expect(waiting?.nowText).toContain('確認待ち')
+    expect(waiting?.nowText).toContain('承認が必要')
+    expect(waiting?.driverNote).toBe('Codexが動かしている')
+    expect(waiting?.station).toBe('waiting')
+    expect(
+      isGardenDeliveryGround({
+        x: waiting?.groundX ?? 0,
+        y: waiting?.groundY ?? 0,
+      }),
+    ).toBe(false)
+    expect(actors.filter((actor) => actor.tone === 'waiting')).toHaveLength(1)
+    expect(actors.some((actor) => actor.placeName === '継番 2')).toBe(false)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /もう一つの仕事|Grok 2|Codex 2|Grok Build|fake-claude|変更元不明|縁側|SHA/,
+    )
+  })
+
+  it('walks one Grok wait on はたらき even when nine waits remain', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [
+          ...waitingSessions({
+            count: 9,
+            source: 'grok-build',
+            idPrefix: 'grok-wait',
+            displayName: 'Grok Build',
+            surface: 'cli',
+            newestTitle: '承認が必要',
+          }),
+          session({
+            id: 'git-left',
+            source: 'git',
+            displayName: '変更元不明',
+            title: '変更元不明の作業',
+            attributionConfidence: 'inferred',
+          }),
+        ]),
+      ]),
+      [workspace('ws_hataraki', 'はたらき')],
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]?.placeName).toBe('はたらき')
+    expect(actors[0]?.tone).toBe('waiting')
+    expect(actors[0]?.workSummary).toBe('確認待ち')
+    expect(actors[0]?.nowText).toContain('確認待ち')
+    expect(actors[0]?.nowText).toContain('承認が必要')
+    expect(actors[0]?.station).toBe('waiting')
+    expect(
+      isGardenDeliveryGround({
+        x: actors[0]?.groundX ?? 0,
+        y: actors[0]?.groundY ?? 0,
+      }),
+    ).toBe(false)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /Grok 2|Codex 2|Grok Build|fake-claude|変更元不明|縁側|SHA/,
+    )
+  })
+
+  it('keeps four registered places from turning old waits into an ocean of dogs', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository(
+          'repo_tsugite',
+          'ws_tsugite',
+          'tsugite',
+          [
+            session({
+              id: 'grok-live',
+              source: 'grok-build',
+              surface: 'cli',
+              displayName: 'Grok Build',
+              title: '作業中',
+              status: 'active',
+              activity: 'editing',
+              lastObservedLabel: 'たった今',
+            }),
+            ...waitingSessions({
+              count: 21,
+              source: 'codex',
+              idPrefix: 'codex-wait',
+              displayName: 'Codex',
+              surface: 'desktop-app',
+            }),
+          ],
+          { placeIntro: '継。ローカルで動画を作る工房です。' },
+        ),
+        repository(
+          'repo_hataraki',
+          'ws_hataraki',
+          'hataraki',
+          waitingSessions({
+            count: 9,
+            source: 'grok-build',
+            idPrefix: 'hataraki-wait',
+            displayName: 'Grok Build',
+            surface: 'cli',
+          }),
+        ),
+        repository('repo_sikumi', 'ws_sikumi', 'sikumi-local', []),
+        repository('repo_blog', 'ws_blog', 'my-blog', []),
+      ]),
+      [
+        workspace('ws_tsugite', '継番'),
+        workspace('ws_hataraki', 'はたらき'),
+        workspace('ws_sikumi'),
+        workspace('ws_blog'),
+      ],
+    )
+
+    const tsugite = actors.filter((actor) => actor.placeName === '継番')
+    const hataraki = actors.filter((actor) => actor.placeName === 'はたらき')
+    expect(actors).toHaveLength(5)
+    expect(tsugite).toHaveLength(2)
+    expect(tsugite.some((actor) => actor.tone === 'working')).toBe(true)
+    expect(tsugite.some((actor) => actor.tone === 'waiting')).toBe(true)
+    expect(hataraki).toHaveLength(1)
+    expect(hataraki[0]?.tone).toBe('waiting')
+    expect(
+      actors.filter((actor) => actor.placeName === SHIKUMI_PLACE_NAME),
+    ).toHaveLength(1)
+    expect(
+      actors.filter((actor) => actor.placeName === 'ブログ番'),
+    ).toHaveLength(1)
+    expect(actors.some((actor) => actor.placeName.includes('2'))).toBe(false)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /Grok 2|Codex 2|Grok Build|fake-claude|変更元不明|縁側/,
+    )
+  })
+
+  it('keeps one wait per tool when Codex and Grok both wait at the same place', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_tsugite', 'ws_tsugite', 'tsugite', [
+          ...waitingSessions({
+            count: 3,
+            source: 'codex',
+            idPrefix: 'codex-wait',
+            displayName: 'Codex',
+            surface: 'desktop-app',
+          }),
+          ...waitingSessions({
+            count: 4,
+            source: 'grok-build',
+            idPrefix: 'grok-wait',
+            displayName: 'Grok Build',
+            surface: 'cli',
+          }),
+        ]),
+      ]),
+      [workspace('ws_tsugite', '継番')],
+    )
+
+    expect(actors).toHaveLength(2)
+    expect(actors.every((actor) => actor.placeName === '継番')).toBe(true)
+    expect(actors.every((actor) => actor.tone === 'waiting')).toBe(true)
+    expect(
+      actors.some((actor) => actor.driverNote === 'Codexが動かしている'),
+    ).toBe(true)
+    expect(actors.filter((actor) => actor.tone === 'waiting')).toHaveLength(2)
+    expect(actors.some((actor) => actor.placeName === '継番 2')).toBe(false)
+    expect(JSON.stringify(actors)).not.toMatch(
+      /Grok 2|Codex 2|fake-claude|変更元不明|縁側/,
+    )
+  })
+
+  it('treats grok and grok-build waits as the same tool', () => {
+    const actors = collectGardenActors(
+      overviewOf([
+        repository('repo_hataraki', 'ws_hataraki', 'hataraki', [
+          session({
+            id: 'grok-old',
+            source: 'grok',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '作業中',
+            status: 'stale',
+            activity: 'waiting-for-user',
+            lastObservedAt: '2026-08-18T23:00:00.000Z',
+          }),
+          session({
+            id: 'grok-new',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '承認が必要',
+            status: 'stale',
+            activity: 'waiting-for-user',
+            lastObservedAt: '2026-08-18T23:40:00.000Z',
+          }),
+        ]),
+      ]),
+      [workspace('ws_hataraki', 'はたらき')],
+    )
+
+    expect(actors).toHaveLength(1)
+    expect(actors[0]?.placeName).toBe('はたらき')
+    expect(actors[0]?.tone).toBe('waiting')
+    expect(actors[0]?.nowText).toContain('承認が必要')
+    expect(actors[0]?.station).toBe('waiting')
+  })
+
   it('does not name a live Grok walker Codex when Codex is stale', () => {
     const actors = collectGardenActors(
       overviewOf([
@@ -2684,6 +2950,32 @@ function session(
     lastObservedLabel: null,
     ...partial,
   }
+}
+
+function waitingSessions(input: {
+  readonly count: number
+  readonly source: string
+  readonly idPrefix: string
+  readonly displayName: string
+  readonly surface?: string
+  readonly newestTitle?: string
+}): SessionView[] {
+  return Array.from({ length: input.count }, (_, index) => {
+    const newest = index === input.count - 1
+    return session({
+      id: `${input.idPrefix}-${index}`,
+      source: input.source,
+      surface: input.surface,
+      displayName: input.displayName,
+      title: newest && input.newestTitle ? input.newestTitle : '作業中',
+      status: 'stale',
+      activity: 'waiting-for-user',
+      lastObservedAt: new Date(
+        Date.parse('2026-08-18T23:11:00.000Z') + index * 60_000,
+      ).toISOString(),
+      lastObservedLabel: newest ? 'たった今' : `${input.count - index}時間前`,
+    })
+  })
 }
 
 type WorktreeFile = RepositoryView['worktrees'][number]['files'][number]

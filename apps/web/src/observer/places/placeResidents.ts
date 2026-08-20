@@ -465,9 +465,39 @@ function parallelLiveStreams(
   sessions: readonly OverviewSession[],
   nowMs: number,
 ): OverviewSession[] {
-  return sessions
-    .filter((session) => isParallelLiveWorkStream(session, nowMs))
-    .sort(compareObservedAt)
+  return collapseWaitingGardenStreams(
+    sessions
+      .filter((session) => isParallelLiveWorkStream(session, nowMs))
+      .sort(compareObservedAt),
+  )
+}
+
+function collapseWaitingGardenStreams(
+  sessions: readonly OverviewSession[],
+): OverviewSession[] {
+  const seenWaitingTools = new Set<string>()
+  const collapsed: OverviewSession[] = []
+  for (const session of sessions) {
+    const tone = resolveTone(session.status, session.activity)
+    if (tone !== 'waiting') {
+      collapsed.push(session)
+      continue
+    }
+    const tool = gardenWaitingToolKey(session)
+    if (seenWaitingTools.has(tool)) {
+      continue
+    }
+    seenWaitingTools.add(tool)
+    collapsed.push(session)
+  }
+  return collapsed
+}
+
+function gardenWaitingToolKey(session: OverviewSession): string {
+  return (
+    inspectToolName(session.source) ??
+    (sourceKey(session.source) || 'unknown')
+  )
 }
 
 function residentForLiveStream(

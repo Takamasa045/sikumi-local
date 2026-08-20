@@ -495,8 +495,7 @@ function collapseWaitingGardenStreams(
 
 function gardenWaitingToolKey(session: OverviewSession): string {
   return (
-    inspectToolName(session.source) ??
-    (sourceKey(session.source) || 'unknown')
+    inspectToolName(session.source) ?? (sourceKey(session.source) || 'unknown')
   )
 }
 

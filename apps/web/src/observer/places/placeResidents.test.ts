@@ -1069,7 +1069,6 @@ describe('collectGardenActors', () => {
               idPrefix: 'codex-wait',
               displayName: 'Codex',
               surface: 'desktop-app',
-              newestTitle: '承認が必要',
             }),
           ],
           {
@@ -1093,7 +1092,7 @@ describe('collectGardenActors', () => {
     expect(working?.station).toBe('workbench')
     expect(waiting?.workSummary).toBe('確認待ち')
     expect(waiting?.nowText).toContain('確認待ち')
-    expect(waiting?.nowText).toContain('承認が必要')
+    expect(waiting?.nowText).not.toContain('Grokで')
     expect(waiting?.driverNote).toBe('Codexが動かしている')
     expect(waiting?.station).toBe('waiting')
     expect(

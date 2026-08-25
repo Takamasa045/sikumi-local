@@ -55,8 +55,11 @@ import { EmployeeDrawer } from '../employees/EmployeeDrawer'
 import { ObserverGarden } from '../observer/garden/ObserverGarden'
 import { GARDEN_OVERVIEW_REFRESH_MS } from '../observer/garden/gardenState'
 import {
+  acknowledgeAttention,
   acknowledgeConflict,
   getConflict,
+  getControlPlaneSnapshot,
+  getExternalSessionDetail,
   getRepositoryActivity,
   getTodayOverview,
   listConflicts,
@@ -64,9 +67,15 @@ import {
   rescanRepository,
   resolveConflict,
   type ConflictView,
+  type ControlPlaneSnapshot,
   type RepositoryActivity,
   type TodayOverview,
 } from '../api/observer'
+import {
+  ControlRoom,
+  type ControlRoomSelectionKind,
+} from '../control-room/ControlRoom'
+import type { ControlRoomTechnical } from '../control-room/copy'
 import { ConflictCenter } from '../observer/conflicts/ConflictCenter'
 import { ObserverDashboard } from '../observer/dashboard/ObserverDashboard'
 import { RepositoryObserverPage } from '../observer/repositories/RepositoryObserverPage'
@@ -82,6 +91,7 @@ type Screen =
   | 'observer'
   | 'repository'
   | 'conflicts'
+  | 'control-room'
   | 'garden'
   | 'artifacts'
   | 'employees'
@@ -132,6 +142,16 @@ export function App() {
     ReturnType<typeof previewPack>
   > | null>(null)
   const [overview, setOverview] = useState<TodayOverview | null>(null)
+  const [controlPlane, setControlPlane] = useState<ControlPlaneSnapshot | null>(
+    null,
+  )
+  const [controlRoomKind, setControlRoomKind] =
+    useState<ControlRoomSelectionKind | null>(null)
+  const [controlRoomId, setControlRoomId] = useState<string | null>(null)
+  const [controlRoomTechnical, setControlRoomTechnical] =
+    useState<ControlRoomTechnical | null>(null)
+  const [showControlRoomTechnical, setShowControlRoomTechnical] =
+    useState(false)
   const [selectedRepositoryId, setSelectedRepositoryId] = useState<
     string | null
   >(null)
@@ -177,6 +197,7 @@ export function App() {
     screen === 'observer' ||
     screen === 'repository' ||
     screen === 'conflicts' ||
+    screen === 'control-room' ||
     screen === 'settings'
   const connection = observerFacing
     ? deriveObserverSurfaceSummary()
@@ -201,6 +222,10 @@ export function App() {
       if (conflictId) {
         setSelectedConflictId(conflictId)
       }
+      const controlRoom = readControlRoomSelection()
+      setControlRoomKind(controlRoom?.kind ?? null)
+      setControlRoomId(controlRoom?.id ?? null)
+      setShowControlRoomTechnical(false)
     }
     onHash()
     window.addEventListener('hashchange', onHash)
@@ -214,11 +239,38 @@ export function App() {
       screen !== 'garden' &&
       screen !== 'observer' &&
       screen !== 'repository' &&
-      screen !== 'conflicts'
+      screen !== 'conflicts' &&
+      screen !== 'control-room'
     ) {
       return
     }
     let cancelled = false
+    if (screen === 'control-room') {
+      void getControlPlaneSnapshot()
+        .then((listed) => {
+          if (!cancelled) {
+            setControlPlane(listed)
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setControlPlane(
+              (current) =>
+                current ?? {
+                  generatedAt: new Date().toISOString(),
+                  works: [],
+                  attention: [],
+                  recommendations: [],
+                  repositories: [],
+                  observer: { ok: true, degradedCount: 0, adapters: [] },
+                },
+            )
+          }
+        })
+      return () => {
+        cancelled = true
+      }
+    }
     void getTodayOverview()
       .then((listed) => {
         if (!cancelled) {
@@ -250,7 +302,8 @@ export function App() {
       screen !== 'garden' &&
       screen !== 'observer' &&
       screen !== 'repository' &&
-      screen !== 'conflicts'
+      screen !== 'conflicts' &&
+      screen !== 'control-room'
     ) {
       return
     }
@@ -267,12 +320,19 @@ export function App() {
         return
       }
       inflight = true
-      void getTodayOverview()
-        .then((listed) => {
-          if (!cancelled) {
-            setOverview(listed)
-          }
-        })
+      const load =
+        screen === 'control-room'
+          ? getControlPlaneSnapshot().then((listed) => {
+              if (!cancelled) {
+                setControlPlane(listed)
+              }
+            })
+          : getTodayOverview().then((listed) => {
+              if (!cancelled) {
+                setOverview(listed)
+              }
+            })
+      void load
         .catch(() => {
           // Keep the last overview.
         })
@@ -383,6 +443,41 @@ export function App() {
       cancelled = true
     }
   }, [screen, selectedConflictId, showConflictTechnical])
+
+  useEffect(() => {
+    if (screen !== 'control-room' || !controlRoomId) {
+      setControlRoomTechnical(null)
+      return
+    }
+    const workId =
+      controlRoomKind === 'work'
+        ? controlRoomId
+        : controlRoomKind === 'place'
+          ? (controlPlane?.repositories.find(
+              (item) => item.repositoryId === controlRoomId,
+            )?.works[0]?.sessionId ?? null)
+          : (controlPlane?.attention.find((item) => item.id === controlRoomId)
+              ?.workIds[0] ?? null)
+    if (!workId) {
+      setControlRoomTechnical(null)
+      return
+    }
+    let cancelled = false
+    void getExternalSessionDetail(workId)
+      .then((detail) => {
+        if (!cancelled) {
+          setControlRoomTechnical(detail)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setControlRoomTechnical(null)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [screen, controlRoomKind, controlRoomId, controlPlane])
 
   useEffect(() => {
     let cancelled = false
@@ -706,6 +801,21 @@ export function App() {
     }
   }
 
+  async function handleAcknowledgeAttention(id: string) {
+    setBusy(true)
+    setError(null)
+    try {
+      await acknowledgeAttention(id)
+      setControlPlane(await getControlPlaneSnapshot())
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : '確認の記録に失敗しました',
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function runConflictAction(action: () => Promise<ConflictView>) {
     setBusy(true)
     setError(null)
@@ -894,6 +1004,12 @@ export function App() {
             庭
           </a>
           <a
+            aria-current={screen === 'control-room' ? 'page' : undefined}
+            href="#control-room"
+          >
+            管制所
+          </a>
+          <a
             aria-current={
               screen === 'observer' ||
               screen === 'repository' ||
@@ -903,7 +1019,7 @@ export function App() {
             }
             href="#observer"
           >
-            今日の作業場
+            場所
           </a>
         </nav>
         <div
@@ -921,6 +1037,7 @@ export function App() {
       {screen === 'observer' ||
       screen === 'repository' ||
       screen === 'conflicts' ||
+      screen === 'control-room' ||
       screen === 'garden' ||
       screen === 'artifacts' ||
       screen === 'employees' ||
@@ -948,6 +1065,35 @@ export function App() {
               <strong data-testid="default-tool">{connection.toolLabel}</strong>
             </div>
           </div>
+
+          {screen === 'control-room' ? (
+            <ControlRoom
+              snapshot={controlPlane}
+              selectedKind={controlRoomKind}
+              selectedId={controlRoomId}
+              showTechnical={showControlRoomTechnical}
+              technical={controlRoomTechnical}
+              busy={busy}
+              onSelectPlace={(id) => {
+                window.location.hash = `control-room/place/${encodeURIComponent(id)}`
+              }}
+              onSelectWork={(id) => {
+                window.location.hash = `control-room/work/${encodeURIComponent(id)}`
+              }}
+              onSelectAttention={(id) => {
+                window.location.hash = `control-room/attention/${encodeURIComponent(id)}`
+              }}
+              onToggleTechnical={() => {
+                setShowControlRoomTechnical((current) => !current)
+              }}
+              onAcknowledge={(id) => {
+                void handleAcknowledgeAttention(id)
+              }}
+              onCloseDetail={() => {
+                window.location.hash = 'control-room'
+              }}
+            />
+          ) : null}
 
           {screen === 'observer' ? (
             <ObserverDashboard
@@ -1240,6 +1386,25 @@ function readConflictId(): string | null {
   return id.length > 0 ? id : null
 }
 
+function readControlRoomSelection(): {
+  readonly kind: ControlRoomSelectionKind
+  readonly id: string
+} | null {
+  const hash = window.location.hash.replace('#', '')
+  const match = hash.match(/^control-room\/(place|work|attention)\/(.+)$/)
+  if (!match?.[1] || !match[2]) {
+    return null
+  }
+  const id = decodeURIComponent(match[2]).trim()
+  if (!id) {
+    return null
+  }
+  return {
+    kind: match[1] as ControlRoomSelectionKind,
+    id,
+  }
+}
+
 function isGardenDestination(screen: Screen): boolean {
   return screen === 'garden' || screen === 'artifacts' || screen === 'employees'
 }
@@ -1251,6 +1416,9 @@ function readScreen(): Screen {
   }
   if (hash.startsWith('conflicts')) {
     return 'conflicts'
+  }
+  if (hash.startsWith('control-room')) {
+    return 'control-room'
   }
   if (
     hash === 'artifacts' ||

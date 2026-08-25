@@ -2889,3 +2889,98 @@ footer span {
     text-align: center;
   }
 }
+
+.control-room-section {
+  display: grid;
+  gap: 10px;
+}
+.control-room-section h3 {
+  margin: 0;
+}
+.control-room-list,
+.control-room-place-list,
+.control-room-work-list,
+.control-room-health {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.control-room-item,
+.control-room-place {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #f7f3e6;
+  border: 1px solid #cfc6b0;
+}
+.control-room-item[data-severity='red'] {
+  border-color: #b42318;
+  background: #f8ece8;
+}
+.control-room-item[data-severity='yellow'],
+.control-room-item[data-severity='orange'] {
+  border-color: #b45309;
+  background: #f8f1e0;
+}
+.control-room-item__select,
+.control-room-place__name,
+.control-room-work {
+  appearance: none;
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.control-room-place {
+  grid-template-columns: 1fr;
+}
+.control-room-place__name {
+  font-size: 16px;
+  font-weight: 700;
+}
+.control-room-work-list {
+  gap: 6px;
+}
+.control-room-detail {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  background: #f7f3e6;
+  border: 1px solid #cfc6b0;
+}
+.control-room-detail__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.control-room-detail__facts,
+.control-room-technical {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.control-room-detail__facts > div,
+.control-room-technical > div {
+  display: grid;
+  gap: 4px;
+}
+.control-room-detail dt,
+.control-room-technical dt {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.control-room-detail dd,
+.control-room-technical dd {
+  margin: 0;
+}

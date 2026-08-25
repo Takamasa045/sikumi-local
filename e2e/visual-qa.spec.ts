@@ -11,14 +11,16 @@ test.describe('garden visual QA', () => {
     const suffix = testInfo.project.name
     await page.goto('/#garden')
     await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
-    await expect(page.getByRole('button', { name: '仕事を頼む' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: '仕事を頼む' })).toHaveCount(
+      0,
+    )
     await expect(page.getByTestId('world-stage')).toHaveCount(0)
     await page.screenshot({
       path: `${outputDir}/${suffix}-garden.png`,
       fullPage: true,
     })
 
-    await page.getByRole('link', { name: '今日の作業場' }).click()
+    await page.getByRole('link', { name: '場所' }).click()
     await expect(
       page.getByRole('heading', { name: '登録した場所' }),
     ).toBeVisible()
@@ -40,9 +42,7 @@ test.describe('garden visual QA', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto('/#garden')
     await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
-    await expect(
-      page.getByRole('region', { name: '観測の庭' }),
-    ).toBeVisible()
+    await expect(page.getByRole('region', { name: '観測の庭' })).toBeVisible()
     await page.screenshot({
       path: `${outputDir}/${suffix}-reduced-motion.png`,
       fullPage: true,

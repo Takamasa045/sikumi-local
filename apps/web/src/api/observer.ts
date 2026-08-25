@@ -244,9 +244,52 @@ export async function getControlPlaneSnapshot(): Promise<ControlPlaneSnapshot> {
   if (!response.ok) {
     throw toApiError(body, response.status)
   }
-  return z
-    .object({ snapshot: controlPlaneSnapshotSchema })
-    .parse(body).snapshot
+  return z.object({ snapshot: controlPlaneSnapshotSchema }).parse(body).snapshot
+}
+
+export async function acknowledgeAttention(id: string) {
+  const response = await writeWithCsrfRetry((token) =>
+    fetch(`/api/observer/attention/${encodeURIComponent(id)}/acknowledge`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: authorizedHeaders(token),
+      body: JSON.stringify({}),
+    }),
+  )
+  const body: unknown = await response.json()
+  if (!response.ok) {
+    throw toApiError(body, response.status)
+  }
+  return z.object({ attention: attentionItemSchema }).parse(body).attention
+}
+
+const externalSessionDetailSchema = z.object({
+  id: z.string(),
+  branch: z.string().nullable().optional(),
+  worktreePath: z.string().nullable().optional(),
+  headCommit: z.string().nullable().optional(),
+})
+
+export async function getExternalSessionDetail(id: string): Promise<{
+  readonly branch: string | null
+  readonly worktreePath: string | null
+  readonly commit: string | null
+}> {
+  const response = await fetch(`/api/external-sessions/${id}`, {
+    credentials: 'include',
+  })
+  const body: unknown = await response.json()
+  if (!response.ok) {
+    throw toApiError(body, response.status)
+  }
+  const session = z
+    .object({ session: externalSessionDetailSchema })
+    .parse(body).session
+  return {
+    branch: session.branch ?? null,
+    worktreePath: session.worktreePath ?? null,
+    commit: session.headCommit ?? null,
+  }
 }
 
 export async function getTodayOverview(): Promise<TodayOverview> {

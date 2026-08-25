@@ -53,7 +53,7 @@ describe('buildAttentionItems', () => {
         id: 'codex-stale',
         source: 'codex',
         status: 'stale',
-        activity: 'idle',
+        activity: 'editing',
         lastObservedAt: STALE_ISO,
       }),
     ]

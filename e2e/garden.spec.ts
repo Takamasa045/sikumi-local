@@ -22,7 +22,9 @@ test('the garden is the default home screen', async ({ page }) => {
     'aria-current',
     'page',
   )
-  await expect(nav.getByRole('link', { name: '今日の作業場' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: '管制所' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: '場所' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: '今日の作業場' })).toHaveCount(0)
   await expect(nav.getByRole('link', { name: '設定' })).toHaveCount(0)
   await expect(
     page.getByRole('contentinfo').getByRole('link', { name: '設定' }),
@@ -114,7 +116,10 @@ test("a user can move between garden, today's workshop, and settings", async ({
 }) => {
   await page.goto('/#garden')
 
-  await page.getByRole('link', { name: '今日の作業場' }).click()
+  await page.getByRole('link', { name: '管制所' }).click()
+  await expect(page.getByRole('heading', { name: 'いまの様子' })).toBeVisible()
+
+  await page.getByRole('link', { name: '場所' }).click()
   await expect(
     page.getByRole('heading', { name: '登録した場所' }),
   ).toBeVisible()

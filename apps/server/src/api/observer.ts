@@ -318,6 +318,16 @@ export function registerObserverRoutes(
     snapshot: observer.controlPlane(),
   }))
 
+  app.post<{ Params: { id: string } }>(
+    '/api/observer/attention/:id/acknowledge',
+    async (request) => {
+      assertEmptyConflictBody(request.body)
+      return {
+        attention: observer.acknowledgeAttention(request.params.id),
+      }
+    },
+  )
+
   app.get('/api/observer/adapters', async () => ({
     adapters: observer.listAdapters(),
   }))

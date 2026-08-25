@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resetSessionToken } from '../api/session'
 import { App } from './App'
+import { sampleSnapshot } from '../control-room/test-snapshot'
 
 const fetchMock = vi.fn()
 
@@ -59,9 +60,9 @@ describe('Shikumi Local garden', () => {
       'aria-current',
       'page',
     )
-    expect(
-      within(nav).getByRole('link', { name: '今日の作業場' }),
-    ).toBeVisible()
+    expect(within(nav).getByRole('link', { name: '管制所' })).toBeVisible()
+    expect(within(nav).getByRole('link', { name: '場所' })).toBeVisible()
+    expect(within(nav).queryByRole('link', { name: '今日の作業場' })).toBeNull()
     expect(within(nav).queryByRole('link', { name: '設定' })).toBeNull()
     expect(
       within(screen.getByRole('contentinfo')).getByRole('link', {
@@ -146,7 +147,12 @@ describe('Shikumi Local garden', () => {
     expect(
       await screen.findByRole('heading', { name: '観測の庭' }),
     ).toBeVisible()
-    await userEvent.click(screen.getByRole('link', { name: '今日の作業場' }))
+    await userEvent.click(screen.getByRole('link', { name: '管制所' }))
+    expect(
+      await screen.findByRole('heading', { name: 'いまの様子' }),
+    ).toBeVisible()
+    expect(await screen.findByTestId('control-room-summary')).toBeVisible()
+    await userEvent.click(screen.getByRole('link', { name: '場所' }))
     expect(
       await screen.findByRole('heading', {
         name: '登録した場所',
@@ -186,6 +192,58 @@ describe('Shikumi Local garden', () => {
     expect(
       screen.queryByRole('button', { name: '仕事を頼む' }),
     ).not.toBeInTheDocument()
+  })
+
+  it('shows the control room summary, waiting, conflict, and running work', async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/api/session')) {
+        return jsonResponse({ token: 'test-session' })
+      }
+      if (url.endsWith('/api/health')) {
+        return jsonResponse(disconnectedHealth())
+      }
+      if (url.endsWith('/api/providers')) {
+        return jsonResponse({
+          providers: catalogProviders(),
+          executionConnected: false,
+          fakeHarness: false,
+        })
+      }
+      if (url.includes('/api/employees')) {
+        return employeePayload()
+      }
+      if (url.endsWith('/api/workspaces')) {
+        return jsonResponse({ workspaces: [] })
+      }
+      if (url.endsWith('/api/observer/control-plane')) {
+        return jsonResponse({ snapshot: sampleSnapshot() })
+      }
+      if (isObserverUrl(url)) {
+        return observerResponse(url)
+      }
+      return jsonResponse(
+        { error: { code: 'NOT_FOUND', message: 'not found' } },
+        404,
+      )
+    })
+
+    render(<App />)
+    await userEvent.click(screen.getByRole('link', { name: '管制所' }))
+
+    expect(await screen.findByTestId('control-room-summary')).toHaveTextContent(
+      '動いているAI 2',
+    )
+    expect(screen.getByText('確認待ち')).toBeVisible()
+    expect(screen.getByText('同じファイルを書いています')).toBeVisible()
+    expect(screen.getByText('Codexが、ログイン画面の直し')).toBeVisible()
+    expect(screen.getByText('Cursorが、ログイン画面の直し')).toBeVisible()
+    expect(screen.queryByText('src/auth.ts')).toBeNull()
+    expect(screen.queryByRole('button', { name: '仕事を頼む' })).toBeNull()
+    await userEvent.click(screen.getByRole('link', { name: '庭' }))
+    expect(
+      await screen.findByRole('heading', { name: '観測の庭' }),
+    ).toBeVisible()
   })
 
   it('renders the mocked overview on the observation garden', async () => {
@@ -907,9 +965,11 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(await screen.findByTestId('workspace-line')).toHaveTextContent(
-      '1 件の場所',
-    )
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-line')).toHaveTextContent(
+        '1 件の場所',
+      )
+    })
     expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
     expect(await screen.findByText('kept-project番')).toBeVisible()
     expect(screen.getByRole('list', { name: '庭の住人' })).toBeVisible()
@@ -1562,7 +1622,7 @@ async function openTodayWorkshop() {
   await userEvent.click(
     within(screen.getByRole('navigation', { name: '主要画面' })).getByRole(
       'link',
-      { name: '今日の作業場' },
+      { name: '場所' },
     ),
   )
 }
@@ -1600,6 +1660,31 @@ function observerResponse(
   options?: { readonly displayName?: string },
 ) {
   const displayName = options?.displayName ?? 'my-project'
+  if (url.endsWith('/api/observer/control-plane')) {
+    return jsonResponse({
+      snapshot: {
+        generatedAt: '2026-08-18T00:00:00.000Z',
+        works: [],
+        attention: [],
+        recommendations: [],
+        repositories: options?.displayName
+          ? [
+              {
+                repositoryId: 'repo_1',
+                displayName,
+                available: true,
+                works: [],
+                attention: [],
+                waitingCount: 0,
+                staleCount: 0,
+                conflictCount: 0,
+              },
+            ]
+          : [],
+        observer: { ok: true, degradedCount: 0, adapters: [] },
+      },
+    })
+  }
   if (url.endsWith('/api/observer/today')) {
     return jsonResponse({
       overview: {

@@ -100,30 +100,37 @@ describe('buildControlPlaneSnapshot', () => {
       ],
     })
 
-    expect(controlPlaneSnapshotSchema.parse(snapshot).recommendations).toEqual([])
+    expect(controlPlaneSnapshotSchema.parse(snapshot).recommendations).toEqual(
+      [],
+    )
     expect(snapshot.works.map((item) => item.displayName)).toEqual(
       expect.arrayContaining(['Codex', 'Cursor Agent']),
     )
     expect(snapshot.works.some((item) => item.source === 'git')).toBe(false)
     expect(snapshot.repositories).toHaveLength(2)
     expect(snapshot.repositories[0]?.works.length).toBeGreaterThan(0)
-    expect(snapshot.attention.some((item) => item.kind === 'waiting-for-user')).toBe(
+    expect(
+      snapshot.attention.some((item) => item.kind === 'waiting-for-user'),
+    ).toBe(true)
+    expect(snapshot.attention.some((item) => item.kind === 'stale-work')).toBe(
       true,
     )
-    expect(snapshot.attention.some((item) => item.kind === 'stale-work')).toBe(true)
     expect(
       snapshot.attention.find((item) => item.kind === 'stale-work')?.severity,
     ).toBe('yellow')
-    expect(snapshot.attention.some((item) => item.kind === 'conflict' && item.severity === 'red')).toBe(
-      true,
-    )
-    expect(snapshot.attention.some((item) => item.kind === 'observer-degraded')).toBe(
-      true,
-    )
+    expect(
+      snapshot.attention.some(
+        (item) => item.kind === 'conflict' && item.severity === 'red',
+      ),
+    ).toBe(true)
+    expect(
+      snapshot.attention.some((item) => item.kind === 'observer-degraded'),
+    ).toBe(true)
     expect(snapshot.observer.ok).toBe(false)
     expect(snapshot.observer.degradedCount).toBe(1)
     expect(
-      snapshot.repositories.find((item) => item.repositoryId === 'repo-b')
+      snapshot.repositories
+        .find((item) => item.repositoryId === 'repo-b')
         ?.attention.some((item) => item.kind === 'unknown-owner'),
     ).toBe(true)
   })
@@ -140,7 +147,9 @@ describe('buildControlPlaneSnapshot', () => {
       conflicts: [],
     })
     expect(snapshot.works).toHaveLength(2)
-    expect(snapshot.attention.some((item) => item.severity === 'red')).toBe(false)
+    expect(snapshot.attention.some((item) => item.severity === 'red')).toBe(
+      false,
+    )
     expect(snapshot.repositories[0]?.conflictCount).toBe(0)
   })
 })
@@ -235,16 +244,20 @@ describe('GET /api/observer/control-plane', () => {
     ])
     expect(snapshot.repositories).toHaveLength(2)
     expect(
-      snapshot.works.filter((item) => item.repositoryId === snapshot.repositories[0]?.repositoryId)
-        .length +
+      snapshot.works.filter(
+        (item) => item.repositoryId === snapshot.repositories[0]?.repositoryId,
+      ).length +
         snapshot.works.filter(
-          (item) => item.repositoryId === snapshot.repositories[1]?.repositoryId,
+          (item) =>
+            item.repositoryId === snapshot.repositories[1]?.repositoryId,
         ).length,
     ).toBe(snapshot.works.length)
-    expect(snapshot.attention.some((item) => item.kind === 'waiting-for-user')).toBe(
+    expect(
+      snapshot.attention.some((item) => item.kind === 'waiting-for-user'),
+    ).toBe(true)
+    expect(snapshot.works.every((item) => item.attributionConfidence)).toBe(
       true,
     )
-    expect(snapshot.works.every((item) => item.attributionConfidence)).toBe(true)
     expect(snapshot.observer).toEqual(
       expect.objectContaining({
         ok: expect.any(Boolean),
@@ -252,6 +265,57 @@ describe('GET /api/observer/control-plane', () => {
       }),
     )
     expect(snapshot.works.some((item) => item.source === 'git')).toBe(false)
+  })
+
+  it('acknowledges attention without operating an agent', async () => {
+    const dataDirectory = track(createTemporaryDirectory())
+    const repoA = track(createTemporaryGitRepository())
+    const app = createApp(dataDirectory)
+    const created = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/workspaces',
+      payload: { path: repoA },
+    })
+    expect(created.statusCode).toBe(201)
+
+    const waiting = await injectAuthed(app, {
+      method: 'POST',
+      url: '/api/observer/events',
+      payload: {
+        source: 'codex',
+        nativeEventType: 'PermissionRequest',
+        session_id: 'http-codex',
+        cwd: repoA,
+        summary: '確認してほしい',
+        occurredAt: '2026-08-25T03:00:00.000Z',
+      },
+    })
+    expect(waiting.statusCode).toBe(201)
+
+    const before = await injectPublic(app, {
+      method: 'GET',
+      url: '/api/observer/control-plane',
+    })
+    const snapshot = controlPlaneSnapshotSchema.parse(before.json().snapshot)
+    const item = snapshot.attention.find(
+      (entry) => entry.kind === 'waiting-for-user',
+    )
+    expect(item).toBeDefined()
+
+    const acked = await injectAuthed(app, {
+      method: 'POST',
+      url: `/api/observer/attention/${encodeURIComponent(item!.id)}/acknowledge`,
+      payload: {},
+    })
+    expect(acked.statusCode).toBe(200)
+    expect(acked.json().attention.id).toBe(item!.id)
+
+    const after = await injectPublic(app, {
+      method: 'GET',
+      url: '/api/observer/control-plane',
+    })
+    const next = controlPlaneSnapshotSchema.parse(after.json().snapshot)
+    expect(next.attention.some((entry) => entry.id === item!.id)).toBe(false)
   })
 })
 

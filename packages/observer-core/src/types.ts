@@ -374,6 +374,88 @@ export interface ObserverAdapterRecord {
   readonly updatedAt: string
 }
 
+export const attentionKinds = [
+  'waiting-for-user',
+  'conflict',
+  'stale-work',
+  'observer-degraded',
+  'unknown-owner',
+] as const
+export type AttentionKind = (typeof attentionKinds)[number]
+
+export const attentionSeverities = ['info', 'yellow', 'orange', 'red'] as const
+export type AttentionSeverity = (typeof attentionSeverities)[number]
+
+/** Sikumi から見た外部AIの仕事。Sikumi の Task ではない。 */
+export interface ObservedWork {
+  readonly id: string
+  readonly sessionId: string
+  readonly source: ObserverSourceId
+  readonly surface: ObserverSurface
+  readonly displayName: string
+  readonly repositoryId: string | null
+  readonly workspaceId: string | null
+  readonly title: string | null
+  readonly activity: ObserverActivity
+  readonly status: ExternalSessionStatus
+  readonly attributionConfidence: AttributionConfidence
+  readonly claimedPaths: readonly string[]
+  readonly lastObservedAt: string
+  readonly startedAt: string
+}
+
+export interface AttentionItem {
+  readonly id: string
+  readonly kind: AttentionKind
+  readonly severity: AttentionSeverity
+  readonly title: string
+  readonly summary: string
+  readonly repositoryId: string | null
+  readonly source: ObserverSourceId | null
+  readonly workIds: readonly string[]
+  readonly conflictId: string | null
+  readonly evidence: readonly string[]
+  readonly attributionConfidence: AttributionConfidence
+  readonly occurredAt: string
+}
+
+/** Advisor 本体は後続。Foundation では空配列でよい。 */
+export interface Recommendation {
+  readonly id: string
+  readonly title: string
+  readonly summary: string
+}
+
+export interface RepositorySituation {
+  readonly repositoryId: string
+  readonly displayName: string
+  readonly available: boolean
+  readonly works: readonly ObservedWork[]
+  readonly attention: readonly AttentionItem[]
+  readonly waitingCount: number
+  readonly staleCount: number
+  readonly conflictCount: number
+}
+
+export interface ObserverHealthSnapshot {
+  readonly ok: boolean
+  readonly degradedCount: number
+  readonly adapters: readonly {
+    readonly source: ObserverSourceId
+    readonly status: AdapterInstallationStatus
+    readonly lastEventAt: string | null
+  }[]
+}
+
+export interface ControlPlaneSnapshot {
+  readonly generatedAt: string
+  readonly works: readonly ObservedWork[]
+  readonly attention: readonly AttentionItem[]
+  readonly recommendations: readonly Recommendation[]
+  readonly repositories: readonly RepositorySituation[]
+  readonly observer: ObserverHealthSnapshot
+}
+
 export const GIT_OBSERVER_CAPABILITIES: ObserverCapabilities = {
   sessionLifecycle: false,
   fileEvents: false,

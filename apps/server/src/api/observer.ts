@@ -314,6 +314,10 @@ export function registerObserverRoutes(
     overview: observer.today(readViewMode(request.query)),
   }))
 
+  app.get('/api/observer/control-plane', async () => ({
+    snapshot: observer.controlPlane(),
+  }))
+
   app.get('/api/observer/adapters', async () => ({
     adapters: observer.listAdapters(),
   }))

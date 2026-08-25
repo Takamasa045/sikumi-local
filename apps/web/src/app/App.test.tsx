@@ -965,9 +965,11 @@ describe('Shikumi Local garden', () => {
 
     render(<App />)
 
-    expect(await screen.findByTestId('workspace-line')).toHaveTextContent(
-      '1 件の場所',
-    )
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-line')).toHaveTextContent(
+        '1 件の場所',
+      )
+    })
     expect(screen.getByRole('heading', { name: '観測の庭' })).toBeVisible()
     expect(await screen.findByText('kept-project番')).toBeVisible()
     expect(screen.getByRole('list', { name: '庭の住人' })).toBeVisible()

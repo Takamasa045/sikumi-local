@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Workspace } from '@sikumi-local/core'
-import { UNSAFE_HOOK_COMMAND_MESSAGE } from '@sikumi-local/observer-core'
 import { listWorkspaces } from '../../api/workspaces'
+
+const UNSAFE_HOOK_COMMAND_MESSAGE =
+  'つなぐ道具を安全な場所へ置けませんでした。フォルダ名に使えない文字があるときは、庭の設定フォルダへ置き直します。もう一度つなぎ直してください。'
 import {
   checkObserverAdapter,
   listObserverAdapters,
@@ -135,7 +137,8 @@ export function AdapterSettings() {
       <p>
         フォルダを登録すれば、そこで動かしている Codex や Claude Code
         は庭に出ます。つなぐは任意です。つないでも、失敗しても、観測は進みます。Cursor
-        と Grok Build も同じです。Claudeアプリは、自分から知らせてくれた分だけ届きます。
+        と Grok Build
+        も同じです。Claudeアプリは、自分から知らせてくれた分だけ届きます。
       </p>
       {error ? (
         <p className="repository-panel__error" role="alert">

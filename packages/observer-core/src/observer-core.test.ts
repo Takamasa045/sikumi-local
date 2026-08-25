@@ -51,6 +51,7 @@ import {
   probeCommandVersion,
 } from './index.js'
 import {
+  controlPlaneSnapshotSchema,
   inboundObserverEventSchema,
   observerAdapterActionRequestSchema,
 } from './schemas.js'
@@ -71,6 +72,57 @@ describe('observer-core types', () => {
     expect(
       relativeTimeLabel(new Date(Date.now() - 2 * 60_000).toISOString()),
     ).toBe('2分前')
+  })
+
+  it('accepts a derived control-plane snapshot', () => {
+    const parsed = controlPlaneSnapshotSchema.parse({
+      generatedAt: '2026-08-25T03:00:00.000Z',
+      works: [
+        {
+          id: 'codex-a',
+          sessionId: 'codex-a',
+          source: 'codex',
+          surface: 'cli',
+          displayName: 'Codex',
+          repositoryId: 'repo-a',
+          workspaceId: 'ws-a',
+          title: 'ログイン画面の直し',
+          activity: 'editing',
+          status: 'active',
+          attributionConfidence: 'verified',
+          claimedPaths: ['src/auth.ts'],
+          lastObservedAt: '2026-08-25T03:00:00.000Z',
+          startedAt: '2026-08-25T02:50:00.000Z',
+        },
+      ],
+      attention: [],
+      recommendations: [],
+      repositories: [
+        {
+          repositoryId: 'repo-a',
+          displayName: 'alpha',
+          available: true,
+          works: [],
+          attention: [],
+          waitingCount: 0,
+          staleCount: 0,
+          conflictCount: 0,
+        },
+      ],
+      observer: {
+        ok: true,
+        degradedCount: 0,
+        adapters: [
+          {
+            source: 'codex',
+            status: 'ready',
+            lastEventAt: null,
+          },
+        ],
+      },
+    })
+    expect(parsed.recommendations).toEqual([])
+    expect(parsed.works[0]?.displayName).toBe('Codex')
   })
 })
 

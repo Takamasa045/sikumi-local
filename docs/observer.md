@@ -31,6 +31,7 @@ Shikumi Local の主画面は、各AIアプリから仕事を頼む場所では�
 
 API:
 
+- `GET /api/observer/control-plane` … 誰がどこで何をしているか、確認待ち、止まっている可能、証拠のある衝突、観測の健康、確信度を一つのスナップショットで返す。庭の表示は変えない
 - `GET /api/conflicts`（`repositoryId` / `source` / `level` / `status` / `unconfirmed`）
 - `GET /api/conflicts/:id`
 - `POST /api/conflicts/:id/acknowledge`

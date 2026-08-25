@@ -31,6 +31,7 @@ import {
   projectInboundEvent,
   rememberAdapterObservation,
   toAdapterRecord,
+  type ControlPlaneSnapshot,
   type NormalizedObserverEvent,
   type ObserverAdapter,
   type ObserverInstallOptions,
@@ -78,6 +79,7 @@ import {
   markStaleSessions,
   upsertSessionFromEvent,
 } from './sessions.js'
+import { buildControlPlaneSnapshot } from './control-plane.js'
 import {
   buildRepositoryActivity,
   buildTodayOverview,
@@ -122,6 +124,7 @@ export interface ObserverService {
   ): RepositoryActivityView
   scanAll(): TodayOverview
   today(mode?: ObserverViewMode): TodayOverview
+  controlPlane(): ControlPlaneSnapshot
   listAdapters(): ReturnType<CombinedStore['listAdapters']>
   checkAdapter(source: string): Promise<ReturnType<CombinedStore['listAdapters']>[number]>
   installAdapter(
@@ -461,6 +464,45 @@ export function createObserverService(
         )
       })
       return buildTodayOverview(repositories)
+    },
+    controlPlane() {
+      syncRegisteredRepositoryCatalog()
+      reconcileRegisteredWatchers()
+      ingestLiveDiscovery()
+      const registered = store.listRegisteredRepositories()
+      for (const repository of registered) {
+        try {
+          scheduler.runIfDue(repository.id)
+        } catch {
+          // keep the rest visible
+        }
+      }
+      const repositories = store.listRegisteredRepositories()
+      const git = repositories.map((repository) => {
+        const snapshot = latestSnapshotView(store, repository.id)
+        return {
+          repositoryId: repository.id,
+          available: snapshot.available,
+          changedFileCount: snapshot.changedFiles.length,
+          changedPaths: snapshot.changedFiles.map((file) => file.path),
+          scannedAt: snapshot.scannedAt,
+        }
+      })
+      return buildControlPlaneSnapshot({
+        repositories: repositories.map((repository) => ({
+          id: repository.id,
+          displayName: repository.displayName,
+          available:
+            git.find((item) => item.repositoryId === repository.id)?.available ??
+            true,
+        })),
+        sessions: store.listExternalSessions(),
+        events: store.listObserverEvents(),
+        claims: store.listResourceClaims(),
+        conflicts: store.listConflicts(),
+        adapters: store.listAdapters(),
+        git,
+      })
     },
     listAdapters() {
       return store.listAdapters()

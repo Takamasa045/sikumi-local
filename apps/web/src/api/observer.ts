@@ -166,6 +166,89 @@ const installResultSchema = z.object({
 export type ObserverAdapterView = z.infer<typeof adapterSchema>
 export type ObserverInstallView = z.infer<typeof installResultSchema>
 
+const observedWorkSchema = z.object({
+  id: z.string(),
+  sessionId: z.string(),
+  source: z.string(),
+  surface: z.string(),
+  displayName: z.string(),
+  repositoryId: z.string().nullable(),
+  workspaceId: z.string().nullable(),
+  title: z.string().nullable(),
+  activity: z.string(),
+  status: z.string(),
+  attributionConfidence: z.string(),
+  claimedPaths: z.array(z.string()),
+  lastObservedAt: z.string(),
+  startedAt: z.string(),
+})
+
+const attentionItemSchema = z.object({
+  id: z.string(),
+  kind: z.string(),
+  severity: z.string(),
+  title: z.string(),
+  summary: z.string(),
+  repositoryId: z.string().nullable(),
+  source: z.string().nullable(),
+  workIds: z.array(z.string()),
+  conflictId: z.string().nullable(),
+  evidence: z.array(z.string()),
+  attributionConfidence: z.string(),
+  occurredAt: z.string(),
+})
+
+export const controlPlaneSnapshotSchema = z.object({
+  generatedAt: z.string(),
+  works: z.array(observedWorkSchema),
+  attention: z.array(attentionItemSchema),
+  recommendations: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string(),
+      summary: z.string(),
+    }),
+  ),
+  repositories: z.array(
+    z.object({
+      repositoryId: z.string(),
+      displayName: z.string(),
+      available: z.boolean(),
+      works: z.array(observedWorkSchema),
+      attention: z.array(attentionItemSchema),
+      waitingCount: z.number(),
+      staleCount: z.number(),
+      conflictCount: z.number(),
+    }),
+  ),
+  observer: z.object({
+    ok: z.boolean(),
+    degradedCount: z.number(),
+    adapters: z.array(
+      z.object({
+        source: z.string(),
+        status: z.string(),
+        lastEventAt: z.string().nullable(),
+      }),
+    ),
+  }),
+})
+
+export type ControlPlaneSnapshot = z.infer<typeof controlPlaneSnapshotSchema>
+
+export async function getControlPlaneSnapshot(): Promise<ControlPlaneSnapshot> {
+  const response = await fetch('/api/observer/control-plane', {
+    credentials: 'include',
+  })
+  const body: unknown = await response.json()
+  if (!response.ok) {
+    throw toApiError(body, response.status)
+  }
+  return z
+    .object({ snapshot: controlPlaneSnapshotSchema })
+    .parse(body).snapshot
+}
+
 export async function getTodayOverview(): Promise<TodayOverview> {
   const response = await fetch('/api/observer/today', {
     credentials: 'include',

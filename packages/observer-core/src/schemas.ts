@@ -8,9 +8,15 @@ import {
   OBSERVER_MAX_PAYLOAD_KEYS,
   OBSERVER_MAX_PAYLOAD_VALUE,
   OBSERVER_MAX_SUMMARY_CHARS,
+  OBSERVER_UI_MAX_CONFLICTS,
+  OBSERVER_UI_MAX_FILES,
+  OBSERVER_UI_MAX_REPOSITORIES,
+  OBSERVER_UI_MAX_SESSIONS,
 } from './limits.js'
 import {
   adapterInstallationStatuses,
+  attentionKinds,
+  attentionSeverities,
   attributionConfidences,
   conflictFindingStatuses,
   conflictLevels,
@@ -329,3 +335,75 @@ export type UpdateSessionLabelRequest = z.infer<
 export type ObserverAdapterActionRequest = z.infer<
   typeof observerAdapterActionRequestSchema
 >
+
+export const observedWorkSchema = z.object({
+  id: z.string().min(1),
+  sessionId: z.string().min(1),
+  source: z.enum(observerSourceIds),
+  surface: z.enum(observerSurfaces),
+  displayName: shortText,
+  repositoryId: nullableText,
+  workspaceId: nullableText,
+  title: z.string().min(1).max(160).nullable(),
+  activity: z.enum(observerActivities),
+  status: z.enum(externalSessionStatuses),
+  attributionConfidence: z.enum(attributionConfidences),
+  claimedPaths: z.array(pathText).max(OBSERVER_UI_MAX_FILES),
+  lastObservedAt: isoDate,
+  startedAt: isoDate,
+})
+
+export const attentionItemSchema = z.object({
+  id: z.string().min(1),
+  kind: z.enum(attentionKinds),
+  severity: z.enum(attentionSeverities),
+  title: z.string().min(1).max(80),
+  summary: z.string().min(1).max(280),
+  repositoryId: nullableText,
+  source: z.enum(observerSourceIds).nullable(),
+  workIds: z.array(z.string().min(1)).max(OBSERVER_UI_MAX_SESSIONS),
+  conflictId: nullableText,
+  evidence: z.array(z.string().min(1).max(280)).max(OBSERVER_MAX_CONFLICT_EVIDENCE),
+  attributionConfidence: z.enum(attributionConfidences),
+  occurredAt: isoDate,
+})
+
+export const recommendationSchema = z.object({
+  id: z.string().min(1),
+  title: z.string().min(1).max(80),
+  summary: z.string().min(1).max(280),
+})
+
+export const repositorySituationSchema = z.object({
+  repositoryId: z.string().min(1),
+  displayName: shortText,
+  available: z.boolean(),
+  works: z.array(observedWorkSchema).max(OBSERVER_UI_MAX_SESSIONS),
+  attention: z.array(attentionItemSchema).max(OBSERVER_UI_MAX_CONFLICTS),
+  waitingCount: z.number().int().min(0),
+  staleCount: z.number().int().min(0),
+  conflictCount: z.number().int().min(0),
+})
+
+export const observerHealthSnapshotSchema = z.object({
+  ok: z.boolean(),
+  degradedCount: z.number().int().min(0),
+  adapters: z
+    .array(
+      z.object({
+        source: z.enum(observerSourceIds),
+        status: z.enum(adapterInstallationStatuses),
+        lastEventAt: isoDate.nullable(),
+      }),
+    )
+    .max(20),
+})
+
+export const controlPlaneSnapshotSchema = z.object({
+  generatedAt: isoDate,
+  works: z.array(observedWorkSchema).max(OBSERVER_UI_MAX_SESSIONS),
+  attention: z.array(attentionItemSchema).max(OBSERVER_UI_MAX_CONFLICTS),
+  recommendations: z.array(recommendationSchema).max(20),
+  repositories: z.array(repositorySituationSchema).max(OBSERVER_UI_MAX_REPOSITORIES),
+  observer: observerHealthSnapshotSchema,
+})

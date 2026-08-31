@@ -148,7 +148,10 @@ describe('pack preview and install', () => {
       confirm: true,
     })
     expect(store.findPack('character', 'alt-dog')?.commitHash).toBeTruthy()
+  })
 
+  it('installs the example garden folder as a selectable look', () => {
+    const { store, employees, dataDirectory } = openPacks()
     const examplePreview = previewPack({
       store,
       dataDirectory,
@@ -168,10 +171,8 @@ describe('pack preview and install', () => {
       confirm: true,
     })
     expect(
-      listInstalledGardenWorlds(store, dataDirectory)
-        .map((world) => world.id)
-        .sort(),
-    ).toEqual(['example-garden', 'night-garden'])
+      listInstalledGardenWorlds(store, dataDirectory).map((world) => world.id),
+    ).toEqual(['example-garden'])
   })
 
   it('rejects downgrade, builtin uninstall, and credentialed git URLs', () => {

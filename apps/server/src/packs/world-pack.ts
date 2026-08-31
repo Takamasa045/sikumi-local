@@ -10,7 +10,7 @@ export const BUILTIN_WORLD_PACKS = [
   { packId: 'craft-workshop', version: '1.0.0' },
 ] as const
 
-export const BUILTIN_WORLD_PACK_IDS = new Set(
+export const BUILTIN_WORLD_PACK_IDS: ReadonlySet<string> = new Set(
   BUILTIN_WORLD_PACKS.map((pack) => pack.packId),
 )
 

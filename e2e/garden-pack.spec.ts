@@ -14,7 +14,7 @@ test('a zip world pack becomes a selectable garden look', async ({ page }) => {
   execFileSync('node', [
     join(
       dirname(fileURLToPath(import.meta.url)),
-      '../examples/packs/example-garden/build-zip.mjs',
+      '../examples/packs/build-example-garden-zip.mjs',
     ),
     zipPath,
   ])

@@ -28,7 +28,7 @@ JavaScript、Shell、実行ファイルは入れません。
 ## Zip の作り方
 
 ```bash
-node examples/packs/example-garden/build-zip.mjs
+node examples/packs/build-example-garden-zip.mjs
 ```
 
 同じフォルダに `example-garden.zip` ができます。フォルダのまま導入しても同じです。

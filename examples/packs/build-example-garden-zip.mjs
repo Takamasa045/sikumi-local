@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { crc32, deflateSync } from 'node:zlib'
 
-const root = dirname(fileURLToPath(import.meta.url))
+const root = join(dirname(fileURLToPath(import.meta.url)), 'example-garden')
 const outPath = process.argv[2] ?? join(root, 'example-garden.zip')
 
 writeFileSync(join(root, 'background.png'), solidPng(32, 20, [36, 92, 88]))

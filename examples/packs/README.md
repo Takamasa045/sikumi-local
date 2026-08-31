@@ -10,3 +10,4 @@
 
 JavaScript、Shell、postinstall、実行ファイルは含めません。
 庭の絵は webp / png / jpg / gif です。作り方は `example-garden` を見てください。
+Zip を作るときは `node examples/packs/build-example-garden-zip.mjs` です。スクリプトは Pack の外に置いてあります。

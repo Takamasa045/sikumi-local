@@ -1,4 +1,8 @@
-import { installedPackSchema, packPreviewSchema } from '@sikumi-local/core'
+import {
+  gardenWorldListSchema,
+  installedPackSchema,
+  packPreviewSchema,
+} from '@sikumi-local/core'
 import { z } from 'zod'
 import { authorizedHeaders, toApiError, writeWithCsrfRetry } from './session'
 
@@ -13,6 +17,15 @@ export async function listPacks() {
     throw toApiError(body, response.status)
   }
   return listSchema.parse(body).packs
+}
+
+export async function listGardenWorlds() {
+  const response = await fetch('/api/worlds', { credentials: 'include' })
+  const body: unknown = await response.json()
+  if (!response.ok) {
+    throw toApiError(body, response.status)
+  }
+  return gardenWorldListSchema.parse(body).worlds
 }
 
 export async function previewPack(input: {

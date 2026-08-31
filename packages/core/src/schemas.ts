@@ -298,6 +298,23 @@ export const packPreviewSchema = z.object({
   createdAt: z.string().min(1),
 })
 
+export const gardenWorldSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  lookName: z.string().min(1),
+  description: z.string(),
+  backgroundUrl: z.string().min(1),
+  atlasUrl: z.string().min(1),
+  atlasColumns: z.number().int().min(1).max(16),
+  atlasRows: z.number().int().min(1).max(16),
+})
+
+export type GardenWorld = z.infer<typeof gardenWorldSchema>
+
+export const gardenWorldListSchema = z.object({
+  worlds: z.array(gardenWorldSchema),
+})
+
 export const packPreviewRecordSchema = z.object({
   id: z.string().min(1),
   kind: z.enum(packKinds),

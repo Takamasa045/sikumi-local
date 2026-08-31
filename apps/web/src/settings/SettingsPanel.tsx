@@ -153,6 +153,7 @@ export function SettingsPanel({
           }}
         >
           <h3>Packを確認して追加</h3>
+          <p>届いたZipなら、入手元をZipにして場所を入れてください。</p>
           <label>
             <span>入手元</span>
             <select

@@ -38,9 +38,7 @@ describe('SettingsPanel', () => {
       />,
     )
     expect(screen.getByText('道具をつなぐ（任意）')).toBeVisible()
-    expect(
-      screen.getByText(/つなぐは必須ではありません/),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/つなぐは必須ではありません/)).toBeInTheDocument()
     expect(screen.queryByTestId('observer-adapters')).not.toBeVisible()
   })
 
@@ -237,5 +235,32 @@ describe('SettingsPanel', () => {
     expect(screen.getByTestId('pack-trust')).toHaveTextContent('abcdef123456')
     await userEvent.click(screen.getByRole('button', { name: '削除' }))
     expect(onUninstall).toHaveBeenCalledWith('p1')
+  })
+
+  it('previews a zip pack from a local path', async () => {
+    const onPreview = vi.fn()
+    render(
+      <SettingsPanel
+        workspace={null}
+        providers={[]}
+        busy={false}
+        error={null}
+        onRegister={vi.fn()}
+        onPreviewPack={onPreview}
+      />,
+    )
+    expect(screen.getByText(/届いたZipなら、入手元をZipにして/)).toBeVisible()
+    await userEvent.selectOptions(screen.getByLabelText('Packの入手元'), 'zip')
+    await userEvent.type(
+      screen.getByLabelText('Packの場所'),
+      '/tmp/night-garden.zip',
+    )
+    await userEvent.click(
+      screen.getByRole('button', { name: '確認画面を開く' }),
+    )
+    expect(onPreview).toHaveBeenCalledWith({
+      sourceType: 'zip',
+      path: '/tmp/night-garden.zip',
+    })
   })
 })

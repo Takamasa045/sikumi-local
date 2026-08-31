@@ -1,10 +1,11 @@
-import type { GardenStationId } from '@sikumi-local/core'
+import type { GardenStationId, GardenWorld } from '@sikumi-local/core'
 import craftBackground from '../assets/worlds/craft-workshop/background.webp'
 import craftCharacters from '../assets/worlds/craft-workshop/characters.webp'
 import dogBackground from '../assets/worlds/dog-office/background.webp'
 import dogCharacters from '../assets/worlds/dog-office/characters.webp'
 
-export type WorldPackId = 'dog-office' | 'craft-workshop'
+export type BuiltinWorldPackId = 'dog-office' | 'craft-workshop'
+export type WorldPackId = string
 
 export const gardenStationLabels: Record<GardenStationId, string> = {
   archive: '資料棚',
@@ -41,10 +42,10 @@ export function describeStationOccupants(
     .join('。')
 }
 
-export const defaultWorldPackId: WorldPackId = 'dog-office'
+export const defaultWorldPackId: BuiltinWorldPackId = 'dog-office'
 
 export interface WorldPack {
-  readonly id: WorldPackId
+  readonly id: string
   readonly name: string
   readonly shortName: string
   readonly lookName: string
@@ -122,7 +123,7 @@ export const worldPacks: readonly WorldPack[] = [
 
 export function isWorldPackId(
   id: string | null | undefined,
-): id is WorldPackId {
+): id is BuiltinWorldPackId {
   return worldPacks.some((pack) => pack.id === id)
 }
 
@@ -132,4 +133,39 @@ export function resolveWorldPackId(id: string | null | undefined): WorldPackId {
 
 export function getWorldPack(id: string): WorldPack {
   return worldPacks.find((pack) => pack.id === id) ?? worldPacks[0]!
+}
+
+export function worldPackFromInstalled(world: GardenWorld): WorldPack {
+  const fallback = getWorldPack(defaultWorldPackId)
+  return {
+    id: world.id,
+    name: world.name,
+    shortName: world.lookName,
+    lookName: world.lookName,
+    description: world.description,
+    backgroundUrl: world.backgroundUrl,
+    stations: fallback.stations,
+    character: {
+      ...fallback.character,
+      atlasUrl: world.atlasUrl,
+      atlasColumns: world.atlasColumns,
+      atlasRows: world.atlasRows,
+    },
+  }
+}
+
+export function mergeGardenWorldPacks(
+  installed: readonly GardenWorld[],
+): readonly WorldPack[] {
+  const extras = installed
+    .filter((world) => !isWorldPackId(world.id))
+    .map(worldPackFromInstalled)
+  return extras.length === 0 ? worldPacks : [...worldPacks, ...extras]
+}
+
+export function findWorldPack(
+  id: string,
+  packs: readonly WorldPack[] = worldPacks,
+): WorldPack {
+  return packs.find((pack) => pack.id === id) ?? packs[0] ?? worldPacks[0]!
 }

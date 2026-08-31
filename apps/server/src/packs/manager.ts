@@ -23,6 +23,11 @@ import { resolveRegisteredPath } from '../security/local-path.js'
 import type { AppStore } from '../storage/store.js'
 import { clonePackRepository, displayGitSource } from './git-source.js'
 import { inspectDataOnlyTree, packError } from './inspect-tree.js'
+import {
+  assertSafeWorldPackImages,
+  BUILTIN_WORLD_PACKS,
+  isBuiltinWorldPackId,
+} from './world-pack.js'
 import { extractZipSafely } from './zip.js'
 
 const PREVIEW_TTL_MS = 30 * 60 * 1000
@@ -87,8 +92,14 @@ export function previewPack(input: {
     const manifest = readPackManifest(stagingAbs)
     const existing = input.store.findPack(manifest.kind, manifest.packId)
     const errors: string[] = []
-    if (existing?.builtin) {
-      errors.push('Built-in packs cannot be replaced')
+    if (
+      existing?.builtin ||
+      (manifest.kind === 'world' && isBuiltinWorldPackId(manifest.packId))
+    ) {
+      errors.push('最初から入っている見た目は、上書きできません')
+    }
+    if (manifest.kind === 'world') {
+      assertSafeWorldPackImages(stagingAbs)
     }
     if (existing && compareSemver(manifest.version, existing.version) < 0) {
       errors.push('Downgrade is not allowed')
@@ -160,7 +171,10 @@ export function installPackPreview(input: {
     )
   }
   const existing = input.store.findPack(preview.kind, preview.packId)
-  if (existing?.builtin) {
+  if (
+    existing?.builtin ||
+    (preview.kind === 'world' && isBuiltinWorldPackId(preview.packId))
+  ) {
     throw new AppError(
       'PACK_BUILTIN_PROTECTED',
       '組み込みPackは上書きできません',
@@ -334,6 +348,23 @@ export function ensureBuiltinPacks(
       kind: 'employee',
       packId: employee.id,
       version: employee.version,
+      sourcePath: null,
+      sourceKind: 'builtin',
+      sourceDisplay: 'builtin',
+      commitHash: null,
+      builtin: true,
+      installedAt: now,
+    })
+  }
+  for (const world of BUILTIN_WORLD_PACKS) {
+    if (store.findPack('world', world.packId)) {
+      continue
+    }
+    store.insertPack({
+      id: randomUUID(),
+      kind: 'world',
+      packId: world.packId,
+      version: world.version,
       sourcePath: null,
       sourceKind: 'builtin',
       sourceDisplay: 'builtin',

@@ -20,7 +20,13 @@ import {
   getWorkspaceGrowth,
   listGrowth,
 } from './growth.js'
-import { installPack, listPacks, previewPack, uninstallPack } from './packs.js'
+import {
+  installPack,
+  listGardenWorlds,
+  listPacks,
+  previewPack,
+  uninstallPack,
+} from './packs.js'
 import { listApprovals, resolveApproval } from './approvals.js'
 import { getHealth } from './health.js'
 
@@ -191,6 +197,22 @@ describe('job API clients', () => {
             },
           })
         }
+        if (url.endsWith('/api/worlds')) {
+          return jsonResponse({
+            worlds: [
+              {
+                id: 'night-garden',
+                name: '夜の庭',
+                lookName: '夜',
+                description: '',
+                backgroundUrl: '/api/worlds/night-garden/assets/background.png',
+                atlasUrl: '/api/worlds/night-garden/assets/characters.png',
+                atlasColumns: 3,
+                atlasRows: 4,
+              },
+            ],
+          })
+        }
         if (url.endsWith('/api/packs')) {
           return jsonResponse({
             packs: [
@@ -316,6 +338,9 @@ describe('job API clients', () => {
       employees: [{ employeeId: 'saguru' }],
     })
     await expect(listPacks()).resolves.toMatchObject([{ packId: 'saguru' }])
+    await expect(listGardenWorlds()).resolves.toMatchObject([
+      { id: 'night-garden', lookName: '夜' },
+    ])
     await expect(
       previewPack({ sourceType: 'folder', path: '/tmp/miru' }),
     ).resolves.toMatchObject({ packId: 'miru' })
@@ -352,6 +377,7 @@ describe('job API clients', () => {
     await expect(applyArtifact('missing')).rejects.toBeInstanceOf(Error)
     await expect(listGrowth()).rejects.toBeInstanceOf(Error)
     await expect(listPacks()).rejects.toBeInstanceOf(Error)
+    await expect(listGardenWorlds()).rejects.toBeInstanceOf(Error)
     await expect(exportArtifact('missing')).rejects.toBeInstanceOf(Error)
     await expect(discardWorktree('missing')).rejects.toBeInstanceOf(Error)
     await expect(keepWorktree('missing')).rejects.toBeInstanceOf(Error)

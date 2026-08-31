@@ -7,7 +7,8 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { fixtureEmployeePackDirectory } from '@sikumi-local/employee-sdk'
 import { createEmployeeRegistry } from '../employees/registry.js'
@@ -24,7 +25,9 @@ import {
   uninstallBackupPath,
   uninstallPack,
 } from './manager.js'
+import { createSolidPng } from '../test/tiny-png.js'
 import { buildZip } from './zip-fixture.js'
+import { listInstalledGardenWorlds } from './world-pack.js'
 
 const tempDirectories: string[] = []
 const databases: Array<ReturnType<typeof openDatabase>> = []
@@ -61,14 +64,26 @@ describe('pack preview and install', () => {
     expect(employees.list().some((item) => item.id === 'miru')).toBe(true)
 
     const zipPath = join(track(createTemporaryDirectory()), 'world.zip')
+    const background = createSolidPng(8, 5, [16, 48, 96])
+    const atlas = createSolidPng(12, 16, [210, 170, 70])
     writeFileSync(
       zipPath,
       buildZip([
         {
           name: 'world.yaml',
-          content:
-            'id: night-garden\nversion: 1.0.0\nkind: world\nname: 夜の庭\n',
+          content: [
+            'id: night-garden',
+            'version: 1.0.0',
+            'kind: world',
+            'name: 夜の庭',
+            'lookName: 夜',
+            'background: background.png',
+            'characterAtlas: characters.png',
+            '',
+          ].join('\n'),
         },
+        { name: 'background.png', content: '', payload: background },
+        { name: 'characters.png', content: '', payload: atlas },
       ]),
     )
     const zipPreview = previewPack({
@@ -78,6 +93,7 @@ describe('pack preview and install', () => {
       path: zipPath,
     })
     expect(zipPreview.kind).toBe('world')
+    expect(zipPreview.validation.ok).toBe(true)
     installPackPreview({
       store,
       employees,
@@ -86,6 +102,23 @@ describe('pack preview and install', () => {
       confirm: true,
     })
     expect(store.findPack('world', 'night-garden')?.version).toBe('1.0.0')
+    expect(
+      existsSync(
+        join(dataDirectory, 'worlds', 'night-garden', 'background.png'),
+      ),
+    ).toBe(true)
+    expect(listInstalledGardenWorlds(store, dataDirectory)).toEqual([
+      {
+        id: 'night-garden',
+        name: '夜の庭',
+        lookName: '夜',
+        description: '',
+        backgroundUrl: '/api/worlds/night-garden/assets/background.png',
+        atlasUrl: '/api/worlds/night-garden/assets/characters.png',
+        atlasColumns: 3,
+        atlasRows: 4,
+      },
+    ])
 
     const bare = track(createTemporaryGitRepository())
     mkdirSync(join(bare, 'character-pack'), { recursive: true })
@@ -115,6 +148,31 @@ describe('pack preview and install', () => {
       confirm: true,
     })
     expect(store.findPack('character', 'alt-dog')?.commitHash).toBeTruthy()
+  })
+
+  it('installs the example garden folder as a selectable look', () => {
+    const { store, employees, dataDirectory } = openPacks()
+    const examplePreview = previewPack({
+      store,
+      dataDirectory,
+      sourceType: 'folder',
+      path: join(
+        dirname(fileURLToPath(import.meta.url)),
+        '../../../../examples/packs/example-garden',
+      ),
+    })
+    expect(examplePreview.packId).toBe('example-garden')
+    expect(examplePreview.validation.ok).toBe(true)
+    installPackPreview({
+      store,
+      employees,
+      dataDirectory,
+      previewId: examplePreview.id,
+      confirm: true,
+    })
+    expect(
+      listInstalledGardenWorlds(store, dataDirectory).map((world) => world.id),
+    ).toEqual(['example-garden'])
   })
 
   it('rejects downgrade, builtin uninstall, and credentialed git URLs', () => {
@@ -173,6 +231,46 @@ describe('pack preview and install', () => {
         gitUrl: 'https://user:secret@example.com/pack.git',
       }),
     ).toThrow(/credentials/)
+
+    const builtinWorldZip = join(track(createTemporaryDirectory()), 'dog.zip')
+    writeFileSync(
+      builtinWorldZip,
+      buildZip([
+        {
+          name: 'world.yaml',
+          content:
+            'id: dog-office\nversion: 2.0.0\nkind: world\nname: 偽の里山\n',
+        },
+      ]),
+    )
+    const builtinWorldPreview = previewPack({
+      store,
+      dataDirectory,
+      sourceType: 'zip',
+      path: builtinWorldZip,
+    })
+    expect(builtinWorldPreview.validation.ok).toBe(false)
+    expect(builtinWorldPreview.validation.errors.join(' ')).toMatch(/上書き/)
+
+    const execZip = join(track(createTemporaryDirectory()), 'exec.zip')
+    writeFileSync(
+      execZip,
+      buildZip([
+        {
+          name: 'world.yaml',
+          content: 'id: trap\nversion: 1.0.0\nkind: world\nname: 罠\n',
+        },
+        { name: 'run.sh', content: '#!/bin/sh\n' },
+      ]),
+    )
+    expect(() =>
+      previewPack({
+        store,
+        dataDirectory,
+        sourceType: 'zip',
+        path: execZip,
+      }),
+    ).toThrow(/data-only/)
 
     const installedId = store.findPack('employee', 'miru')?.id
     expect(installedId).toBeTruthy()

@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
@@ -25,6 +25,7 @@ type SessionView = RepositoryView['sessions'][number]
 afterEach(() => {
   vi.useRealTimers()
   localStorage.removeItem(GARDEN_WORLD_PACK_STORAGE_KEY)
+  vi.unstubAllGlobals()
 })
 
 describe('ObserverGarden', () => {
@@ -1433,9 +1434,62 @@ describe('ObserverGarden', () => {
     expect(screen.queryByText('worldPackId')).toBeNull()
     expect(screen.queryByRole('heading', { name: '工房の整え方' })).toBeNull()
   })
+
+  it('lists an installed pack look and paints its images', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith('/api/worlds')) {
+          return new Response(
+            JSON.stringify({
+              worlds: [
+                {
+                  id: 'night-garden',
+                  name: '夜の庭',
+                  lookName: '夜',
+                  description: 'Zipで足した庭',
+                  backgroundUrl:
+                    '/api/worlds/night-garden/assets/background.png',
+                  atlasUrl: '/api/worlds/night-garden/assets/characters.png',
+                  atlasColumns: 3,
+                  atlasRows: 4,
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          )
+        }
+        return new Response('{}', { status: 404 })
+      }),
+    )
+
+    renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
+    await waitFor(() => {
+      expect(gardenLookButton('夜')).toBeVisible()
+    })
+    expect(gardenLookButton('里山')).toBeVisible()
+    expect(gardenLookButton('工房')).toBeVisible()
+
+    await userEvent.click(gardenLookButton('夜'))
+
+    const garden = screen.getByRole('region', { name: '観測の庭' })
+    expect(garden).toHaveAttribute('data-world-pack', 'night-garden')
+    expect(garden.style.backgroundImage).toContain(
+      '/api/worlds/night-garden/assets/background.png',
+    )
+    expect(actorAtlasUrl('repo_a')).toContain(
+      '/api/worlds/night-garden/assets/characters.png',
+    )
+    expect(screen.getByText('夜の庭')).toBeVisible()
+    expect(screen.queryByText('night-garden')).toBeNull()
+    expect(screen.queryByText('world.yaml')).toBeNull()
+  })
 })
 
-function gardenLookButton(name: '里山' | '工房') {
+function gardenLookButton(name: string) {
   return within(screen.getByRole('group', { name: '庭の様子' })).getByRole(
     'button',
     { name },

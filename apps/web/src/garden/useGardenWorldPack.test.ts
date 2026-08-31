@@ -1,13 +1,32 @@
-import { renderHook, act } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { renderHook, act, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   GARDEN_WORLD_PACK_STORAGE_KEY,
   readGardenWorldPackId,
   useGardenWorldPack,
 } from './useGardenWorldPack'
 
+beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/api/worlds')) {
+        return new Response(JSON.stringify({ worlds: [] }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      }
+      return new Response(JSON.stringify({ error: { message: 'not found' } }), {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      })
+    }),
+  )
+})
+
 afterEach(() => {
   localStorage.removeItem(GARDEN_WORLD_PACK_STORAGE_KEY)
+  vi.unstubAllGlobals()
 })
 
 describe('useGardenWorldPack', () => {
@@ -18,6 +37,10 @@ describe('useGardenWorldPack', () => {
     expect(result.current.worldPackId).toBe('dog-office')
     expect(result.current.world.id).toBe('dog-office')
     expect(result.current.world.lookName).toBe('里山')
+    expect(result.current.packs.map((pack) => pack.lookName)).toEqual([
+      '里山',
+      '工房',
+    ])
   })
 
   it('keeps a stored workshop look after remount', () => {
@@ -38,6 +61,61 @@ describe('useGardenWorldPack', () => {
 
   it('falls back to the satoyama atelier for an unknown stored id', () => {
     localStorage.setItem(GARDEN_WORLD_PACK_STORAGE_KEY, 'office-sim')
-    expect(readGardenWorldPackId()).toBe('dog-office')
+    expect(readGardenWorldPackId()).toBe('office-sim')
+    const { result } = renderHook(() => useGardenWorldPack())
+    expect(result.current.world.id).toBe('dog-office')
+  })
+
+  it('makes an installed pack selectable and keeps builtin assets', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).endsWith('/api/worlds')) {
+          return new Response(
+            JSON.stringify({
+              worlds: [
+                {
+                  id: 'night-garden',
+                  name: '夜の庭',
+                  lookName: '夜',
+                  description: 'Zipで足した庭',
+                  backgroundUrl:
+                    '/api/worlds/night-garden/assets/background.png',
+                  atlasUrl: '/api/worlds/night-garden/assets/characters.png',
+                  atlasColumns: 3,
+                  atlasRows: 4,
+                },
+              ],
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          )
+        }
+        return new Response('{}', { status: 404 })
+      }),
+    )
+
+    localStorage.setItem(GARDEN_WORLD_PACK_STORAGE_KEY, 'night-garden')
+    const { result } = renderHook(() => useGardenWorldPack())
+    await waitFor(() => {
+      expect(result.current.packs.map((pack) => pack.id)).toEqual([
+        'dog-office',
+        'craft-workshop',
+        'night-garden',
+      ])
+    })
+    expect(result.current.world.id).toBe('night-garden')
+    expect(result.current.world.backgroundUrl).toBe(
+      '/api/worlds/night-garden/assets/background.png',
+    )
+    expect(result.current.world.character.atlasUrl).toBe(
+      '/api/worlds/night-garden/assets/characters.png',
+    )
+    expect(
+      result.current.packs.find((pack) => pack.id === 'dog-office')
+        ?.backgroundUrl,
+    ).not.toContain('/api/worlds/')
   })
 })

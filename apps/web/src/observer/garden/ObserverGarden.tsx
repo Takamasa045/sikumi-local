@@ -14,7 +14,7 @@ import {
 import { poseGesture } from '../../garden/motion'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
 import { useGardenWorldPack } from '../../garden/useGardenWorldPack'
-import { getWorldPack, worldPacks } from '../../garden/worlds'
+import { getWorldPack } from '../../garden/worlds'
 import {
   collectGardenActors,
   GARDEN_PLACE_POINTS,
@@ -108,7 +108,7 @@ export function ObserverGarden({
   workspaces = [],
   onOpenWorkshop,
 }: ObserverGardenProps) {
-  const { world, setWorldPackId } = useGardenWorldPack()
+  const { world, packs, setWorldPackId } = useGardenWorldPack()
   const actors = collectGardenActors(overview, workspaces)
   const reducedMotion = usePrefersReducedMotion()
   const [inspect, setInspect] = useState<GardenInspectSubject | null>(null)
@@ -176,7 +176,7 @@ export function ObserverGarden({
               aria-label="庭の様子"
               data-testid="garden-look"
             >
-              {worldPacks.map((pack) => (
+              {packs.map((pack) => (
                 <button
                   key={pack.id}
                   type="button"
@@ -329,8 +329,10 @@ function ObserverGardenActor({
   const spriteStyle = {
     '--observer-atlas-x': atlas.x,
     '--observer-atlas-y': atlas.y,
-    '--observer-atlas-columns': String(ATLAS_COLUMNS),
-    '--observer-atlas-rows': String(ATLAS_ROWS),
+    '--observer-atlas-columns': String(
+      world.character.atlasColumns || ATLAS_COLUMNS,
+    ),
+    '--observer-atlas-rows': String(world.character.atlasRows || ATLAS_ROWS),
     backgroundImage: `url("${world.character.atlasUrl}")`,
   } as CSSProperties
   const actorStyle = {

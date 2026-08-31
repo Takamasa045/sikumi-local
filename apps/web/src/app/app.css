@@ -2829,6 +2829,7 @@ footer span {
   display: inline-flex;
   align-items: stretch;
   flex: 0 0 auto;
+  flex-wrap: wrap;
   margin-top: 8px;
   overflow: visible;
   border: 1px solid rgba(28, 24, 18, 0.62);

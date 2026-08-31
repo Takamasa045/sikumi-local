@@ -11,6 +11,7 @@ import {
   confirmWriteRequestSchema,
   createJobRequestSchema,
   artifactContentSchema,
+  gardenWorldSchema,
   healthResponseSchema,
   installPackRequestSchema,
   jobSchema,
@@ -286,6 +287,18 @@ describe('worktree, growth, and pack contracts', () => {
         path: '/tmp/pack',
       }).sourceType,
     ).toBe('folder')
+    expect(
+      gardenWorldSchema.parse({
+        id: 'example-garden',
+        name: '見本の庭',
+        lookName: '見本',
+        description: 'Zipで足す庭の見本',
+        backgroundUrl: '/api/worlds/example-garden/assets/background.png',
+        atlasUrl: '/api/worlds/example-garden/assets/characters.png',
+        atlasColumns: 3,
+        atlasRows: 4,
+      }).lookName,
+    ).toBe('見本')
   })
 
   it('keeps portable growth export free of secrets and absolute paths', () => {

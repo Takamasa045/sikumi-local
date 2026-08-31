@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   describeStationOccupants,
+  findWorldPack,
   gardenStationLabels,
   gardenStationMeanings,
   getWorldPack,
+  mergeGardenWorldPacks,
   resolveWorldPackId,
+  worldPackFromInstalled,
   worldPacks,
 } from './worlds'
 
@@ -37,6 +40,56 @@ describe('world packs', () => {
 
   it('falls back to the dog atelier for an unknown pack', () => {
     expect(getWorldPack('missing').id).toBe('dog-office')
+  })
+
+  it('turns an installed garden world into a selectable look', () => {
+    const installed = worldPackFromInstalled({
+      id: 'night-garden',
+      name: '夜の庭',
+      lookName: '夜',
+      description: 'Zipで足した庭',
+      backgroundUrl: '/api/worlds/night-garden/assets/background.png',
+      atlasUrl: '/api/worlds/night-garden/assets/characters.png',
+      atlasColumns: 3,
+      atlasRows: 4,
+    })
+    expect(installed.backgroundUrl).toBe(
+      '/api/worlds/night-garden/assets/background.png',
+    )
+    expect(installed.character.atlasUrl).toBe(
+      '/api/worlds/night-garden/assets/characters.png',
+    )
+    const merged = mergeGardenWorldPacks([
+      {
+        id: 'night-garden',
+        name: '夜の庭',
+        lookName: '夜',
+        description: '',
+        backgroundUrl: installed.backgroundUrl,
+        atlasUrl: installed.character.atlasUrl,
+        atlasColumns: 3,
+        atlasRows: 4,
+      },
+      {
+        id: 'dog-office',
+        name: '偽の里山',
+        lookName: '偽',
+        description: '',
+        backgroundUrl: '/api/worlds/dog-office/assets/background.png',
+        atlasUrl: '/api/worlds/dog-office/assets/characters.png',
+        atlasColumns: 3,
+        atlasRows: 4,
+      },
+    ])
+    expect(merged.map((pack) => pack.id)).toEqual([
+      'dog-office',
+      'craft-workshop',
+      'night-garden',
+    ])
+    expect(findWorldPack('night-garden', merged).lookName).toBe('夜')
+    expect(getWorldPack('dog-office').backgroundUrl).not.toContain(
+      '/api/worlds/',
+    )
   })
 
   it('explains who is at a station or heading there', () => {

@@ -1,10 +1,12 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { listGardenWorlds } from '../api/packs'
 import {
   defaultWorldPackId,
-  getWorldPack,
-  resolveWorldPackId,
+  findWorldPack,
+  mergeGardenWorldPacks,
   type WorldPack,
   type WorldPackId,
+  worldPacks,
 } from './worlds'
 
 export const GARDEN_WORLD_PACK_STORAGE_KEY = 'sikumi.garden.worldPackId'
@@ -14,9 +16,8 @@ export function readGardenWorldPackId(): WorldPackId {
     return defaultWorldPackId
   }
   try {
-    return resolveWorldPackId(
-      localStorage.getItem(GARDEN_WORLD_PACK_STORAGE_KEY),
-    )
+    const stored = localStorage.getItem(GARDEN_WORLD_PACK_STORAGE_KEY)
+    return stored && stored.trim().length > 0 ? stored : defaultWorldPackId
   } catch {
     return defaultWorldPackId
   }
@@ -36,18 +37,46 @@ function writeGardenWorldPackId(id: WorldPackId): void {
 export function useGardenWorldPack(): {
   readonly worldPackId: WorldPackId
   readonly world: WorldPack
+  readonly packs: readonly WorldPack[]
   readonly setWorldPackId: (id: WorldPackId) => void
 } {
   const [worldPackId, setWorldPackIdState] = useState(readGardenWorldPackId)
-  const setWorldPackId = useCallback((id: WorldPackId) => {
-    const next = resolveWorldPackId(id)
-    setWorldPackIdState(next)
-    writeGardenWorldPackId(next)
+  const [packs, setPacks] = useState<readonly WorldPack[]>(worldPacks)
+
+  useEffect(() => {
+    let cancelled = false
+    void listGardenWorlds()
+      .then((worlds) => {
+        if (!cancelled) {
+          setPacks(mergeGardenWorldPacks(worlds))
+        }
+      })
+      .catch(() => {
+        // Built-in looks stay available when the catalog cannot be read.
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
+  const world = findWorldPack(worldPackId, packs)
+  const setWorldPackId = useCallback(
+    (id: WorldPackId) => {
+      const known = packs.some((pack) => pack.id === id)
+        ? id
+        : worldPacks.some((pack) => pack.id === id)
+          ? id
+          : defaultWorldPackId
+      setWorldPackIdState(known)
+      writeGardenWorldPackId(known)
+    },
+    [packs],
+  )
+
   return {
-    worldPackId,
-    world: getWorldPack(worldPackId),
+    worldPackId: world.id,
+    world,
+    packs,
     setWorldPackId,
   }
 }

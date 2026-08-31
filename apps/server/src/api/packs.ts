@@ -1,6 +1,7 @@
 import {
   AppError,
   confirmWriteRequestSchema,
+  gardenWorldListSchema,
   installPackRequestSchema,
   installedPackSchema,
   packPreviewSchema,
@@ -14,6 +15,10 @@ import {
   previewPack,
   uninstallPack,
 } from '../packs/manager.js'
+import {
+  listInstalledGardenWorlds,
+  readWorldPackAsset,
+} from '../packs/world-pack.js'
 import type { AppStore } from '../storage/store.js'
 
 export function registerPackRoutes(
@@ -85,4 +90,27 @@ export function registerPackRoutes(
     })
     return { ok: true }
   })
+
+  app.get('/api/worlds', async () => {
+    ensureBuiltinPacks(store, employees)
+    return gardenWorldListSchema.parse({
+      worlds: listInstalledGardenWorlds(store, dataDirectory),
+    })
+  })
+
+  app.get<{ Params: { packId: string; file: string } }>(
+    '/api/worlds/:packId/assets/:file',
+    async (request, reply) => {
+      const asset = readWorldPackAsset({
+        store,
+        dataDirectory,
+        packId: request.params.packId,
+        file: request.params.file,
+      })
+      return reply
+        .type(asset.contentType)
+        .header('Cache-Control', 'private, no-store')
+        .send(asset.body)
+    },
+  )
 }

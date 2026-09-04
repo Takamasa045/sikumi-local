@@ -109,6 +109,57 @@ test('the garden shows registered places as characters, not a list', async ({
   await expect(inspect).not.toContainText('次はこんな感じか')
   await expect(inspect).not.toContainText('変更元不明の作業')
   await expect(inspect).not.toContainText('README.md')
+  await expect(inspect.getByRole('link', { name: 'Codexで開く' })).toHaveCount(
+    0,
+  )
+})
+
+test('a Codex garden character can open the installed app for that task', async ({
+  page,
+}) => {
+  const repositoryPath = createTemporaryGitRepository('sikumi-e2e-codex-open-')
+  const threadId = '0193c0de-5a11-7abc-9def-0123456789ab'
+  await page.goto('/#observer')
+  await page.getByLabel('場所のパス').fill(repositoryPath)
+  await page.getByRole('button', { name: 'この場所を追加' }).click()
+  await expect(
+    page.getByText(basename(repositoryPath), { exact: false }).first(),
+  ).toBeVisible()
+
+  const token = await page.evaluate(async () => {
+    const response = await fetch('/api/session', { credentials: 'include' })
+    const body = (await response.json()) as { token: string }
+    return body.token
+  })
+  const origin = new URL(page.url()).origin
+  const started = await page.request.post('/api/observer/events', {
+    headers: {
+      'content-type': 'application/json',
+      origin,
+      'x-csrf-token': token,
+    },
+    data: {
+      source: 'codex',
+      nativeEventType: 'SessionStart',
+      session_id: threadId,
+      cwd: repositoryPath,
+      worktreePath: repositoryPath,
+      occurredAt: new Date().toISOString(),
+    },
+  })
+  expect(started.ok(), await started.text()).toBeTruthy()
+
+  await page.getByRole('link', { name: '庭' }).click()
+  const resident = page
+    .getByRole('list', { name: '庭の住人' })
+    .getByRole('listitem')
+  await resident.getByRole('button').click()
+  await expect(page).toHaveURL(/#garden|#observer|^[^#]*\/?$/)
+  const inspect = page.getByTestId('garden-inspect')
+  await expect(inspect).toBeVisible()
+  const launch = inspect.getByRole('link', { name: 'Codexで開く' })
+  await expect(launch).toHaveAttribute('href', `codex://threads/${threadId}`)
+  await expect(page.getByRole('heading', { name: '観測の庭' })).toBeVisible()
 })
 
 test("a user can move between garden, today's workshop, and settings", async ({

@@ -2679,6 +2679,11 @@ footer span {
 .garden-inspect__articles li {
   line-height: 1.45;
 }
+.garden-inspect__launch {
+  color: #8f3a2e;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .garden-inspect__meaning,
 .garden-inspect__occupants,
 .garden-inspect__summary {
@@ -2824,8 +2829,7 @@ footer span {
   cursor: pointer;
 }
 
-.observer-garden.observer-garden--satoyama
-  .observer-garden-look-toggle:hover,
+.observer-garden.observer-garden--satoyama .observer-garden-look-toggle:hover,
 .observer-garden.observer-garden--satoyama
   .observer-garden-look-toggle:focus-visible {
   background: #fff8eb;
@@ -2833,16 +2837,14 @@ footer span {
   outline-offset: 2px;
 }
 
-.observer-garden.observer-garden--satoyama
-  .observer-garden-look-toggle-label {
+.observer-garden.observer-garden--satoyama .observer-garden-look-toggle-label {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   opacity: 0.66;
 }
 
-.observer-garden.observer-garden--satoyama
-  .observer-garden-look-toggle strong {
+.observer-garden.observer-garden--satoyama .observer-garden-look-toggle strong {
   overflow: hidden;
   font-size: 14px;
   letter-spacing: 0.1em;
@@ -2850,8 +2852,7 @@ footer span {
   white-space: nowrap;
 }
 
-.observer-garden.observer-garden--satoyama
-  .observer-garden-look-toggle-icon {
+.observer-garden.observer-garden--satoyama .observer-garden-look-toggle-icon {
   font-size: 12px;
   transition: transform 160ms ease;
 }
@@ -2902,8 +2903,7 @@ footer span {
   text-align: left;
 }
 
-.observer-garden.observer-garden--satoyama
-  .observer-garden-look-button:hover,
+.observer-garden.observer-garden--satoyama .observer-garden-look-button:hover,
 .observer-garden.observer-garden--satoyama
   .observer-garden-look-button:focus-visible {
   background: rgba(63, 81, 54, 0.12);

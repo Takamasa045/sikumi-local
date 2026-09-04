@@ -84,6 +84,60 @@ describe('ObserverGarden', () => {
     ).toBeNull()
   })
 
+  it('opens inspect on character click and shows Codexで開く only for a valid target', async () => {
+    const threadId = '0193c0de-5a11-7abc-9def-0123456789ab'
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'my-blog', [
+          session({
+            id: 's1',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+            lastObservedLabel: '3分前',
+            codexLaunchUrl: `codex://threads/${threadId}`,
+          }),
+        ]),
+      ]),
+      [workspace('ws_repo_a', 'ブログ番')],
+    )
+
+    const actor = screen.getByTestId('garden-place-repo_a')
+    expect(actor.querySelector('a')).toBeNull()
+    await userEvent.click(within(actor).getByRole('button'))
+    const inspect = screen.getByTestId('garden-inspect')
+    expect(inspect).toHaveTextContent('ブログ番')
+    const launch = within(inspect).getByRole('link', { name: 'Codexで開く' })
+    expect(launch).toHaveAttribute('href', `codex://threads/${threadId}`)
+    expect(screen.getByRole('region', { name: '観測の庭' })).toBeVisible()
+  })
+
+  it('does not show Codexで開く for grok, pid, or aggregated residents', async () => {
+    renderGarden(
+      overviewOf([
+        repository('repo_a', 'my-blog', [
+          session({
+            id: 'grok',
+            source: 'grok-build',
+            displayName: 'Grok Build',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+            lastObservedLabel: '3分前',
+            codexLaunchUrl:
+              'codex://threads/0193c0de-5a11-7abc-9def-0123456789ab',
+          }),
+        ]),
+      ]),
+    )
+    await userEvent.click(
+      within(screen.getByTestId('garden-place-repo_a')).getByRole('button'),
+    )
+    expect(screen.queryByRole('link', { name: 'Codexで開く' })).toBeNull()
+  })
+
   it('lets each live stream on one place be inspected as its own everyday line', async () => {
     renderGarden(
       overviewOf([

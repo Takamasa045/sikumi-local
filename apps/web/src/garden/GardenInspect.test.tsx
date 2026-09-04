@@ -425,4 +425,61 @@ describe('GardenInspect', () => {
     expect(inspect).not.toHaveTextContent('これまでの仕事')
     expect(inspect).not.toHaveTextContent('まだ分かっていません')
   })
+
+  it('offers Codexで開く only for a sanitized launch URL', async () => {
+    const threadId = '0193c0de-5a11-7abc-9def-0123456789ab'
+    render(
+      <GardenInspect
+        subject={{
+          kind: 'character',
+          name: 'ブログ番',
+          station: 'workbench',
+          traveling: false,
+          summary: 'APIを直している',
+          nowText: 'APIを直している',
+          implementationLook: null,
+          nextStep: null,
+          live: true,
+          goal: 'APIを直している',
+          codexLaunchUrl: `codex://threads/${threadId}`,
+        }}
+        onClose={vi.fn()}
+      />,
+    )
+    const launch = screen.getByRole('link', { name: 'Codexで開く' })
+    expect(launch).toHaveAttribute('href', `codex://threads/${threadId}`)
+    expect(launch).not.toHaveAttribute('href', threadId)
+  })
+
+  it('hides Codexで開く for malformed, pid, and non-Codex targets', () => {
+    const unsafe = [
+      'javascript:alert(1)',
+      'https://example.test/threads/0193c0de-5a11-7abc-9def-0123456789ab',
+      'codex://threads/0193c0de-5a11-7abc-9def-0123456789ab?x=1',
+      'live:codex:repo-hataraki:pid:248',
+      '0193c0de-5a11-7abc-9def-0123456789ab',
+    ]
+    for (const codexLaunchUrl of unsafe) {
+      const { unmount } = render(
+        <GardenInspect
+          subject={{
+            kind: 'character',
+            name: 'ブログ番',
+            station: 'workbench',
+            traveling: false,
+            summary: 'APIを直している',
+            nowText: 'APIを直している',
+            implementationLook: null,
+            nextStep: null,
+            live: true,
+            goal: 'APIを直している',
+            codexLaunchUrl,
+          }}
+          onClose={vi.fn()}
+        />,
+      )
+      expect(screen.queryByRole('link', { name: 'Codexで開く' })).toBeNull()
+      unmount()
+    }
+  })
 })

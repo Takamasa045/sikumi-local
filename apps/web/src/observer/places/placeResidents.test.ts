@@ -352,6 +352,107 @@ describe('collectGardenActors', () => {
     )
   })
 
+  it('keeps a Codex launch target only for an unambiguous session', () => {
+    const threadId = '0193c0de-5a11-7abc-9def-0123456789ab'
+    const url = `codex://threads/${threadId}`
+    const [single] = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'my-blog', [
+          session({
+            id: 'run',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+            codexLaunchUrl: url,
+          }),
+        ]),
+      ]),
+    )
+    expect(single?.codexLaunchUrl).toBe(url)
+
+    const [aggregated] = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'my-blog', [
+          session({
+            id: 'run',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+            codexLaunchUrl: url,
+          }),
+          session({
+            id: 'git',
+            source: 'git',
+            displayName: '変更元不明',
+            title: '変更元不明の作業',
+            attributionConfidence: 'inferred',
+          }),
+        ]),
+      ]),
+    )
+    expect(aggregated?.codexLaunchUrl).toBeNull()
+
+    const pid = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'my-blog', [
+          session({
+            id: 'pid',
+            source: 'codex',
+            displayName: 'Codex',
+            title: 'APIを直している',
+            status: 'running',
+            activity: 'working',
+            codexLaunchUrl: `live:codex:repo-hataraki:pid:248`,
+          }),
+        ]),
+      ]),
+    )
+    expect(pid[0]?.codexLaunchUrl).toBeNull()
+
+    const streams = collectGardenActors(
+      overviewOf([
+        repository('repo_a', 'ws_a', 'hataraki', [
+          session({
+            id: 'grok',
+            source: 'grok-build',
+            surface: 'cli',
+            displayName: 'Grok Build',
+            title: '働きの画面を直している',
+            status: 'active',
+            activity: 'editing',
+            lastObservedAt: NOW,
+            lastObservedLabel: '1分前',
+          }),
+          session({
+            id: 'codex',
+            source: 'codex',
+            surface: 'desktop-app',
+            displayName: 'Codex',
+            title: '確認の仕組みを書いている',
+            status: 'active',
+            activity: 'editing',
+            lastObservedAt: NOW,
+            lastObservedLabel: '2分前',
+            codexLaunchUrl: url,
+          }),
+        ]),
+      ]),
+    )
+    const codexActor = streams.find((actor) =>
+      actor.workSummary.includes('確認の仕組み'),
+    )
+    const grokActor = streams.find((actor) =>
+      actor.workSummary.includes('働きの画面'),
+    )
+    expect(streams).toHaveLength(2)
+    expect(codexActor?.codexLaunchUrl).toBe(url)
+    expect(grokActor?.codexLaunchUrl).toBeNull()
+  })
+
   it('scatters quiet places across the back delivery ground', () => {
     const actors = collectGardenActors(
       overviewOf([

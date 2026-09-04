@@ -1,5 +1,15 @@
 import { z } from 'zod'
+import { isCodexLaunchUrl } from './codexDeepLink'
 import { authorizedHeaders, toApiError, writeWithCsrfRetry } from './session'
+
+const codexLaunchUrlSchema = z
+  .string()
+  .nullable()
+  .optional()
+  .refine(
+    (value) => value == null || isCodexLaunchUrl(value),
+    'codexLaunchUrl must be a sanitized codex://threads/<UUID> URL',
+  )
 
 const sessionViewSchema = z.object({
   id: z.string(),
@@ -13,6 +23,7 @@ const sessionViewSchema = z.object({
   goal: z.string().nullable().optional(),
   lastObservedAt: z.string(),
   lastObservedLabel: z.string().nullable(),
+  codexLaunchUrl: codexLaunchUrlSchema,
 })
 
 const worktreeViewSchema = z.object({

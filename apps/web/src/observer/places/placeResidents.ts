@@ -1,4 +1,5 @@
 import type { GardenStationId, Workspace } from '@sikumi-local/core'
+import { sanitizeCodexLaunchUrl } from '../../api/codexDeepLink'
 import type { TodayOverview } from '../../api/observer'
 import {
   describeGardenWork,
@@ -248,6 +249,7 @@ export type PlaceInspectCopy = {
 type GardenActorSource = PlaceResident & {
   readonly key: string
   readonly streamIndex: number
+  readonly codexLaunchUrl: string | null
 }
 
 export type GardenPlaceActor = {
@@ -277,6 +279,7 @@ export type GardenPlaceActor = {
   readonly jitterX: number
   readonly jitterY: number
   readonly streamIndex: number
+  readonly codexLaunchUrl: string | null
 }
 
 export function mentionsShikumi(value: string): boolean {
@@ -440,15 +443,14 @@ function expandGardenActorSources(
   )
   const sources: GardenActorSource[] = []
   for (const resident of residents) {
-    const streams = parallelLiveStreams(
-      repositories.get(resident.repositoryId)?.sessions ?? [],
-      nowMs,
-    )
+    const sessions = repositories.get(resident.repositoryId)?.sessions ?? []
+    const streams = parallelLiveStreams(sessions, nowMs)
     if (streams.length <= 1) {
       sources.push({
         ...resident,
         key: resident.repositoryId,
         streamIndex: 0,
+        codexLaunchUrl: unambiguousCodexLaunchUrl(sessions),
       })
       continue
     }
@@ -532,11 +534,30 @@ function residentForLiveStream(
     driverNote: describeObservedDriver([session], nowMs),
     workTool: everydayWorkTool(session, nowMs),
     streamIndex,
+    codexLaunchUrl: sessionCodexLaunchUrl(session),
   }
 }
 
 function hasSharedEverydayWork(resident: PlaceResident): boolean {
   return Boolean(resident.workStory || placeWorkLook(resident.placeIntro))
+}
+
+function unambiguousCodexLaunchUrl(
+  sessions: readonly OverviewSession[],
+): string | null {
+  if (sessions.length !== 1) {
+    return null
+  }
+  return sessionCodexLaunchUrl(sessions[0])
+}
+
+function sessionCodexLaunchUrl(
+  session: OverviewSession | undefined,
+): string | null {
+  if (!session || session.source !== 'codex') {
+    return null
+  }
+  return sanitizeCodexLaunchUrl(session.codexLaunchUrl)
 }
 
 function streamSpokenTitle(session: OverviewSession): string | null {
@@ -615,6 +636,7 @@ export function collectGardenActors(
         jitterX: ((hash % 7) - 3) * 0.18,
         jitterY: (((hash >>> 4) % 5) - 2) * 0.14,
         streamIndex: source.streamIndex,
+        codexLaunchUrl: source.codexLaunchUrl,
       }
     }),
   ).sort((left, right) => left.key.localeCompare(right.key))

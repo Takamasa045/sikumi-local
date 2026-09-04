@@ -7,6 +7,7 @@ import {
   OBSERVER_UI_MAX_FILES,
   OBSERVER_UI_MAX_REPOSITORIES,
   OBSERVER_UI_MAX_SESSIONS,
+  parseCodexDeepLink,
   relativeTimeLabel,
   summarizeAreas,
   type ConflictFinding,
@@ -58,6 +59,7 @@ export interface SessionView {
   readonly goal: string | null
   readonly lastObservedAt: string
   readonly lastObservedLabel: string | null
+  readonly codexLaunchUrl: string | null
 }
 
 export interface WorktreeView {
@@ -95,7 +97,9 @@ export function presentRepositoryActivity(
   if (mode === 'detail') {
     return {
       ...activity,
-      conflicts: activity.conflicts.map((item) => presentConflict(item, 'detail')),
+      conflicts: activity.conflicts.map((item) =>
+        presentConflict(item, 'detail'),
+      ),
     }
   }
   return {
@@ -105,7 +109,9 @@ export function presentRepositoryActivity(
       path: worktree.isPrimary ? 'primary' : `other-${index}`,
       branch: null,
     })),
-    conflicts: activity.conflicts.map((item) => presentConflict(item, 'simple')),
+    conflicts: activity.conflicts.map((item) =>
+      presentConflict(item, 'simple'),
+    ),
   }
 }
 
@@ -232,12 +238,12 @@ export function buildTodayOverview(
     ),
     conflictCount: repositories.reduce(
       (sum, item) =>
-        sum + item.conflicts.filter((conflict) => conflict.status === 'open').length,
+        sum +
+        item.conflicts.filter((conflict) => conflict.status === 'open').length,
       0,
     ),
     repositories: bounded.items,
-    truncated:
-      bounded.truncated || repositories.some((item) => item.truncated),
+    truncated: bounded.truncated || repositories.some((item) => item.truncated),
   }
 }
 
@@ -275,6 +281,11 @@ function toSessionView(
         : acceptGoalText(label?.title ?? session.title),
     lastObservedAt: session.lastObservedAt,
     lastObservedLabel: relativeTimeLabel(session.lastObservedAt),
+    codexLaunchUrl:
+      parseCodexDeepLink({
+        source: session.source,
+        externalSessionId: session.externalSessionId,
+      })?.url ?? null,
   }
 }
 

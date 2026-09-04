@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { GardenStationId } from '@sikumi-local/core'
+import { sanitizeCodexLaunchUrl } from '../api/codexDeepLink'
 import {
   isSpokenJapaneseTitle,
   softenRecordTitle,
@@ -31,6 +32,7 @@ export type GardenInspectSubject =
         readonly date?: string | null
       }[]
       readonly workTitles?: readonly string[]
+      readonly codexLaunchUrl?: string | null
     }
   | {
       readonly kind: 'station'
@@ -113,6 +115,7 @@ function CharacterBody({
   const live = subject.live !== false
   const articles = knownArticleTitles(subject.articleTitles)
   const works = articles.length > 0 ? [] : knownWorkTitles(subject.workTitles)
+  const codexLaunchUrl = sanitizeCodexLaunchUrl(subject.codexLaunchUrl)
   const nowLook = isGardenPlace
     ? subject.nowText
     : live
@@ -254,6 +257,20 @@ function CharacterBody({
                 <li key={title}>{title}</li>
               ))}
             </ul>
+          </dd>
+        </>
+      ) : null}
+      {codexLaunchUrl ? (
+        <>
+          <dt>Codex</dt>
+          <dd>
+            <a
+              className="garden-inspect__launch"
+              href={codexLaunchUrl}
+              rel="noreferrer"
+            >
+              Codexで開く
+            </a>
           </dd>
         </>
       ) : null}

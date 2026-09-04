@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ExternalSession, ResourceClaim } from '@sikumi-local/observer-core'
+import type {
+  ExternalSession,
+  ResourceClaim,
+} from '@sikumi-local/observer-core'
 import { buildRepositoryActivity } from './views.js'
 
 describe('observer views', () => {
@@ -218,7 +221,127 @@ describe('observer views', () => {
     })
     expect(generic.sessions[0]?.goal).toBeNull()
   })
+
+  it('exposes a sanitized Codex launch URL only from verified observer identities', () => {
+    const threadId = '0193c0de-5a11-7abc-9def-0123456789ab'
+    const uuid = buildRepositoryActivity(
+      activityInput([
+        externalSession({
+          id: '11111111-2222-4333-8444-555555555555',
+          source: 'codex',
+          externalSessionId: threadId,
+        }),
+      ]),
+    )
+    const live = buildRepositoryActivity(
+      activityInput([
+        externalSession({
+          id: '11111111-2222-4333-8444-555555555555',
+          source: 'codex',
+          externalSessionId: `live:codex:${threadId}`,
+        }),
+      ]),
+    )
+    expect(uuid.sessions[0]?.codexLaunchUrl).toBe(`codex://threads/${threadId}`)
+    expect(live.sessions[0]?.codexLaunchUrl).toBe(`codex://threads/${threadId}`)
+  })
+
+  it('never uses internal ids or pid identities as Codex launch targets', () => {
+    const internalId = '0193c0de-5a11-7abc-9def-0123456789ab'
+    const pid = buildRepositoryActivity(
+      activityInput([
+        externalSession({
+          id: internalId,
+          source: 'codex',
+          externalSessionId: `live:codex:${internalId}:pid:248`,
+        }),
+      ]),
+    )
+    const internalOnly = buildRepositoryActivity(
+      activityInput([
+        externalSession({
+          id: internalId,
+          source: 'codex',
+          externalSessionId: null,
+        }),
+      ]),
+    )
+    const other = buildRepositoryActivity(
+      activityInput([
+        externalSession({
+          id: internalId,
+          source: 'claude-code',
+          externalSessionId: internalId,
+        }),
+      ]),
+    )
+    expect(pid.sessions[0]?.codexLaunchUrl).toBeNull()
+    expect(internalOnly.sessions[0]?.codexLaunchUrl).toBeNull()
+    expect(other.sessions[0]?.codexLaunchUrl).toBeNull()
+  })
 })
+
+function activityInput(sessions: readonly ExternalSession[]) {
+  return {
+    repository: {
+      id: 'repo-a',
+      workspaceId: 'ws-a',
+      absolutePath: '/tmp/repo',
+      displayName: 'demo',
+      currentBranch: 'main',
+      readable: true,
+    },
+    snapshot: {
+      available: true,
+      reason: null,
+      repositoryRoot: '/tmp/repo',
+      displayName: 'demo',
+      branch: 'main',
+      headCommit: 'abc',
+      baseCommit: null,
+      latestRecordTitle: null,
+      workStory: null,
+      placeIntro: null,
+      articleTitles: [],
+      workTitles: [],
+      outgoingCount: 0,
+      incomingCount: 0,
+      worktrees: [],
+      changedFiles: [],
+      scannedAt: '2026-08-18T00:10:00.000Z',
+      truncated: false,
+    },
+    sessions,
+    labels: {},
+    conflicts: [],
+    claims: [],
+  } as const
+}
+
+function externalSession(
+  input: Pick<ExternalSession, 'id' | 'source' | 'externalSessionId'>,
+): ExternalSession {
+  return {
+    id: input.id,
+    source: input.source,
+    surface: 'desktop-app',
+    externalSessionId: input.externalSessionId,
+    workspaceId: 'ws-a',
+    repositoryId: 'repo-a',
+    cwd: '/tmp/repo',
+    worktreePath: '/tmp/repo',
+    branch: 'main',
+    baseCommit: null,
+    headCommit: null,
+    title: 'APIを直している',
+    status: 'active',
+    activity: 'editing',
+    attributionConfidence: 'verified',
+    startedAt: '2026-08-18T00:00:00.000Z',
+    lastObservedAt: '2026-08-18T00:09:00.000Z',
+    endedAt: null,
+  }
+}
 
 function session(
   input: Pick<ExternalSession, 'id' | 'surface' | 'title' | 'lastObservedAt'>,
@@ -245,11 +368,7 @@ function session(
   }
 }
 
-function claim(
-  sessionId: string,
-  path: string,
-  at: string,
-): ResourceClaim {
+function claim(sessionId: string, path: string, at: string): ResourceClaim {
   return {
     id: `${sessionId}-${path}`,
     externalSessionId: sessionId,

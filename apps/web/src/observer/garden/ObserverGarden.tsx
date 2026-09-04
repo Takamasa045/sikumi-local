@@ -255,6 +255,7 @@ export function ObserverGarden({
                       placeIntro: actor.placeIntro,
                       articleTitles: actor.articleTitles,
                       workTitles: actor.workTitles,
+                      codexLaunchUrl: actor.codexLaunchUrl,
                     })
                   }}
                 />
@@ -437,6 +438,7 @@ function liveInspectSubject(
     placeIntro: actor.placeIntro,
     articleTitles: actor.articleTitles,
     workTitles: actor.workTitles,
+    codexLaunchUrl: actor.codexLaunchUrl,
   }
 }
 

@@ -133,8 +133,8 @@ describe('world pack look', () => {
     expect(worlds[0]).toMatchObject({
       id: 'night-garden',
       lookName: '夜',
-      backgroundUrl: '/api/worlds/night-garden/assets/background.png',
-      atlasUrl: '/api/worlds/night-garden/assets/characters.png',
+      backgroundUrl: '/api/worlds/night-garden/assets/background.png?v=1.0.0',
+      atlasUrl: '/api/worlds/night-garden/assets/characters.png?v=1.0.0',
     })
 
     const background = readWorldPackAsset({

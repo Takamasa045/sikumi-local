@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { listGardenWorlds } from '../api/packs'
+import { preloadWorldPackAssets } from './worldAssetLoader'
 import {
   defaultWorldPackId,
   findWorldPack,
@@ -42,13 +43,23 @@ export function useGardenWorldPack(): {
 } {
   const [worldPackId, setWorldPackIdState] = useState(readGardenWorldPackId)
   const [packs, setPacks] = useState<readonly WorldPack[]>(worldPacks)
+  const initialWorldPackId = useRef(worldPackId)
 
   useEffect(() => {
     let cancelled = false
     void listGardenWorlds()
-      .then((worlds) => {
+      .then(async (installedWorlds) => {
+        const merged = mergeGardenWorldPacks(installedWorlds)
+        const selected = merged.find(
+          (pack) => pack.id === initialWorldPackId.current,
+        )
+        const isInstalled =
+          selected && !worldPacks.some((pack) => pack.id === selected.id)
+        if (selected && isInstalled) {
+          await preloadWorldPackAssets(selected)
+        }
         if (!cancelled) {
-          setPacks(mergeGardenWorldPacks(worlds))
+          setPacks(merged)
         }
       })
       .catch(() => {

@@ -60,8 +60,13 @@ export function worldPackDirectory(
   return join(dataDirectory, 'worlds', packId)
 }
 
-export function gardenWorldAssetUrl(packId: string, file: string): string {
-  return `/api/worlds/${encodeURIComponent(packId)}/assets/${encodeURIComponent(file)}`
+export function gardenWorldAssetUrl(
+  packId: string,
+  file: string,
+  version?: string,
+): string {
+  const path = `/api/worlds/${encodeURIComponent(packId)}/assets/${encodeURIComponent(file)}`
+  return version ? `${path}?v=${encodeURIComponent(version)}` : path
 }
 
 export function parseWorldYamlFields(root: string): Map<string, string> | null {
@@ -151,7 +156,7 @@ export function listInstalledGardenWorlds(
     if (!look) {
       continue
     }
-    worlds.push(toGardenWorld(look))
+    worlds.push(toGardenWorld(look, pack.version))
   }
   return worlds
 }
@@ -203,14 +208,18 @@ export function readWorldPackAsset(input: {
   }
 }
 
-function toGardenWorld(look: WorldPackLook): GardenWorld {
+function toGardenWorld(look: WorldPackLook, version: string): GardenWorld {
   return {
     id: look.id,
     name: look.name,
     lookName: look.lookName,
     description: look.description,
-    backgroundUrl: gardenWorldAssetUrl(look.id, look.backgroundFile),
-    atlasUrl: gardenWorldAssetUrl(look.id, look.atlasFile),
+    backgroundUrl: gardenWorldAssetUrl(
+      look.id,
+      look.backgroundFile,
+      version,
+    ),
+    atlasUrl: gardenWorldAssetUrl(look.id, look.atlasFile, version),
     atlasColumns: look.atlasColumns,
     atlasRows: look.atlasRows,
   }

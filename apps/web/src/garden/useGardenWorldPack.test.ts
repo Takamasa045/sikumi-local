@@ -5,8 +5,17 @@ import {
   readGardenWorldPackId,
   useGardenWorldPack,
 } from './useGardenWorldPack'
+import { preloadWorldPackAssets } from './worldAssetLoader'
+
+vi.mock('./worldAssetLoader', () => ({
+  preloadWorldPackAssets: vi.fn(),
+}))
+
+const preloadMock = vi.mocked(preloadWorldPackAssets)
 
 beforeEach(() => {
+  preloadMock.mockReset()
+  preloadMock.mockResolvedValue()
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
@@ -117,5 +126,47 @@ describe('useGardenWorldPack', () => {
       result.current.packs.find((pack) => pack.id === 'dog-office')
         ?.backgroundUrl,
     ).not.toContain('/api/worlds/')
+  })
+
+  it('keeps the current background until a stored installed look is ready', async () => {
+    let finishPreload: (() => void) | undefined
+    preloadMock.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishPreload = resolve
+        }),
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            worlds: [
+              {
+                id: 'night-garden',
+                name: '夜の庭',
+                lookName: '夜',
+                description: '',
+                backgroundUrl:
+                  '/api/worlds/night-garden/assets/background.png?v=1.0.0',
+                atlasUrl:
+                  '/api/worlds/night-garden/assets/characters.png?v=1.0.0',
+                atlasColumns: 3,
+                atlasRows: 4,
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+      ),
+    )
+    localStorage.setItem(GARDEN_WORLD_PACK_STORAGE_KEY, 'night-garden')
+
+    const { result } = renderHook(() => useGardenWorldPack())
+    await waitFor(() => expect(preloadMock).toHaveBeenCalledTimes(1))
+    expect(result.current.world.id).toBe('dog-office')
+
+    finishPreload?.()
+    await waitFor(() => expect(result.current.world.id).toBe('night-garden'))
   })
 })

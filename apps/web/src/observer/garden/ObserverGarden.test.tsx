@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   WORKING_WALK_FIRST_STEP_MS,
   WORKING_WALK_LANE_X,
@@ -15,9 +15,19 @@ import {
 import type { Workspace } from '@sikumi-local/core'
 import type { TodayOverview } from '../../api/observer'
 import { GARDEN_WORLD_PACK_STORAGE_KEY } from '../../garden/useGardenWorldPack'
+import { preloadWorldPackAssets } from '../../garden/worldAssetLoader'
 import { getWorldPack } from '../../garden/worlds'
 import { ObserverGarden } from './ObserverGarden'
 import { ANOTHER_LIVE_WORK } from '../places/placeResidents'
+
+vi.mock('../../garden/worldAssetLoader', () => ({
+  preloadWorldPackAssets: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(preloadWorldPackAssets).mockReset()
+  vi.mocked(preloadWorldPackAssets).mockResolvedValue()
+})
 
 type RepositoryView = TodayOverview['repositories'][number]
 type SessionView = RepositoryView['sessions'][number]
@@ -1349,13 +1359,17 @@ describe('ObserverGarden', () => {
     expect(screen.queryByRole('region', { name: '○○番の一覧' })).toBeNull()
   })
 
-  it('stays on the satoyama atelier until a look is chosen', () => {
+  it('stays on the satoyama atelier until a look is chosen', async () => {
     renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
 
     const garden = screen.getByRole('region', { name: '観測の庭' })
     const dogOffice = getWorldPack('dog-office')
     expect(garden).toHaveAttribute('data-world-pack', 'dog-office')
     expect(garden.style.backgroundImage).toContain(dogOffice.backgroundUrl)
+    expect(
+      screen.getByRole('button', { name: '庭の見た目：里山' }),
+    ).toHaveAttribute('aria-expanded', 'false')
+    await openGardenLookPicker()
     expect(gardenLookButton('里山')).toHaveAttribute('aria-pressed', 'true')
     expect(gardenLookButton('工房')).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByText('犬たちの里山アトリエ')).toBeVisible()
@@ -1387,6 +1401,7 @@ describe('ObserverGarden', () => {
       overviewOf([repository('repo_a', 'alpha', [])]),
     )
 
+    await openGardenLookPicker()
     await userEvent.click(gardenLookButton('工房'))
 
     const garden = screen.getByRole('region', { name: '観測の庭' })
@@ -1394,8 +1409,9 @@ describe('ObserverGarden', () => {
     expect(garden).toHaveAttribute('data-world-pack', 'craft-workshop')
     expect(garden.style.backgroundImage).toContain(workshop.backgroundUrl)
     expect(actorAtlasUrl('repo_a')).toContain(workshop.character.atlasUrl)
-    expect(gardenLookButton('工房')).toHaveAttribute('aria-pressed', 'true')
-    expect(gardenLookButton('里山')).toHaveAttribute('aria-pressed', 'false')
+    expect(
+      screen.getByRole('button', { name: '庭の見た目：工房' }),
+    ).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('職人工房')).toBeVisible()
     expect(screen.getByRole('button', { name: '仕事' })).toBeVisible()
     expect(screen.getByRole('button', { name: '届ける' })).toBeVisible()
@@ -1416,7 +1432,7 @@ describe('ObserverGarden', () => {
     expect(actorAtlasUrl('repo_a')).toBe(firstAtlas)
   })
 
-  it('keeps the satoyama / workshop switch under the heading, not clipped', () => {
+  it('keeps a compact garden look toggle under the heading', async () => {
     renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
 
     const headingGroup = screen
@@ -1426,6 +1442,11 @@ describe('ObserverGarden', () => {
     const look = screen.getByTestId('garden-look')
     expect(headingGroup).toContainElement(look)
     expect(look.className).toContain('observer-garden-look')
+    expect(
+      screen.getByRole('button', { name: '庭の見た目：里山' }),
+    ).toBeVisible()
+    expect(screen.queryByRole('group', { name: '庭を選ぶ' })).toBeNull()
+    await openGardenLookPicker()
     expect(gardenLookButton('里山')).toBeVisible()
     expect(gardenLookButton('工房')).toBeVisible()
     expect(gardenLookButton('里山')).toHaveClass('observer-garden-look-button')
@@ -1468,8 +1489,12 @@ describe('ObserverGarden', () => {
 
     renderGarden(overviewOf([repository('repo_a', 'alpha', [])]))
     await waitFor(() => {
-      expect(gardenLookButton('夜')).toBeVisible()
+      expect(
+        screen.getByRole('button', { name: '庭の見た目：里山' }),
+      ).toBeVisible()
     })
+    await openGardenLookPicker()
+    expect(gardenLookButton('夜')).toBeVisible()
     expect(gardenLookButton('里山')).toBeVisible()
     expect(gardenLookButton('工房')).toBeVisible()
 
@@ -1490,10 +1515,14 @@ describe('ObserverGarden', () => {
 })
 
 function gardenLookButton(name: string) {
-  return within(screen.getByRole('group', { name: '庭の様子' })).getByRole(
+  return within(screen.getByRole('group', { name: '庭を選ぶ' })).getByRole(
     'button',
     { name },
   )
+}
+
+async function openGardenLookPicker() {
+  await userEvent.click(screen.getByRole('button', { name: /庭の見た目：/ }))
 }
 
 function actorSprite(repositoryId: string): HTMLElement {

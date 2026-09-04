@@ -33,7 +33,10 @@ test('a zip world pack becomes a selectable garden look', async ({ page }) => {
   await expect(page.getByTestId('pack-list')).toContainText('example-garden')
 
   await page.getByRole('link', { name: '庭' }).click()
-  const look = page.getByRole('group', { name: '庭の様子' })
+  const lookToggle = page.getByRole('button', { name: '庭の見た目：里山' })
+  await expect(lookToggle).toBeVisible()
+  await lookToggle.click()
+  const look = page.getByRole('group', { name: '庭を選ぶ' })
   await expect(look.getByRole('button', { name: '里山' })).toBeVisible()
   await expect(look.getByRole('button', { name: '工房' })).toBeVisible()
   await expect(look.getByRole('button', { name: '見本' })).toBeVisible()

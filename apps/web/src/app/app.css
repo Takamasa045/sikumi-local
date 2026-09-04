@@ -2791,75 +2791,147 @@ footer span {
 }
 
 .observer-garden.observer-garden--satoyama .observer-garden-look {
-  display: inline-flex;
-  align-items: stretch;
-  overflow: hidden;
-  border: 1px solid rgba(244, 234, 216, 0.28);
-  border-radius: 999px;
-  background: rgba(28, 24, 18, 0.28);
-}
-
-.observer-garden.observer-garden--satoyama .observer-garden-look-button {
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  padding: 5px 10px;
-  opacity: 0.72;
-}
-
-.observer-garden.observer-garden--satoyama
-  .observer-garden-look-button[aria-pressed='true'] {
-  background: rgba(244, 234, 216, 0.2);
-  opacity: 1;
-}
-
-/* Garden look switch must stay readable and inside overflow:hidden */
-.observer-garden.observer-garden--satoyama .observer-garden-nav {
-  flex-wrap: wrap;
-  align-items: flex-start;
-  row-gap: 10px;
-}
-
-.observer-garden.observer-garden--satoyama .observer-garden-heading-group {
-  max-width: min(100%, 22rem);
+  position: relative;
+  width: min(18rem, 100%);
+  margin-top: 8px;
   pointer-events: auto;
 }
 
-.observer-garden.observer-garden--satoyama .observer-garden-look {
-  display: inline-flex;
-  align-items: stretch;
-  flex: 0 0 auto;
-  flex-wrap: wrap;
-  margin-top: 8px;
-  overflow: visible;
+.observer-garden.observer-garden--satoyama .observer-garden-nav {
+  align-items: flex-start;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-heading-group {
+  max-width: min(100%, 20rem);
+  pointer-events: auto;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-look-toggle {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 42px;
+  padding: 7px 10px 7px 12px;
   border: 1px solid rgba(28, 24, 18, 0.62);
   border-radius: 999px;
   background: rgba(244, 234, 216, 0.94);
+  color: #1c1a17;
+  font-family: inherit;
+  text-align: left;
   box-shadow: 0 1px 0 rgba(40, 28, 16, 0.22);
+  cursor: pointer;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-toggle:hover,
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-toggle:focus-visible {
+  background: #fff8eb;
+  outline: 2px solid rgba(63, 81, 54, 0.72);
+  outline-offset: 2px;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-toggle-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  opacity: 0.66;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-toggle strong {
+  overflow: hidden;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-toggle-icon {
+  font-size: 12px;
+  transition: transform 160ms ease;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-toggle[aria-expanded='true']
+  .observer-garden-look-toggle-icon {
+  transform: rotate(180deg);
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-look-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 12;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  max-height: min(46vh, 18rem);
+  padding: 6px;
+  overflow-y: auto;
+  border: 1px solid rgba(28, 24, 18, 0.42);
+  border-radius: 14px;
+  background: rgba(250, 241, 225, 0.98);
+  box-shadow: 0 12px 28px rgba(28, 24, 18, 0.28);
 }
 
 .observer-garden.observer-garden--satoyama .observer-garden-look-button {
   appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
   margin: 0;
   border: 0;
-  border-radius: 999px;
+  border-radius: 9px;
   background: transparent;
-  padding: 8px 16px;
+  padding: 10px 12px;
   color: #1c1a17;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   line-height: 1.2;
   opacity: 1;
   cursor: pointer;
+  text-align: left;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-button:hover,
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-button:focus-visible {
+  background: rgba(63, 81, 54, 0.12);
+  outline: 2px solid rgba(63, 81, 54, 0.58);
+  outline-offset: -2px;
 }
 
 .observer-garden.observer-garden--satoyama
   .observer-garden-look-button[aria-pressed='true'] {
   background: #3f5136;
   color: #f4ead8;
-  opacity: 1;
+}
+
+.observer-garden.observer-garden--satoyama
+  .observer-garden-look-button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.observer-garden.observer-garden--satoyama .observer-garden-look-error {
+  width: 18rem;
+  margin: 6px 0 0;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: rgba(82, 33, 24, 0.9);
+  color: #fff7ea;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .observer-garden.observer-garden--satoyama .observer-garden-nav-workshop {
@@ -2882,12 +2954,7 @@ footer span {
   }
 
   .observer-garden.observer-garden--satoyama .observer-garden-look {
-    width: 100%;
-  }
-
-  .observer-garden.observer-garden--satoyama .observer-garden-look-button {
-    flex: 1 1 auto;
-    text-align: center;
+    width: min(17rem, calc(100vw - 64px));
   }
 }
 

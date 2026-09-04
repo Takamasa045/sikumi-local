@@ -98,7 +98,10 @@ export function registerPackRoutes(
     })
   })
 
-  app.get<{ Params: { packId: string; file: string } }>(
+  app.get<{
+    Params: { packId: string; file: string }
+    Querystring: { v?: string }
+  }>(
     '/api/worlds/:packId/assets/:file',
     async (request, reply) => {
       const asset = readWorldPackAsset({
@@ -107,9 +110,20 @@ export function registerPackRoutes(
         packId: request.params.packId,
         file: request.params.file,
       })
+      const installedVersion = store.findPack(
+        'world',
+        request.params.packId,
+      )?.version
+      const hasCurrentVersion =
+        request.query.v !== undefined && request.query.v === installedVersion
       return reply
         .type(asset.contentType)
-        .header('Cache-Control', 'private, no-store')
+        .header(
+          'Cache-Control',
+          hasCurrentVersion
+            ? 'private, max-age=31536000, immutable'
+            : 'private, no-cache',
+        )
         .send(asset.body)
     },
   )

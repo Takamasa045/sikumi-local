@@ -77,8 +77,8 @@ describe('garden world pack assets', () => {
         name: '夜の庭',
         lookName: '夜',
         description: '',
-        backgroundUrl: '/api/worlds/night-garden/assets/background.png',
-        atlasUrl: '/api/worlds/night-garden/assets/characters.png',
+        backgroundUrl: '/api/worlds/night-garden/assets/background.png?v=1.0.0',
+        atlasUrl: '/api/worlds/night-garden/assets/characters.png?v=1.0.0',
         atlasColumns: 3,
         atlasRows: 4,
       },
@@ -86,13 +86,23 @@ describe('garden world pack assets', () => {
 
     const image = await injectPublic(app, {
       method: 'GET',
-      url: '/api/worlds/night-garden/assets/background.png',
+      url: '/api/worlds/night-garden/assets/background.png?v=1.0.0',
     })
     expect(image.statusCode).toBe(200)
     expect(image.headers['content-type']).toMatch(/image\/png/)
+    expect(image.headers['cache-control']).toBe(
+      'private, max-age=31536000, immutable',
+    )
     expect(Buffer.from(image.rawPayload).subarray(0, 8)).toEqual(
       Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
     )
+
+    const unversionedImage = await injectPublic(app, {
+      method: 'GET',
+      url: '/api/worlds/night-garden/assets/background.png',
+    })
+    expect(unversionedImage.statusCode).toBe(200)
+    expect(unversionedImage.headers['cache-control']).toBe('private, no-cache')
 
     const builtin = await injectPublic(app, {
       method: 'GET',

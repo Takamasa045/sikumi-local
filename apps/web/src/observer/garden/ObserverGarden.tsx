@@ -11,6 +11,7 @@ import {
   GardenInspect,
   type GardenInspectSubject,
 } from '../../garden/GardenInspect'
+import { GardenLookPicker } from '../../garden/GardenLookPicker'
 import { poseGesture } from '../../garden/motion'
 import { usePrefersReducedMotion } from '../../garden/usePrefersReducedMotion'
 import { useGardenWorldPack } from '../../garden/useGardenWorldPack'
@@ -170,26 +171,11 @@ export function ObserverGarden({
           <div className="observer-garden-heading-group">
             <h2 className="observer-garden-heading">観測の庭</h2>
             <p className="observer-garden-sign">{world.name}</p>
-            <div
-              className="observer-garden-look"
-              role="group"
-              aria-label="庭の様子"
-              data-testid="garden-look"
-            >
-              {packs.map((pack) => (
-                <button
-                  key={pack.id}
-                  type="button"
-                  className="observer-garden-nav-button observer-garden-look-button"
-                  aria-pressed={world.id === pack.id}
-                  onClick={() => {
-                    setWorldPackId(pack.id)
-                  }}
-                >
-                  {pack.lookName}
-                </button>
-              ))}
-            </div>
+            <GardenLookPicker
+              packs={packs}
+              world={world}
+              onSelect={setWorldPackId}
+            />
           </div>
           <div className="observer-garden-nav-actions">
             <button
